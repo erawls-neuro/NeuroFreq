@@ -55,6 +55,7 @@ function tfRes = nf_stft(data,Fs,window,overlap,fRes,plt)
 % ------------
 % 2/10/24 ER: made compatible with analytic signals
 % 4/5/24 ER: fix window normalization
+% 9/16/25 ER: bug fix for complex signals (cap at Fs/2)
 
 %defaults
 if nargin<6 || isempty(plt)
@@ -110,8 +111,12 @@ end
 %is signal complex?
 if ~isreal(data)
     fra = 'twosided';
+    scalef = 1; %power scaling - for complex we do not need to multiply
+    lengf  = 0.5; %freq cutting - for complex negative frequencies need removed
 else
     fra='onesided';
+    scalef = 2; %power scaling - for one-sided we need to multiply by two
+    lengf  = 1; %freq cutting - for real no negative frequencies
 end
 
 %find current version of matlab - if >R2019a stft, else spectrogram
@@ -120,6 +125,11 @@ if ~verLessThan('matlab','9.6') %stft was not introduced until 2019a
     [~,f,t] = stft(single(squeeze(data(1,:,1))),Fs,...
         'Window',w,'OverlapLength',o,'FrequencyRange',fra,...
         'FFTLength',round(Fs/fRes)); %test
+    if strcmp(fra,'twosided')
+        f = f(1:(length(f)*lengf)+1); %cut frequencies
+    else
+        f = f(1:(length(f)*lengf)); %do not cut frequencies
+    end
     specPow = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
     specPhas = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
     %progress
@@ -128,10 +138,11 @@ if ~verLessThan('matlab','9.6') %stft was not introduced until 2019a
     %sensor loop
     for i = 1:nChan
         dataY=squeeze(data(i,:,:)); %one channel of data
-        [specDat,f,t] = stft(single(dataY),Fs,...
+        specDat = stft(single(dataY),Fs,...
             'Window',w,'OverlapLength',o,'FrequencyRange',fra,...
             'FFTLength',round(Fs/fRes)); %stft
-        specDat = specDat./sum(w); %normalize
+        specDat = specDat( 1:length(f), :, : ); %drop negative freqs (if complex)
+        specDat = (scalef*specDat)./sum(w); %normalize and scale
         specPow(i,:,:,:) = abs(specDat).^2; %square magnitude
         specPhas(i,:,:,:) = angle(specDat); %argument
         %update progress
@@ -142,6 +153,11 @@ if ~verLessThan('matlab','9.6') %stft was not introduced until 2019a
 else
     %test run - figure out returned times/frequencies for preallocation
     [~,f,t] = spectrogram(single(squeeze(data(1,:,1))),w,o,round(Fs/fRes),Fs); %test
+    if strcmp(fra,'twosided')
+        f = f(1:(length(f)*lengf)+1); %cut frequencies
+    else
+        f = f(1:(length(f)*lengf)); %do not cut frequencies
+    end
     specPow = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
     specPhas = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
     %progress
@@ -153,7 +169,8 @@ else
         for trl = 1:nTrls
             dataY=squeeze(data(i,:,trl)); %one trial of data
             specDat = spectrogram(single(dataY),w,o,round(Fs/fRes),Fs); %spectrogram
-            specDat = specDat./sum(w); %normalize
+            specDat = specDat( 1:length(f), :, : ); %drop negative freqs (if complex)
+            specDat = (scalef*specDat)./sum(w); %normalize
             specPow(i,:,:,trl) = abs(specDat).^2; %square magnitude
             specPhas(i,:,:,trl) = angle(specDat); %argument
             %update progress
