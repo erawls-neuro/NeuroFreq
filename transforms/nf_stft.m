@@ -55,7 +55,7 @@ function tfRes = nf_stft(data,Fs,window,overlap,fRes,plt)
 % ------------
 % 2/10/24 ER: made compatible with analytic signals
 % 4/5/24 ER: fix window normalization
-% 9/16/25 ER: bug fix for complex signals (cap at Fs/2)
+% 9/16/25 ER: fix frange for complex signals (cap at Fs/2)
 
 %defaults
 if nargin<6 || isempty(plt)
