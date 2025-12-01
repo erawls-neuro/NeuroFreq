@@ -1,4 +1,6 @@
 function TF = nf_rmerp( TF, trlvec, scale )
+% NF_RMERP    Removes the trial-averaged ERP from TF sets
+%
 % GENERAL
 % -------
 % Removes the trial-averaged ERP from TF sets. Reconstitutes analytic
@@ -18,30 +20,6 @@ function TF = nf_rmerp( TF, trlvec, scale )
 %     between single-trial EEG and the ERP? default 0 (no)
 %
 %
-% E. Rawls, erawls89@gmail.com, rawls017@umn.edu.
-% July 2023
-% Copyright (c) 2023 by E. Rawls.
-%
-% This program is free software; you can redistribute it and/or modify
-% it under the terms of the GNU General Public License as published by
-% the Free Software Foundation; either version 3 of the License, or
-% (at your option) any later version.
-%
-% This program is distributed in the hope that it will be useful,
-% but WITHOUT ANY WARRANTY; without even the implied warranty of
-% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-% GNU General Public License for more details.
-%
-% You should have received a copy of the GNU General Public License
-% along with this program; if not, write to the Free Software
-% Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-%
-%
-% ===========
-% Change Log:
-% ===========
-% 5/17/24: ER began returning single trial ERP amplitudes
-% 5/23/24: ER removed option "plot", add option 'scale'
 
 
 if nargin<3 || isempty(scale)

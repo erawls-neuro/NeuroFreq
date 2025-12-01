@@ -1,4 +1,5 @@
 function parm_spec = nf_specparam( spec, freqs, varargin )
+% NF_SPECPARAM    MATLAB implementation of specparam.
 %
 % GENERAL
 % -------

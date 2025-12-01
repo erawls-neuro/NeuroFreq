@@ -28,7 +28,7 @@ TF4 = nf_demodulation(dataClean,Fs,foi);               %complex demodulation
 TF5 = nf_cwt(dataClean,Fs);                            %Continuous Wavelet
 TF5.freqs = TF5.freqs(TF5.freqs<=150);
 TF5.power = TF5.power(TF5.freqs<=150,:);
-TF6 = nf_dcwt(dataClean,Fs,foi);                    %Morlet wavelet
+TF6 = nf_dcwt(dataClean,Fs,foi);                      %Morlet dcwt:
 TF7 = nf_stransform(dataClean,Fs);                     %Stockwell Transform
 TF7.freqs = TF7.freqs(TF7.freqs<=150);
 TF7.power = TF7.power(TF7.freqs<=150,:);
@@ -44,7 +44,7 @@ TF11 = nf_demodulation(dataNoisy,Fs,foi);              %complex demodulation
 TF12 = nf_cwt(dataNoisy,Fs);                           %Continuous Wavelet
 TF12.freqs = TF12.freqs(TF12.freqs<=150);
 TF12.power = TF12.power(TF12.freqs<=150,:);
-TF13 = nf_dcwt(dataNoisy,Fs,foi);                   %Morlet wavelet
+TF13 = nf_dcwt(dataNoisy,Fs,foi);                   %Morlet dcwt:
 TF14 = nf_stransform(dataNoisy,Fs);                    %Stockwell Transform
 TF14.freqs = TF14.freqs(TF14.freqs<=150);
 TF14.power = TF14.power(TF14.freqs<=150,:);

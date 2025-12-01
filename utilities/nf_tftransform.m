@@ -1,4 +1,6 @@
 function [tfRes,p] = nf_tftransform(EEG,varargin)
+% NF_TFTRANSFORM    Quickly and flexibly return time-frequency transformations for input EEG data.
+%
 % GENERAL
 % -------
 % The main TF transformation function of NeuroFreq. Quickly and flexibly 

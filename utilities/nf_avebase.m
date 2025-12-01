@@ -1,4 +1,6 @@
 function TF = nf_avebase( TF, method, blTimes, trlvec, avmode )
+% NF_AVEBASE    Averages/baselines TF structures
+%
 % GENERAL
 % -------
 % Averages/baselines TF structures from tftransform or from tf_fun. 
@@ -20,33 +22,6 @@ function TF = nf_avebase( TF, method, blTimes, trlvec, avmode )
 % 5) avmode - 'mean' or 'median'
 %
 %
-% E. Rawls, erawls89@gmail.com, rawls017@umn.edu. 
-% July 2023
-% Copyright (c) 2023 by E. Rawls.
-% 
-% This program is free software; you can redistribute it and/or modify
-% it under the terms of the GNU General Public License as published by
-% the Free Software Foundation; either version 3 of the License, or
-% (at your option) any later version.
-%
-% This program is distributed in the hope that it will be useful,
-% but WITHOUT ANY WARRANTY; without even the implied warranty of
-% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-% GNU General Public License for more details.
-%
-% You should have received a copy of the GNU General Public License
-% along with this program; if not, write to the Free Software
-% Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-%
-%
-% ===========
-% Change Log:
-% ===========
-% 5/17/24: ER modified to include averaging scaled single-trial
-%   ERPs from erp removal (Cohen and Donner 2013)
-% 5/23/24: ER removed option "plot"
-% 2/24/25: ER fixed zscore baseline correction to only compute std over
-%   baseline time points rather than all times
 
 
 if nargin<5 || isempty(avmode)

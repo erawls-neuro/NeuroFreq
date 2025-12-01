@@ -1,4 +1,6 @@
 function tfRes = nf_demodulation(data,Fs,freqs,lowpassF,order,plt)
+% NF_DEMODULATION    Calculates time-frequency of an input dataset (1/2/3D) using complex demodulation.
+%
 % GENERAL
 % -------
 % Calculates time-frequency of an input dataset (1/2/3D) using complex
@@ -32,30 +34,6 @@ function tfRes = nf_demodulation(data,Fs,freqs,lowpassF,order,plt)
 % 5) order: order of butterworth filter, defaults to 3
 % 6) plt: plot result? 0 or 1, defaults to 0
 %
-% -----
-% E. Rawls, erawls89@gmail.com, rawls017@umn.edu.
-% July 2023
-% Copyright (c) 2023 by E. Rawls.
-%
-% This program is free software; you can redistribute it and/or modify
-% it under the terms of the GNU General Public License as published by
-% the Free Software Foundation; either version 3 of the License, or
-% (at your option) any later version.
-%
-% This program is distributed in the hope that it will be useful,
-% but WITHOUT ANY WARRANTY; without even the implied warranty of
-% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-% GNU General Public License for more details.
-%
-% You should have received a copy of the GNU General Public License
-% along with this program; if not, write to the Free Software
-% Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-%
-%
-%
-% Change Log
-% ------------
-% 2/10/24 ER: made compatible with analytic signals
 
 %no plot default
 if nargin<6 || isempty(plt)
@@ -102,7 +80,14 @@ for fi=1:numel(freqs) %frequency loop
 end
 
 %make Butterworth low-pass filter
-[a1,b1] = butter(order, lowpassF/(Fs/2), 'low');
+[b1,a1] = butter(order, lowpassF/(Fs/2), 'low');
+
+% make bank of demodulating signals
+H = zeros(numel(freqs), nTimes * nTrls);
+for fi = 1:numel(freqs)
+    H(fi, :) = exp(-2 * 1i * pi * freqs(fi) .* ti);
+end
+Hconj = conj(H);  % <-- cache once
 
 %demodulate data
 prog=1;
@@ -113,17 +98,17 @@ for elec=1:nChan
     %one sensor of data
     dataY=data(elec,:);
     %demodulate by multiplying with complex oscillation
-    demD = dataY.*H; %note - mag is 1/2 amplitude, correct later
+    demD = dataY.*H;
     %filter
-    fD = filtfilt(a1,b1,double(demD)')';
+    fD = filtfilt(b1,a1,double(demD)')';
     %multiply by oscillation's complex conjugate
-    fD = fD.*conj(H);
+    fD = fD.*Hconj;
     %extract
     demPow(elec,:,:) = abs(fD).^2;
     demPhas(elec,:,:) = angle(fD); %get phase angle
     %update progress bar
-    prog=100*(fi/numel(freqs));
-    fprintf(1,'\b\b\b\b%3.0f%%',prog);
+    prog = 100 * (elec / nChan);
+    fprintf(1, '\b\b\b\b%3.0f%%', prog);
 end
 fprintf(1,'\n');
 

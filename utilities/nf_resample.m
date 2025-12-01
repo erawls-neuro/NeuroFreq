@@ -1,4 +1,5 @@
 function TF = nf_resample( TF, tVec, fVec )
+% NF_RESAMPLE    Resamples TF sets to new time/frequency vectors
 %
 % GENERAL
 % -------
@@ -16,27 +17,6 @@ function TF = nf_resample( TF, tVec, fVec )
 % 3) fVec - new freq vector. data is interpolated to new freqs
 %
 %
-% E. Rawls, erawls89@gmail.com, rawls017@umn.edu. 
-% July 2023
-% Copyright (c) 2023 by E. Rawls.
-% 
-% This program is free software; you can redistribute it and/or modify
-% it under the terms of the GNU General Public License as published by
-% the Free Software Foundation; either version 3 of the License, or
-% (at your option) any later version.
-%
-% This program is distributed in the hope that it will be useful,
-% but WITHOUT ANY WARRANTY; without even the implied warranty of
-% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-% GNU General Public License for more details.
-%
-% You should have received a copy of the GNU General Public License
-% along with this program; if not, write to the Free Software
-% Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-%
-%
-% Change log:
-% 12/14/24: ER made outputs double
 
 
 if nargin<3

@@ -1,4 +1,6 @@
 function tfRes = nf_stft(data,Fs,window,overlap,fRes,plt)
+% NF_STFT    Calculates time-frequency of an input dataset (1/2/3D) using short-time Fourier transform.
+%
 % GENERAL
 % -------
 % Calculates time-frequency of an input dataset (1/2/3D) using short-time
@@ -30,32 +32,7 @@ function tfRes = nf_stft(data,Fs,window,overlap,fRes,plt)
 % 5) fRes: frequency resolution, defaults to 1 Hz
 % 6) plt: plot result? 0 or 1, defaults to 0
 %
-% ------
-% E. Rawls, erawls89@gmail.com, rawls017@umn.edu. 
-% July 2023
-% Copyright (c) 2023 by E. Rawls.
-% 
-% This program is free software; you can redistribute it and/or modify
-% it under the terms of the GNU General Public License as published by
-% the Free Software Foundation; either version 3 of the License, or
-% (at your option) any later version.
-%
-% This program is distributed in the hope that it will be useful,
-% but WITHOUT ANY WARRANTY; without even the implied warranty of
-% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-% GNU General Public License for more details.
-%
-% You should have received a copy of the GNU General Public License
-% along with this program; if not, write to the Free Software
-% Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-%
-%
-%
-% Change Log
-% ------------
-% 2/10/24 ER: made compatible with analytic signals
-% 4/5/24 ER: fix window normalization
-% 9/16/25 ER: fix frange for complex signals (cap at Fs/2)
+
 
 %defaults
 if nargin<6 || isempty(plt)
