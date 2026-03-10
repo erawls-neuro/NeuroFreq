@@ -52,24 +52,28 @@ else
 end
 
 %first average a version of the TF - this way we have total power
-TFcpm = nf_avebase( TF, 'none', [], trlvec, 0 );
+try
+    TFcpm = nf_avebase( TF, 'none', [], trlvec, 'mean' );
+catch
+    keyboard
+end
 
 %get trial info
 conds = unique(trlvec);
 
 %preallocate cpm
 if flagsens~=1
-    TFcpm.cpm.PLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
-    TFcpm.cpm.PLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
-    TFcpm.cpm.NPLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
-    TFcpm.cpm.NPLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
-    TFcpm.cpm.alpha = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
+    PLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
+    PLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
+    NPLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
+    NPLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
+    alpha = zeros(size(TFcpm.power,1),size(TFcpm.power,2),size(TFcpm.power,3),numel(conds));
 else
-    TFcpm.cpm.PLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
-    TFcpm.cpm.PLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
-    TFcpm.cpm.NPLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
-    TFcpm.cpm.NPLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
-    TFcpm.cpm.alpha = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
+    PLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
+    PLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
+    NPLmean = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
+    NPLvar = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
+    alpha = zeros(size(TFcpm.power,1),size(TFcpm.power,2),numel(conds));
 end
 
 for n=1:numel(conds)
@@ -105,11 +109,11 @@ for n=1:numel(conds)
         Br_mean_est = pi * 0.5 * zz;
         Br_var_est = 2 * (mean(R_array.^2,4) .* cos(est_alpha).^2 - mean(I_array.^2,4) .* sin(est_alpha).^2) ./ cos(2 * est_alpha) - Br_mean_est.^2;
         %add to preallocated output
-        TFcpm.cpm.PLmean(:,:,:,n) = Ar_mean_est;
-        TFcpm.cpm.PLvar(:,:,:,n) = Ar_var_est;
-        TFcpm.cpm.NPLmean(:,:,:,n) = Br_mean_est;
-        TFcpm.cpm.NPLvar(:,:,:,n) = Br_var_est;
-        TFcpm.cpm.alpha(:,:,:,n) = est_alpha;
+        PLmean(:,:,:,n) = Ar_mean_est;
+        PLvar(:,:,:,n) = Ar_var_est;
+        NPLmean(:,:,:,n) = Br_mean_est;
+        NPLvar(:,:,:,n) = Br_var_est;
+        alpha(:,:,:,n) = est_alpha;
     else
         % estimate alpha
         est_alpha = atan2(mean(R_array,3), mean(I_array,3));
@@ -125,16 +129,19 @@ for n=1:numel(conds)
         Br_mean_est = pi * 0.5 * zz;
         Br_var_est = 2 * (mean(R_array.^2,3) .* cos(est_alpha).^2 - mean(I_array.^2,3) .* sin(est_alpha).^2) ./ cos(2 * est_alpha) - Br_mean_est.^2;
         %add to preallocated output
-        TFcpm.cpm.PLmean(:,:,n) = Ar_mean_est;
-        TFcpm.cpm.PLvar(:,:,n) = Ar_var_est;
-        TFcpm.cpm.NPLmean(:,:,n) = Br_mean_est;
-        TFcpm.cpm.NPLvar(:,:,n) = Br_var_est;
-        TFcpm.cpm.alpha(:,:,n) = est_alpha;
+        PLmean(:,:,n) = Ar_mean_est;
+        PLvar(:,:,n) = Ar_var_est;
+        NPLmean(:,:,n) = Br_mean_est;
+        NPLvar(:,:,n) = Br_var_est;
+        alpha(:,:,n) = est_alpha;
     end
     
 end
 
+TFcpm.power_evoked = PLmean;
+TFcpm.power_induced = NPLmean;
+TFcpm.cpm.pl_var = PLvar;
+TFcpm.cpm.npl_var = NPLvar;
+TFcpm.cpm.alpha = alpha;
+
 end
-
-
-

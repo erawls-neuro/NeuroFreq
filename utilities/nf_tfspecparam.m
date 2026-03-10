@@ -3,48 +3,31 @@ function TF = nf_tfspecparam(TF, varargin)
 %
 % GENERAL
 % -------
-% SPRiNT (Wilson et al., 2022) rewritten for use with TF structures output
-% by tfUtility/tf_fun. Computes a time-resolved spectral parameterization
-% using matspecparam.m.
+% Time resolved spectral parameterization (Wilson et al., 2022) rewritten
+% for use with TF structures output by nf_tftransform.m. Computes a
+% time-resolved spectral parameterization using nf_specparam.m.
+%
+% If nf_specparam fails (errors) for ANY time slice within a given trial,
+% that entire trial is removed from ALL trial-resolved data fields after
+% parameterization completes (including TF.behavior if present).
 %
 % Accepts TF transforms calculated using any method. Automatically detects
 % if power values are on a linear scale and converts to log scale.
 %
-% If code is used please cite:
-% Wilson, L. E., da Silva Castanheira, J., & Baillet, S. (2022).
-% Time-resolved parameterization of aperiodic and periodic brain activity.
-% Elife, 11, e77348.
-%
-% Please also cite BrainStorm software:
-% François Tadel, Sylvain Baillet, John C. Mosher, Dimitrios Pantazis,
-% Richard M. Leahy, "Brainstorm: A User-Friendly Application for MEG/EEG
-% Analysis", Computational Intelligence and Neuroscience, vol. 2011,
-% Article ID 879716, 13 pages, 2011. https://doi.org/10.1155/2011/879716
-%
-% The spectral parameterization method should be cited as
-%
-% Donoghue, T., Haller, M., Peterson, E. J., Varma, P., Sebastian, P.,
-% Gao, R., ... & Voytek, B. (2020). Parameterizing neural power spectra
-% into periodic and aperiodic components. Nature neuroscience, 23(12),
-% 1655-1665.
-%
-%
 % OUTPUT
 % ------
-% TF.SPRiNT fields (all log10 scale)
-%   Aperiodic (all log10):
-%     TF.SPRiNT.ap_power    : C×F×T×R (fit or data per 'FoD')
-%     TF.SPRiNT.osc_power   : C×F×T×R (fit or data per 'FoD')
-%     TF.SPRiNT.rsquare     : C×T×R
-%     TF.SPRiNT.mae         : C×T×R
-%     TF.SPRiNT.ap_offset   : C×T×R
-%     TF.SPRiNT.ap_knee     : C×T×R (NaN if 'fixed')
-%     TF.SPRiNT.ap_exponent : C×T×R
+% TF.specparam fields (all log10 scale)
+%   Aperiodic:
+%     TF.specparam.rsquare     : C×T×R
+%     TF.specparam.mae         : C×T×R
+%     TF.specparam.ap_offset   : C×T×R
+%     TF.specparam.ap_knee     : C×T×R (NaN if 'fixed')
+%     TF.specparam.ap_exponent : C×T×R
 %   Peaks (ALL peaks per slice, parfor-safe numeric arrays; padded with NaN):
-%     TF.SPRiNT.pk_n        : C×T×R    (#peaks detected)
-%     TF.SPRiNT.pk_f        : C×K×T×R  (Hz)        K = maxPeaks
-%     TF.SPRiNT.pk_aLog10   : C×K×T×R  (log10 power height)
-%     TF.SPRiNT.pk_sd       : C×K×T×R  (Hz)
+%     TF.specparam.pk_n        : C×T×R    (#peaks detected)
+%     TF.specparam.pk_f        : C×K×T×R  (Hz)        K = maxPeaks
+%     TF.specparam.pk_aLog10   : C×K×T×R  (log10 power height)
+%     TF.specparam.pk_sd       : C×K×T×R  (Hz)
 %
 % INPUT
 % -----
@@ -66,188 +49,520 @@ function TF = nf_tfspecparam(TF, varargin)
 %
 
 
-% Parse options
 p = inputParser;
-valid2Scalar = @(x) numel(x)==2 && isnumeric(x) && isvector(x);
-expectedPeakType = @(x) any(validatestring(x,{'gaussian','cauchy'}));
-expectedAPModes  = @(x) any(validatestring(x,{'knee','fixed'}));
-expectedFoD      = @(x) any(validatestring(x,{'fit','data'}));
 
-addRequired(p,'TF');
-addParameter(p,'peakWidthLims',[0.5 12],valid2Scalar);
-addParameter(p,'maxPeaks',numel(TF.freqs),@(x)isscalar(x)&&x>=0);
-addParameter(p,'minPeakHeight',0,@isscalar);
-addParameter(p,'aPeriodicMode','fixed',expectedAPModes);
-addParameter(p,'peakThreshold',2.0,@isscalar);
-addParameter(p,'peakType','gaussian',expectedPeakType);
-addParameter(p,'threshAfter',1,@(x) isscalar(x)&&ismember(x,[0 1]));
-addParameter(p,'optim',1,@(x) isscalar(x)&&ismember(x,[0 1]));
-addParameter(p,'FoD','fit',expectedFoD);
-parse(p,TF,varargin{:});
+valid2Scalar = @(x) numel(x) == 2 && isnumeric(x) && isvector(x);
+expectedPeakType = @(x) any(validatestring(x, {'gaussian', 'cauchy'}));
+expectedAPModes = @(x) any(validatestring(x, {'knee', 'fixed'}));
+expectedFoD = @(x) any(validatestring(x, {'fit', 'data'}));
+
+addRequired(p, 'TF');
+
+addParameter(p, 'peakWidthLims', [0.5 12], valid2Scalar);
+addParameter(p, 'maxPeaks', [], @(x) isempty(x) || (isscalar(x) && isnumeric(x) && x >= 0));
+addParameter(p, 'minPeakHeight', 0, @isscalar);
+addParameter(p, 'aPeriodicMode', 'fixed', expectedAPModes);
+addParameter(p, 'peakThreshold', 2.0, @isscalar);
+addParameter(p, 'peakType', 'gaussian', expectedPeakType);
+addParameter(p, 'threshAfter', 1, @(x) isscalar(x) && ismember(x, [0 1]));
+addParameter(p, 'optim', 1, @(x) isscalar(x) && ismember(x, [0 1]));
+addParameter(p, 'FoD', 'fit', expectedFoD);
+
+parse(p, TF, varargin{:});
 opt = p.Results;
 
-% Sanity & shape
-if ~isfield(TF,'power') || ~isfield(TF,'freqs') || ~isfield(TF,'scale')
-    error('TF.power, TF.freqs, TF.scale are required.');
-end
-freqs = TF.freqs(:);
-surf  = TF.power;             % C×F×T[×R]
-if ndims(surf)==3
-    surf = reshape(surf, size(surf,1), size(surf,2), size(surf,3), 1);
-end
-[C,F,T,R] = size4d(surf);
-if F ~= numel(freqs)
-    error('Second dimension of TF.power (F=%d) differs from numel(TF.freqs) (%d).', F, numel(freqs));
+if ~isfield(TF, 'freqs')
+    error('TF.freqs is required.');
 end
 
-% Convert to log10 if needed (we keep TF.power in log10 afterwards)
-if ~isfield(TF,'scale') || ~(strcmpi(TF.scale,'linear') || strcmpi(TF.scale,'log10'))
+if ~isfield(TF, 'scale')
+    error('TF.scale is required.');
+end
+
+if ~isfield(TF, 'power')
+    error('TF.power is required.');
+end
+
+if ~isfield(TF, 'nsensor')
+    error('TF.nsensor is required.');
+end
+
+if ~isfield(TF, 'ntrls')
+    error('TF.ntrls is required.');
+end
+
+freqs = TF.freqs(:);
+
+if isempty(opt.maxPeaks)
+    opt.maxPeaks = numel(freqs);
+end
+
+if ~(strcmpi(TF.scale, 'linear') || strcmpi(TF.scale, 'log10'))
     error('TF.scale must be ''linear'' or ''log10''.');
 end
-if strcmpi(TF.scale,'linear')
-    surf(surf<=0) = eps;
-    surf = log10(surf);
-    TF.power = surf;
+
+powFields = nf_find_power_fields_local(TF);
+
+if strcmpi(TF.scale, 'linear')
+    for i = 1:numel(powFields)
+        name = powFields{i};
+        X = TF.(name);
+        X(X <= 0) = eps;
+        TF.(name) = log10(X);
+    end
     TF.scale = 'log10';
 end
 
-% Allocate outputs
-aperiodic_log = zeros(C,F,T,R,'like',surf);
-osc_log       = zeros(C,F,T,R,'like',surf);
-rsq           = zeros(C,T,R);
-mae           = zeros(C,T,R);
+powFields = nf_find_power_fields_local(TF);
 
-ap_offset     = nan(C,T,R);
-ap_knee       = nan(C,T,R);
-ap_exponent   = nan(C,T,R);
+badTrialsAll = false(1, TF.ntrls);
 
-K             = max(1, round(opt.maxPeaks));   % cap
-pk_n          = zeros(C,T,R);                  % #peaks detected (untruncated)
-pk_f          = nan(C,K,T,R);                  % Hz
-pk_aLog10     = nan(C,K,T,R);                  % log10(power) height
-pk_sd         = nan(C,K,T,R);                  % Hz
+for i = 1:numel(powFields)
 
-% Main loop
-fprintf(1,'SPRiNT (nf_tfspecparam) progress:   0%%');
-parfor ch = 1:C
-    % local slices (parfor-friendly)
-    aperiodic_log_ch = zeros(F,T,R);
-    osc_log_ch       = zeros(F,T,R);
-    rsq_ch           = zeros(T,R);
-    mae_ch           = zeros(T,R);
-    ap_offset_ch     = nan(T,R);
-    ap_knee_ch       = nan(T,R);
-    ap_exponent_ch   = nan(T,R);
-    pk_n_ch          = zeros(T,R);
-    pk_f_ch          = nan(K,T,R);
-    pk_aLog10_ch     = nan(K,T,R);
-    pk_sd_ch         = nan(K,T,R);
-    
-    for r = 1:R
-        % extract channel x trial slab → T×F (each row one time-slice)
-        spec_log10_TR = squeeze(surf(ch,:,:,r)).'; % T×F
+    srcName = powFields{i};
+
+    if nf_is_param_power_field_local(srcName) == 1
+        continue
+    end
+
+    surf = TF.(srcName);
+
+    [ap_log, osc_log, specparam, badTrialsThis] = nf_tfspecparam_core_local(surf, freqs, opt, strcmpi(srcName, 'power'));
+
+    TF.([srcName '_osc']) = osc_log;
+    TF.([srcName '_ap']) = ap_log;
+
+    if isfield(TF,'conds')
+        if numel(badTrialsThis) ~= TF.conds
+            error('Bad-trial mask length mismatch: got %d, expected %d.', numel(badTrialsThis), TF.conds);
+        end
+    elseif numel(badTrialsThis) ~= TF.ntrls
+        error('Bad-trial mask length mismatch: got %d, expected %d.', numel(badTrialsThis), TF.ntrls);
+    end
+
+    badTrialsAll = badTrialsAll | badTrialsThis(:).';
+
+    if strcmpi(srcName, 'power')
+        TF.specparam = specparam;
+        TF.specparam.method = 'nf_tfspecparam';
+        TF.specparam.options = opt;
+        TF.specparam.power_osc_field = 'power_osc';
+        TF.specparam.power_ap_field = 'power_ap';
+    end
+
+end
+
+if any(badTrialsAll)
+    keepIdx = ~badTrialsAll;
+    removedIdx = find(badTrialsAll);
+
+    TF = nf_remove_trials_local(TF, keepIdx);
+
+    if isfield(TF, 'specparam') && isstruct(TF.specparam)
+        TF.specparam.removed_trials = removedIdx(:);
+        TF.specparam.n_removed_trials = numel(removedIdx);
+        TF.specparam.removal_reason = 'nf_specparam error in at least one time slice';
+    end
+end
+
+TF = nf_powerfront_local(TF);
+
+end
+
+function [ap_log, osc_log, specparam, badTrials] = nf_tfspecparam_core_local(surf, freqs, opt, keepspecparam)
+
+Fref = numel(freqs);
+
+nd = ndims(surf);
+
+if nd == 2
+    error('Power field must be 3D or 4D.');
+end
+
+if nd == 3
+
+    if size(surf, 2) == Fref
+        surf = reshape(surf, size(surf, 1), size(surf, 2), size(surf, 3), 1);
+    elseif size(surf, 1) == Fref
+        surf = reshape(surf, 1, size(surf, 1), size(surf, 2), size(surf, 3));
+    else
+        error('Cannot infer power field layout relative to freqs.');
+    end
+
+end
+
+if nd == 4
+    if size(surf, 2) ~= Fref
+        error('Second dimension of power must match numel(freqs).');
+    end
+end
+
+[C, F, T, R] = size4d_local(surf);
+
+if F ~= Fref
+    error('Second dimension of power (F=%d) differs from numel(freqs) (%d).', F, Fref);
+end
+
+K = max(1, round(opt.maxPeaks));
+
+if K > 200
+    warning('maxPeaks is %d. Peak arrays will be large: C×K×T×R. Consider reducing maxPeaks.', K);
+end
+
+ap_log = zeros(C, F, T, R, 'like', surf);
+osc_log = zeros(C, F, T, R, 'like', surf);
+
+rsq = zeros(C, T, R);
+mae = zeros(C, T, R);
+
+ap_offset = nan(C, T, R);
+ap_knee = nan(C, T, R);
+ap_exponent = nan(C, T, R);
+
+pk_n = zeros(C, T, R);
+pk_f = nan(C, K, T, R);
+pk_aLog10 = nan(C, K, T, R);
+pk_sd = nan(C, K, T, R);
+
+badTrials = false(1, R);
+
+freqRow = double(freqs).';
+
+fprintf(1, 'Time-frequency spectral parameterization progress:   0%%');
+
+for ch = 1:C
+
+    ap_ch = zeros(F, T, R, 'like', surf);
+    osc_ch = zeros(F, T, R, 'like', surf);
+
+    rsq_ch = zeros(T, R);
+    mae_ch = zeros(T, R);
+
+    ap_offset_ch = nan(T, R);
+    ap_knee_ch = nan(T, R);
+    ap_exp_ch = nan(T, R);
+
+    pk_n_ch = zeros(T, R);
+    pk_f_ch = nan(K, T, R);
+    pk_a_ch = nan(K, T, R);
+    pk_sd_ch = nan(K, T, R);
+
+    bad_ch = false(1, R);
+
+    % Critical: make sure workers are not in "stop on error" debug state.
+    spmd
+        warning('off','all');
+        dbclear if error
+        dbclear if warning
+    end
+
+    parfor r = 1:R
+
+        trialFailed = 0;
+
+        ap_r = nan(F, T, 'like', surf);
+        osc_r = nan(F, T, 'like', surf);
+
+        rsq_r = nan(T, 1);
+        mae_r = nan(T, 1);
+
+        ap_offset_r = nan(T, 1);
+        ap_knee_r = nan(T, 1);
+        ap_exp_r = nan(T, 1);
+
+        pk_n_r = nan(T, 1);
+        pk_f_r = nan(K, T, 'like', surf);
+        pk_a_r = nan(K, T, 'like', surf);
+        pk_sd_r = nan(K, T, 'like', surf);
+
+        spec_log10_TR = squeeze(surf(ch, :, :, r)).';
+
         for t = 1:T
-            dataX = spec_log10_TR(t,:);   % 1×F log10 power
-            parm = nf_specparam( dataX, freqs, ...
-                'aPeriodicMode', opt.aPeriodicMode, ...  
-                'minPeakHeight', opt.minPeakHeight, ...
-                'peakThreshold', opt.peakThreshold, ...
-                'peakType',      opt.peakType, ...
-                'peakWidthLims', opt.peakWidthLims, ...
-                'threshAfter',   opt.threshAfter, ...
-                'optim',         opt.optim, ...
-                'plt',           0 );                %#ok
-            
-            % spectra (log10)
-            if strcmpi(opt.FoD,'fit')
-                aperiodic_log_ch(:,t,r) = parm.aPeriodicFit(:);
-                osc_log_ch(:,t,r)       = parm.PeriodicFit(:);
-            else
-                aperiodic_log_ch(:,t,r) = parm.aPeriodicData(:);
-                osc_log_ch(:,t,r)       = parm.PeriodicData(:);
+
+            dataX = spec_log10_TR(t, :);
+
+            try
+                parm = nf_specparam(dataX, freqRow, ...
+                    'aPeriodicMode', opt.aPeriodicMode, ...
+                    'minPeakHeight', opt.minPeakHeight, ...
+                    'peakThreshold', opt.peakThreshold, ...
+                    'peakType', opt.peakType, ...
+                    'peakWidthLims', opt.peakWidthLims, ...
+                    'threshAfter', opt.threshAfter, ...
+                    'optim', opt.optim, ...
+                    'plt', 0); %#ok
+            catch
+                trialFailed = 1;
+                break
             end
-            
-            % fit quality
-            rsq_ch(t,r) = parm.RSquare;
-            mae_ch(t,r) = parm.MAE;
-            
-            % aperiodic params → [offset, knee(=NaN if fixed), exponent]
+
+            if strcmpi(opt.FoD, 'fit')
+                ap_r(:, t) = parm.aPeriodicFit(:);
+                osc_r(:, t) = parm.PeriodicFit(:);
+            else
+                ap_r(:, t) = parm.aPeriodicData(:);
+                osc_r(:, t) = parm.PeriodicData(:);
+            end
+
+            rsq_r(t) = parm.RSquare;
+            mae_r(t) = parm.MAE;
+
             apv = parm.aperiodicParms(:).';
-            if strcmpi(parm.options.aPeriodicMode,'fixed')
-                ap_offset_ch(t,r)   = apv(1);
-                ap_knee_ch(t,r)     = NaN;
-                ap_exponent_ch(t,r) = apv(2);
+
+            if strcmpi(parm.options.aPeriodicMode, 'fixed')
+                ap_offset_r(t) = apv(1);
+                ap_knee_r(t) = NaN;
+                ap_exp_r(t) = apv(2);
             else
-                ap_offset_ch(t,r)   = apv(1);
-                ap_knee_ch(t,r)     = apv(2);
-                ap_exponent_ch(t,r) = apv(3);
+                ap_offset_r(t) = apv(1);
+                ap_knee_r(t) = apv(2);
+                ap_exp_r(t) = apv(3);
             end
-            
-            % ALL peaks (Nx3), truncate/pad to K
-            pk = parm.peakParms;           % [f0, ampLog10, sd]
-            n  = size(pk,1);
-            pk_n_ch(t,r) = n;
+
+            pk = parm.peakParms;
+            n = size(pk, 1);
+
+            pk_n_r(t) = n;
+
             if n > 0
                 nuse = min(n, K);
-                pk_f_ch(1:nuse,t,r)      = pk(1:nuse,1);
-                pk_aLog10_ch(1:nuse,t,r) = pk(1:nuse,2);
-                pk_sd_ch(1:nuse,t,r)     = pk(1:nuse,3);
+                pk_f_r(1:nuse, t) = pk(1:nuse, 1);
+                pk_a_r(1:nuse, t) = pk(1:nuse, 2);
+                pk_sd_r(1:nuse, t) = pk(1:nuse, 3);
+            end
+
+        end
+
+        bad_ch(r) = logical(trialFailed);
+
+        ap_ch(:, :, r) = ap_r;
+        osc_ch(:, :, r) = osc_r;
+
+        rsq_ch(:, r) = rsq_r;
+        mae_ch(:, r) = mae_r;
+
+        ap_offset_ch(:, r) = ap_offset_r;
+        ap_knee_ch(:, r) = ap_knee_r;
+        ap_exp_ch(:, r) = ap_exp_r;
+
+        pk_n_ch(:, r) = pk_n_r;
+        pk_f_ch(:, :, r) = pk_f_r;
+        pk_a_ch(:, :, r) = pk_a_r;
+        pk_sd_ch(:, :, r) = pk_sd_r;
+
+    end
+
+    badTrials = badTrials | bad_ch;
+
+    ap_log(ch, :, :, :) = reshape(ap_ch, [1 F T R]);
+    osc_log(ch, :, :, :) = reshape(osc_ch, [1 F T R]);
+
+    rsq(ch, :, :) = reshape(rsq_ch, [1 T R]);
+    mae(ch, :, :) = reshape(mae_ch, [1 T R]);
+
+    ap_offset(ch, :, :) = reshape(ap_offset_ch, [1 T R]);
+    ap_knee(ch, :, :) = reshape(ap_knee_ch, [1 T R]);
+    ap_exponent(ch, :, :) = reshape(ap_exp_ch, [1 T R]);
+
+    pk_n(ch, :, :) = reshape(pk_n_ch, [1 T R]);
+    pk_f(ch, :, :, :) = reshape(pk_f_ch, [1 K T R]);
+    pk_aLog10(ch, :, :, :) = reshape(pk_a_ch, [1 K T R]);
+    pk_sd(ch, :, :, :) = reshape(pk_sd_ch, [1 K T R]);
+
+    fprintf(1, '\b\b\b\b%3d%%', round(100 * ch / C));
+
+end
+
+fprintf(1, '\n');
+
+if keepspecparam == 1
+    specparam = struct();
+    specparam.rsquare = rsq;
+    specparam.mae = mae;
+    specparam.ap_offset = ap_offset;
+    specparam.ap_knee = ap_knee;
+    specparam.ap_exponent = ap_exponent;
+    specparam.pk_n = pk_n;
+    specparam.pk_f = pk_f;
+    specparam.pk_aLog10 = pk_aLog10;
+    specparam.pk_sd = pk_sd;
+else
+    specparam = struct();
+end
+
+end
+
+function TF = nf_remove_trials_local(TF, keepIdx)
+
+if isfield(TF,'conds')
+    nOld = TF.conds;
+elseif isfield(TF,'ntrls') && TF.ntrls>1
+    nOld = TF.ntrls;
+else
+    error('Either TF.conds (averaged) or TF.trials > 1 required for removal.');
+end
+
+keepIdx = keepIdx(:).';
+nNew = sum(keepIdx);
+
+fn = fieldnames(TF);
+
+for i = 1:numel(fn)
+
+    name = fn{i};
+    val = TF.(name);
+
+    if isnumeric(val)
+
+        nd = ndims(val);
+        sz = size(val);
+
+        if nd >= 3
+            if sz(nd) == nOld
+                idx = repmat({':'}, 1, nd);
+                idx{nd} = keepIdx;
+                TF.(name) = val(idx{:});
+            end
+        end
+
+    elseif istable(val)
+
+        if height(val) == nOld
+            TF.(name) = val(keepIdx, :);
+        end
+
+    elseif isstruct(val)
+
+        if strcmpi(name, 'behavior')
+            TF.(name) = TF.(name)(keepIdx);
+        end
+
+        if strcmpi(name, 'specparam') || strcmpi(name, 'cpm')
+            fn2 = fieldnames(TF.(name));
+            for j = 1:numel(fn2)
+                name2 = fn2{j};
+                val2 = TF.(name).(name2);
+                if isnumeric(val2)
+                    nd2 = ndims(val2);
+                    sz2 = size(val2);
+                    if sz2(nd2) == nOld
+                        idx2 = repmat({':'}, 1, nd2);
+                        idx2{nd2} = keepIdx;
+                        TF.(name).(name2) = val2(idx2{:});
+                    end
+                end
             end
         end
     end
-    
-    % write back this channel’s slab
-    aperiodic_log(ch,:,:,:) = aperiodic_log_ch;
-    osc_log(ch,:,:,:)       = osc_log_ch;
-    rsq(ch,:,:)             = rsq_ch;
-    mae(ch,:,:)             = mae_ch;
-    
-    ap_offset(ch,:,:)       = ap_offset_ch;
-    ap_knee(ch,:,:)         = ap_knee_ch;
-    ap_exponent(ch,:,:)     = ap_exponent_ch;
-    
-    pk_n(ch,:,:)            = pk_n_ch;
-    pk_f(ch,:,:,:)          = pk_f_ch;
-    pk_aLog10(ch,:,:,:)     = pk_aLog10_ch;
-    pk_sd(ch,:,:,:)         = pk_sd_ch;
-    
-    % light progress (best-effort; harmless in parfor)
-    fprintf(1,'\b\b\b\b%3d%%', round(100*ch/C));
+
+    if isfield(TF,'conds')
+        TF.conds = nNew;
+    else
+        TF.ntrls = nNew;
+    end
+
 end
-fprintf(1,'\n');
-
-% Package outputs
-TF.SPRiNT = struct();
-TF.SPRiNT.ap_power    = aperiodic_log;      % C×F×T×R (log10)
-TF.SPRiNT.osc_power   = osc_log;            % C×F×T×R (log10)
-TF.SPRiNT.rsquare     = rsq;                % C×T×R
-TF.SPRiNT.mae         = mae;                % C×T×R
-
-TF.SPRiNT.ap_offset   = ap_offset;          % C×T×R
-TF.SPRiNT.ap_knee     = ap_knee;            % C×T×R
-TF.SPRiNT.ap_exponent = ap_exponent;        % C×T×R
-
-% ALL peaks
-TF.SPRiNT.pk_n        = pk_n;               % C×T×R (#peaks detected)
-TF.SPRiNT.pk_f        = pk_f;               % C×K×T×R (Hz)
-TF.SPRiNT.pk_aLog10   = pk_aLog10;          % C×K×T×R (log10 power height)
-TF.SPRiNT.pk_sd       = pk_sd;              % C×K×T×R (Hz)
-
-end % function
+end
 
 
-% helpers
-function [C,F,T,R] = size4d(X)
+function tf = nf_is_param_power_field_local(name)
+
+tf = 0;
+
+if endsWith(lower(name), '_ap')
+    tf = 1;
+end
+
+if endsWith(lower(name), '_osc')
+    tf = 1;
+end
+
+end
+
+function powFields = nf_find_power_fields_local(TF)
+
+fn = fieldnames(TF);
+
+powFields = {};
+
+for i = 1:numel(fn)
+
+    name = fn{i};
+    val = TF.(name);
+
+    if isnumeric(val)
+        if contains(lower(name), 'power')
+            powFields{end + 1, 1} = name; %#ok
+        end
+    end
+
+end
+
+idx = find(strcmpi(powFields, 'power'));
+
+if ~isempty(idx)
+    powFields(idx) = [];
+    powFields = [{'power'}; powFields];
+end
+
+end
+
+function TF = nf_powerfront_local(TF)
+
+fn = fieldnames(TF);
+
+pow = {};
+other = {};
+
+for i = 1:numel(fn)
+
+    name = fn{i};
+    val = TF.(name);
+
+    if isnumeric(val)
+        if contains(lower(name), 'power')
+            pow{end + 1, 1} = name; %#ok
+        else
+            other{end + 1, 1} = name; %#ok
+        end
+    else
+        other{end + 1, 1} = name; %#ok
+    end
+
+end
+
+idx = find(strcmpi(pow, 'power'));
+
+if ~isempty(idx)
+    pow(idx) = [];
+    pow = [{'power'}; pow];
+end
+
+order = [pow; other];
+
+TF = orderfields(TF, order);
+
+end
+
+function [C, F, T, R] = size4d_local(X)
+
 sz = size(X);
+
 C = sz(1);
 F = sz(2);
-T = 1; R = 1;
-if numel(sz)>=3, T = sz(3); end
-if numel(sz)>=4, R = sz(4); end
+
+T = 1;
+R = 1;
+
+if numel(sz) >= 3
+    T = sz(3);
 end
 
+if numel(sz) >= 4
+    R = sz(4);
+end
 
-
+end
 
 
 

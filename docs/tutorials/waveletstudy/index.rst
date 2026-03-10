@@ -38,7 +38,7 @@ Calculate a wavelet transform using the default parameters:
 .. code-block:: matlab
 
   TF = nf_tftransform(EEG,'plt',0,'freqs',foi,'times',toi,...
-    'method',  'wavelet');           %Morlet discretized wavelet
+    'method',  'dcwt');           %Morlet discretized wavelet
 
 Now, average the TF structure into congruent/incongruent trials. Trial-level information is contained in the 'behavior' field of TF sets output by NeuroFreq. Apply a baseline using %-change:
 

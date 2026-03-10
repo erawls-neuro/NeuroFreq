@@ -3,206 +3,427 @@ function TF = nf_avebase( TF, method, blTimes, trlvec, avmode )
 %
 % GENERAL
 % -------
-% Averages/baselines TF structures from tftransform or from tf_fun. 
-% Power is averaged and optionally baseline corrected according to either 
-% dB, %-change, or z-score. If the signal contains phase, phase is 
+% Averages/baselines TF structures from nf_tftransform.m
+% Power is averaged and optionally baseline corrected according to either
+% dB, %-change, or z-score. If the signal contains phase, phase is
 % processed into ITC.
 %
 % OUTPUT
 % ------
-% TF - structure output by nf_tftransform.m and tf functions (averaged)
+% TF - structure output by nf_tftransform.m (averaged)
 %
 % INPUT
 % -----
-% 1) TF - structure output by tfUtility.m and tf_fun functions
+% 1) TF - structure output by nf_tftransform.m
 % 2) method - 'none', 'zscore', 'db', 'percent'
 % 3) blTimes - [min max] times for baseline, in ms
-% 4) trlvec - vector describing which trials to average together. Each 
+% 4) trlvec - vector describing which trials to average together. Each
 %     unique value in the vector is taken to be a different trial type.
 % 5) avmode - 'mean' or 'median'
 %
-%
 
-
-if nargin<5 || isempty(avmode)
+if nargin < 5 || isempty(avmode)
     disp('No averaging mode supplied - using mean');
     avmode = 'mean';
 end
-if nargin<4 || isempty(trlvec)
+
+if nargin < 4 || isempty(trlvec)
     disp('No trial vector supplied - averaging all trials together');
-    trlvec = ones(1, size(TF.power,ndims(TF.power)));
+    trlvec = ones(1, size(TF.power, ndims(TF.power)));
 end
-if nargin<3 || isempty(blTimes)
+
+if nargin < 3 || isempty(blTimes)
     disp('no times provided, using all times before 0');
-    blTimes = find( TF.times<=0 );
+    blIdx = find(TF.times <= 0);
 else
-    blTimes = find( (TF.times>=blTimes(1)) + (TF.times<=blTimes(end)) == 2);
+    blIdx = find((TF.times >= blTimes(1)) + (TF.times <= blTimes(end)) == 2);
 end
-if nargin<2 || isempty(method)
-    method='none';
+
+if nargin < 2 || isempty(method)
+    method = 'none';
 else
-    method=lower(method);
+    method = lower(method);
 end
-if nargin<1 || isempty(TF)
+
+if nargin < 1 || isempty(TF)
     error('at least a TF structure is required input');
 end
 
-%check if already averaged
-if TF.ntrls==1
+if ~isfield(TF, 'power')
+    error('TF.power is required');
+end
+
+if ~isfield(TF, 'times')
+    error('TF.times is required');
+end
+
+if ~isfield(TF, 'scale')
+    error('TF.scale is required');
+end
+
+if ~(strcmpi(TF.scale, 'linear') || strcmpi(TF.scale, 'log10'))
+    error('TF.scale must be ''linear'' or ''log10''.');
+end
+
+if isempty(blIdx)
+    error('Baseline index is empty. Check TF.times and blTimes.');
+end
+
+trlvec = trlvec(:).';
+
+if ~isfield(TF, 'ntrls')
+    error('TF.ntrls is required');
+end
+
+if TF.ntrls == 1
     error('TF is already averaged (ntrls = 1)');
 end
-if TF.nsensor==1
-    flagsens=1;
-else
-    flagsens=0;
+
+if ~isfield(TF, 'nsensor')
+    error('TF.nsensor is required');
 end
 
-%get trial info
+if TF.nsensor == 1
+    flagsens = 1;
+else
+    flagsens = 0;
+end
+
+nTrials = size(TF.power, ndims(TF.power));
+
+if numel(trlvec) ~= nTrials
+    error('trlvec length (%d) does not match number of trials in TF.power (%d).', numel(trlvec), nTrials);
+end
+
 conds = unique(trlvec);
 
-%preallocate power/phase
-sz = size(TF.power);
-sz=sz(1:end-1);
-newpower = zeros([sz,numel(conds)]);
-%if we have phase
-if isfield(TF,'phase')
-    newphase = zeros([sz,numel(conds)]);
+powFields = nf_find_power_fields_local(TF);
+
+newPow = struct();
+
+for i = 1:numel(powFields)
+
+    name = powFields{i};
+    X = TF.(name);
+
+    if size(X, ndims(X)) ~= nTrials
+        error('Power field %s has %d trials; expected %d.', name, size(X, ndims(X)), nTrials);
+    end
+
+    sz = size(X);
+    sz = sz(1:end-1);
+    newPow.(name) = zeros([sz, numel(conds)], 'like', X);
+
 end
-%if tf is parameterized
-if isfield(TF,'SPRiNT') %parameterized
-    newosc = zeros([sz,numel(conds)]);
-    newap = zeros([sz,numel(conds)]);
+
+if isfield(TF, 'phase')
+    szp = size(TF.phase);
+    szp = szp(1:end-1);
+    newphase = zeros([szp, numel(conds)], 'like', TF.phase);
 end
-%if erp was removed
-if isfield(TF,'erprem') %erp-removed
-    newerprempow = zeros([sz,numel(conds)]);
-    newerppow = zeros([sz,numel(conds)]);
-    newerpremphase = zeros([sz,numel(conds)]);
-end
-%loop thru conditions
-if isfield(TF,'behavior')
+
+if isfield(TF, 'behavior')
     newBeh = TF.behavior;
-    newBeh(numel(conds)+1:end)=[];
+    newBeh(numel(conds) + 1:end) = [];
 end
-for n=1:numel(conds)
-    if flagsens==0
-        %get only condition-specific power
-        condP = TF.power(:,:,:,find(trlvec==conds(n)));
-        %average power over trials
-        newpower(:,:,:,n) = corrP(condP,blTimes,method,flagsens,avmode);
-        %get parameterized
-        if isfield(TF,'SPRiNT') %parameterized
-            condap = TF.SPRiNT.ap_power(:,:,:,find(trlvec==conds(n)));
-            condosc = TF.SPRiNT.osc_power(:,:,:,find(trlvec==conds(n)));
-            newap(:,:,:,n) = corrP(condap,blTimes,method,flagsens,avmode);
-            newosc(:,:,:,n) = corrP(condosc,blTimes,method,flagsens,avmode);
-        end
-        %get ITC
-        if isfield(TF,'phase')
-            condphase = TF.phase(:,:,:,find(trlvec==conds(n)));
-            newphase(:,:,:,n) = squeeze(abs(mean(exp(1i*condphase),4)));
-        end
-        %get erp removed
-        if isfield(TF,'erprem') %erp-removed
-            conderprempow = TF.erprem.erprempow(:,:,:,find(trlvec==conds(n)));
-            conderpremphase = TF.erprem.erpremphase(:,:,:,find(trlvec==conds(n)));
-            newerprempow(:,:,:,n) = corrP(conderprempow,blTimes,method,flagsens,avmode);
-            newerpremphase(:,:,:,n) = squeeze(abs(mean(exp(1i*conderpremphase),4)));
-            conderppow = TF.erprem.erppow(:,:,:,find(trlvec==conds(n)));
-            newerppow(:,:,:,n) = corrP(conderppow,blTimes,method,flagsens,avmode);
-        end
+
+for n = 1:numel(conds)
+
+    idx = find(trlvec == conds(n));
+
+    if isscalar(idx)
+        warning(['condition ' num2str(n) ' has only one trial...']);
+        flagst = 1;
     else
-        %get only condition-specific power
-        condP = TF.power(:,:,find(trlvec==conds(n)));
-        %average power over trials
-        newpower(:,:,n) = corrP(condP,blTimes,method,flagsens,avmode);
-        %get parameterized
-        if isfield(TF,'SPRiNT') %parameterized
-            condap = TF.SPRiNT.ap_power(:,:,find(trlvec==conds(n)));
-            condosc = TF.SPRiNT.osc_power(:,:,find(trlvec==conds(n)));
-            newap(:,:,n) = corrP(condap,blTimes,method,flagsens,avmode);
-            newosc(:,:,n) = corrP(condosc,blTimes,method,flagsens,avmode);
+        flagst = 0;
+    end
+
+    for i = 1:numel(powFields)
+
+        name = powFields{i};
+        X = TF.(name);
+
+        if flagsens == 0
+            condP = X(:,:,:,idx);
+            newPow.(name)(:,:,:,n) = corrP(condP, blIdx, method, flagsens, avmode, TF.scale, flagst);
+        else
+            condP = X(:,:,idx);
+            newPow.(name)(:,:,n) = corrP(condP, blIdx, method, flagsens, avmode, TF.scale, flagst);
         end
-        %get ITC
-        if isfield(TF,'phase')
-            condphase = TF.phase(:,:,find(trlvec==conds(n)));
-            newphase(:,:,n) = squeeze(abs(mean(exp(1i*condphase),3)));
+
+    end
+
+    if isfield(TF, 'phase')
+        if flagsens == 0
+            condphase = TF.phase(:,:,:,idx);
+            newphase(:,:,:,n) = squeeze(abs(mean(exp(1i .* condphase), 4)));
+        else
+            condphase = TF.phase(:,:,idx);
+            newphase(:,:,n) = squeeze(abs(mean(exp(1i .* condphase), 3)));
         end
     end
-    %set trials/erp
-    TF.trlerp(n)=numel(find(trlvec==conds(n)));
-    %get behavior
-    if isfield(TF,'behavior')
-        newBeh(n) = fieldfun( @(varargin) nanmean([varargin{:}]), TF.behavior(find(trlvec==conds(n))) );
+
+    TF.trlerp(n) = numel(idx);
+
+    if isfield(TF, 'behavior')
+        newBeh(n) = fieldfun(@(varargin) nanmean([varargin{:}]), TF.behavior(idx));
     end
+
 end
-TF.conds = n;
-%add to output
+
 TF.ntrls = 1;
-TF.power = newpower;
-if isfield(TF,'phase')
+TF.conds = numel(conds);
+
+for i = 1:numel(powFields)
+    name = powFields{i};
+    TF.(name) = newPow.(name);
+end
+
+if isfield(TF, 'phase')
     TF.phase = newphase;
 end
-if isfield(TF,'SPRiNT')
-    TF.SPRiNT.osc_power = newosc;
-    TF.SPRiNT.ap_power = newap;
-end
-if isfield(TF,'erprem')
-    TF.erprem.erprempow = newerprempow;
-    TF.erprem.erpremphase = newerpremphase;
-    TF.erprem.erppow = newerppow;
-end
-if isfield(TF,'behavior')
+
+if isfield(TF, 'behavior')
     TF.behavior = newBeh;
 end
 
-%get rid of redundant fields
 if isfield(TF, 'event')
-    TF = rmfield(TF,'event');
+    TF = rmfield(TF, 'event');
 end
+
 if isfield(TF, 'epoch')
     TF = rmfield(TF, 'epoch');
 end
 
+TF = nf_powerfront_local(TF);
+
 end
 
+function power = corrP(power, blIdx, method, flagsens, avmode, powScale, flagst)
 
-
-
-function power = corrP(power,blTimes,method,flagsens,avmode) %average power over trials
-tfPow = squeeze(mean( power,ndims(power) ));
-if flagsens==0
-    if strcmp(avmode,'mean')
-        blPow = repmat(squeeze(mean( tfPow(:,:,blTimes), 3)), [1,1,size(power,3)]);
-        blPowSTD = repmat(squeeze(std(permute(tfPow(:,:,blTimes),[3,1,2]))), [1,1,size(power,3)]);
-    elseif strcmp(avmode,'median')
-        blPow = repmat(squeeze(median( tfPow(:,:,blTimes), 3)), [1,1,size(power,3)]);
-        blPowSTD = repmat(squeeze(mad(permute(tfPow(:,:,blTimes),[3,1,2]))), [1,1,size(power,3)]);
-    end
+if ~flagst
+    tfPow = squeeze(mean(power, ndims(power)));
 else
-    if strcmp(avmode,'mean')
-        blPow = repmat(squeeze(mean( tfPow(:,blTimes), 2)), [1,size(power,2)]);
-        blPowSTD = repmat(squeeze(std(permute(tfPow(:,blTimes),[2,1]))), [1,size(power,2)]);
-    elseif strcmp(avmode,'median')
-        blPow = repmat(squeeze(median( tfPow(:,blTimes), 2)), [1,size(power,2)]);
-        blPowSTD = repmat(squeeze(mad(permute(tfPow(:,blTimes),[2,1]))), [1,size(power,2)]);
-    end
+    tfPow = power;
 end
-%correct power
+
+if flagsens == 0
+
+    if strcmp(avmode, 'mean')
+        blPow = squeeze(mean(tfPow(:,:,blIdx), 3));
+        blPow = repmat(blPow, [1 1 size(power, 3)]);
+        blPowSTD = std(permute(tfPow(:,:,blIdx), [3 1 2]));
+        blPowSTD = squeeze(blPowSTD);
+        blPowSTD = repmat(blPowSTD, [1 1 size(power, 3)]);
+    else
+        blPow = squeeze(median(tfPow(:,:,blIdx), 3));
+        blPow = repmat(blPow, [1 1 size(power, 3)]);
+        blPowSTD = mad(permute(tfPow(:,:,blIdx), [3 1 2]));
+        blPowSTD = squeeze(blPowSTD);
+        blPowSTD = repmat(blPowSTD, [1 1 size(power, 3)]);
+    end
+
+else
+
+    if strcmp(avmode, 'mean')
+        blPow = squeeze(mean(tfPow(:, blIdx), 2));
+        blPow = repmat(blPow, [1 size(power, 2)]);
+        blPowSTD = std(permute(tfPow(:, blIdx), [2 1]));
+        blPowSTD = squeeze(blPowSTD);
+        blPowSTD = repmat(blPowSTD, [1 size(power, 2)]);
+    else
+        blPow = squeeze(median(tfPow(:, blIdx), 2));
+        blPow = repmat(blPow, [1 size(power, 2)]);
+        blPowSTD = mad(permute(tfPow(:, blIdx), [2 1]));
+        blPowSTD = squeeze(blPowSTD);
+        blPowSTD = repmat(blPowSTD, [1 size(power, 2)]);
+    end
+
+end
+
+blPowSTD(blPowSTD == 0) = eps;
+
 switch method
+
     case 'zscore'
         disp('baselining with z-score');
-        tfPow = (tfPow-blPow)./blPowSTD;
+        tfPow = (tfPow - blPow) ./ blPowSTD;
+
     case 'db'
         disp('baselining with decibel');
-        tfPow = 10*log10( tfPow./blPow );
+
+        if strcmpi(powScale, 'log10')
+            tfPow = 10 .* (tfPow - blPow);
+        else
+            blPow(blPow <= 0) = eps;
+            tfPow(tfPow <= 0) = eps;
+            tfPow = 10 .* log10(tfPow ./ blPow);
+        end
+
     case 'percent'
         disp('baselining using %-change');
-        tfPow = 100*(tfPow-blPow)./blPow;
+
+        if strcmpi(powScale, 'log10')
+            P = 10 .^ tfPow;
+            Pb = 10 .^ blPow;
+            Pb(Pb == 0) = eps;
+            tfPow = 100 .* (P - Pb) ./ Pb;
+        else
+            blPow(blPow == 0) = eps;
+            tfPow = 100 .* (tfPow - blPow) ./ blPow;
+        end
+
     case 'none'
         disp('NOT baselining power estimates');
+
+    otherwise
+        error('Unknown baselining method: %s', method);
+
 end
+
 power = tfPow;
 
 end
+
+function powFields = nf_find_power_fields_local(TF)
+
+fn = fieldnames(TF);
+
+powFields = {};
+
+for i = 1:numel(fn)
+
+    name = fn{i};
+    val = TF.(name);
+
+    if isnumeric(val)
+        if contains(lower(name), 'power')
+            powFields{end + 1, 1} = name; %#ok
+        end
+    end
+
+end
+
+idx = find(strcmpi(powFields, 'power'));
+
+if ~isempty(idx)
+    powFields(idx) = [];
+    powFields = [{'power'}; powFields];
+end
+
+end
+
+function TF = nf_powerfront_local(TF)
+
+fn = fieldnames(TF);
+
+pow = {};
+other = {};
+
+for i = 1:numel(fn)
+
+    name = fn{i};
+    val = TF.(name);
+
+    if isnumeric(val)
+        if contains(lower(name), 'power')
+            pow{end + 1, 1} = name; %#ok
+        else
+            other{end + 1, 1} = name; %#ok
+        end
+    else
+        other{end + 1, 1} = name; %#ok
+    end
+
+end
+
+idx = find(strcmpi(pow, 'power'));
+
+if ~isempty(idx)
+    pow(idx) = [];
+    pow = [{'power'}; pow];
+end
+
+order = [pow; other];
+
+TF = orderfields(TF, order);
+
+end
+
+function out = fieldfun(fun, S)
+
+if nargin < 2
+    error('fieldfun requires a function handle and a struct array.');
+end
+
+if ~isa(fun, 'function_handle')
+    error('fieldfun first input must be a function handle.');
+end
+
+if ~isstruct(S)
+    error('fieldfun second input must be a struct array.');
+end
+
+f = fieldnames(S);
+
+out = struct();
+
+for i = 1:numel(f)
+
+    fname = f{i};
+    vals = {S.(fname)};
+
+    out.(fname) = fun(vals{:});
+
+end
+
+end
+
+function m = nanmean(x)
+
+if nargin < 1
+    error('nanmean requires an input.');
+end
+
+if isempty(x)
+    m = NaN;
+    return
+end
+
+if isfloat(x) == 0
+    x = double(x);
+end
+
+if exist('mean', 'builtin') || exist('mean', 'file')
+    try
+        m = mean(x, 'omitnan');
+        return
+    catch
+    end
+end
+
+x = x(:);
+x = x(isfinite(x));
+
+if isempty(x)
+    m = NaN;
+else
+    m = mean(x);
+end
+
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

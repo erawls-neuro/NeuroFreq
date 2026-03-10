@@ -18,7 +18,7 @@ Each transform in NeuroFreq is demonstrated on a set of synthetic data made publ
    nf_stft/index
    nf_filterhilbert/index
    nf_demodulation/index
-   nf_wavelet/index
+   nf_dcwt/index
    nf_cwt/index
    nf_stransform/index
    nf_ridbinomial/index

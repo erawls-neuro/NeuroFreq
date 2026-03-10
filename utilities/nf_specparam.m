@@ -39,7 +39,6 @@ function parm_spec = nf_specparam( spec, freqs, varargin )
 % f - vector of frequencies in spec
 % various keyword-arg pairs: specparam settings detailed below
 % 
-%
 
 
 %make input parser
@@ -101,6 +100,7 @@ flat_spec = flatten_spectrum(freqs, spec, aperiodic_pars, ...
     p.Results.maxPeaks, p.Results.peakThreshold, p.Results.minPeakHeight, ...
     p.Results.peakWidthLims/2, ...
     p.Results.peakType, [], p.Results.optim);
+
 if p.Results.threshAfter && ~p.Results.optim  % Check thresholding requirements are met for unbounded optimization
     peak_pars(peak_pars(:,2) < opt.min_peak_height,:)     = []; % remove peaks shorter than limit
     peak_pars(peak_pars(:,3) < opt.peak_width_limits(1)/2,:)  = []; % remove peaks narrower than limit
