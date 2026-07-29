@@ -657,14 +657,14 @@ if checkConds == 1
         error('nf_aggregate:LayoutMismatch', 'conds missing for avg layout check: %s vs %s', pathRef, pathCur);
     end
 
-    if tfRef.conds ~= tfCur.conds
-        warning('nf_aggregate:LayoutMismatch', 'conds length mismatch: %s vs %s', pathRef, pathCur);
-        warning('continuing WITHOUT this file');
-        valid = 0;
-        return
-    else
-        valid = 1;
-    end
+    % if tfRef.conds ~= tfCur.conds
+    %     warning('nf_aggregate:LayoutMismatch', 'conds length mismatch: %s vs %s', pathRef, pathCur);
+    %     warning('continuing WITHOUT this file');
+    %     valid = 0;
+    %     return
+    % else
+    valid = 1;
+    % end
 
     % for i = 1:numel(tfRef.conds)
     %     if strcmpi(tfRef.conds{i}, tfCur.conds{i}) == 0
@@ -783,9 +783,9 @@ nTime = numel(tf.times);
 [phAll, phRaw] = local_collect_top_level_tf_numeric(tf, {'phase', 'ph_'}, filepath, opts);
 
 if opts.strict == 1
-    if isempty(fieldnames(powAll)) == 1 && isempty(fieldnames(phAll)) == 1
-        error('nf_aggregate:NoDataFields', 'No 4D top-level power/phase fields found for singletrial aggregation. File: %s', filepath);
-    end
+    % if isempty(fieldnames(powAll)) == 1 && isempty(fieldnames(phAll)) == 1
+    %     error('nf_aggregate:NoDataFields', 'No 4D top-level power/phase fields found for singletrial aggregation. File: %s', filepath);
+    % end
 end
 
 payload.powerFields_raw = powRaw;

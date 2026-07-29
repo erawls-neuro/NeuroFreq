@@ -1,10 +1,10 @@
 function [quality, figureHandle] = nf_eegquality(EEG_preclean, EEG_postclean, varargin)
-% NF_EEGQUALITY  Paired, stage-aware EEG preprocessing quality control.
+% NF_EEGQUALITY  Stage-aware EEG preprocessing quality control.
 %
 % [QUALITY, FIGUREHANDLE] = NF_EEGQUALITY(EEG_PRECLEAN, EEG_POSTCLEAN)
-% compares two matched continuous or epoched processing stages. In the
-% nf_preprocess integration these are immediately before and after IC
-% subtraction; all other actions are read from the preprocessing report.
+% compares two continuous or epoched processing stages. In the
+% nf_preprocess integration these are the selected raw input before any
+% filtering/artifact correction and the data after IC subtraction.
 % Paired changes are calculated only when sample rate, points per epoch, and
 % epoch count match. All windowed calculations respect epoch boundaries.
 %
@@ -12,6 +12,9 @@ function [quality, figureHandle] = nf_eegquality(EEG_preclean, EEG_postclean, va
 %   final        Final epoched EEG dataset. Default: [].
 %   report       Preprocessing report. Default: recovered from FINAL or
 %                EEG_POSTCLEAN when possible.
+%   icaModel     Optional pre-subtraction EEG containing the fitted ICA
+%                weights. Rejected-component sensor backprojections are
+%                summarized as per-channel RMS microvolts.
 %   plot         Create the dashboard. Default: true.
 %   visible      Figure visibility, 'on' or 'off'. Default: 'on'.
 %   thresholds   Structure overriding report-derived defaults stored in
@@ -37,6 +40,7 @@ addRequired(parser, 'EEG_preclean', @isstruct);
 addRequired(parser, 'EEG_postclean', @isstruct);
 addParameter(parser, 'final', [], @nf_optional_struct);
 addParameter(parser, 'report', struct(), @isstruct);
+addParameter(parser, 'icaModel', [], @nf_optional_struct);
 addParameter(parser, 'plot', true, @nf_logical_scalar);
 addParameter(parser, 'visible', 'on', @nf_visibility);
 addParameter(parser, 'thresholds', struct(), @isstruct);
@@ -52,6 +56,9 @@ options = parser.Results;
 if ~isempty(options.final)
     nf_validate_eeg(options.final, 'final');
 end
+if ~isempty(options.icaModel)
+    nf_validate_eeg(options.icaModel, 'icaModel');
+end
 
 report = nf_resolve_report(options.report, options.final, EEG_postclean);
 defaultThresholds = nf_report_threshold_defaults(nf_default_thresholds(), report);
@@ -60,10 +67,32 @@ windows = nf_merge_options(nf_default_windows(), options.windows, 'windows');
 nf_validate_thresholds(thresholds);
 nf_validate_windows(windows);
 filterActions = nf_parse_filter_actions(report, EEG_preclean, EEG_postclean);
-filterSupport = nf_filter_support(filterActions, thresholds);
-filterSupport.requestedByThresholds = logical(thresholds.lineEvaluationEnabled);
-thresholds.lineEvaluationEnabled = logical(thresholds.lineEvaluationEnabled) && ...
-    filterSupport.lineNoiseSupported;
+lineEvaluationRequested = logical(thresholds.lineEvaluationEnabled);
+precleanFilter = filterActions;
+precleanFilter.available = false;
+precleanFilter.effectiveLowpassHz = Inf;
+precleanFilter.outputSampleRateHz = EEG_preclean.srate;
+precleanSupport = nf_filter_support(precleanFilter, thresholds);
+postcleanSupport = nf_filter_support(filterActions, thresholds);
+finalFilter = filterActions;
+if ~isempty(options.final)
+    finalFilter.outputSampleRateHz = options.final.srate;
+end
+finalSupport = nf_filter_support(finalFilter, thresholds);
+precleanThresholds = thresholds;
+postcleanThresholds = thresholds;
+finalThresholds = thresholds;
+precleanThresholds.lineEvaluationEnabled = lineEvaluationRequested && ...
+    precleanSupport.lineNoiseSupported;
+postcleanThresholds.lineEvaluationEnabled = lineEvaluationRequested && ...
+    postcleanSupport.lineNoiseSupported;
+finalThresholds.lineEvaluationEnabled = lineEvaluationRequested && ...
+    finalSupport.lineNoiseSupported;
+filterSupport = struct();
+filterSupport.requestedByThresholds = lineEvaluationRequested;
+filterSupport.preclean = precleanSupport;
+filterSupport.postclean = postcleanSupport;
+filterSupport.final = finalSupport;
 stageContext = nf_stage_context(report);
 
 alignment = nf_align_channels(EEG_preclean, EEG_postclean);
@@ -78,23 +107,25 @@ else
 end
 
 preMetrics = nf_stage_metrics(EEG_preclean, alignment.preIndices, alignment.labels, ...
-    preWindows, thresholds, windows, options.maxWindows, options.frequencies, ...
+    preWindows, precleanThresholds, windows, options.maxWindows, options.frequencies, ...
     stageContext.preStage);
 postMetrics = nf_stage_metrics(EEG_postclean, alignment.postIndices, alignment.labels, ...
-    postWindows, thresholds, windows, options.maxWindows, options.frequencies, ...
+    postWindows, postcleanThresholds, windows, options.maxWindows, options.frequencies, ...
     stageContext.postStage);
 
 actions = nf_parse_actions(report, EEG_preclean, EEG_postclean, options.final, ...
     filterActions);
+icaSpatialImpact = nf_ica_spatial_impact( ...
+    options.icaModel, report, options.maxPcaSamples);
 pcaMetrics = nf_fixed_pca(EEG_preclean, EEG_postclean, alignment, locations, ...
     comparability, options.maxPcaSamples);
 pcaMetrics.earlierStage = stageContext.preStage;
 pcaMetrics.laterStage = stageContext.postStage;
-finalMetrics = nf_final_metrics(options.final, alignment.labelsLower, thresholds, ...
+finalMetrics = nf_final_metrics(options.final, alignment.labelsLower, finalThresholds, ...
     windows, options.maxWindows, options.frequencies);
 
 quality = struct();
-quality.schemaVersion = '2.1.0';
+quality.schemaVersion = '3.2.0';
 quality.created = datestr(now, 30); %#ok<TNOW1,DATST>
 quality.provenance = struct();
 quality.provenance.function = 'nf_eegquality';
@@ -106,36 +137,40 @@ quality.provenance.explicitThresholdOverrides = options.thresholds;
 quality.provenance.comparisonScope = stageContext.scope;
 quality.provenance.filter = filterActions;
 quality.provenance.filterSupport = filterSupport;
-if thresholds.lineEvaluationEnabled
-    quality.provenance.lineNoiseEvaluation = 'enabled';
-elseif ~filterSupport.lineNoiseSupported
-    quality.provenance.lineNoiseEvaluation = ['disabled: ' filterSupport.reason];
-else
-    quality.provenance.lineNoiseEvaluation = ...
-        'disabled by the quality thresholds option';
-end
+quality.provenance.lineNoiseEvaluation = struct();
+quality.provenance.lineNoiseEvaluation.requested = lineEvaluationRequested;
+quality.provenance.lineNoiseEvaluation.precleanEnabled = ...
+    precleanThresholds.lineEvaluationEnabled;
+quality.provenance.lineNoiseEvaluation.postcleanEnabled = ...
+    postcleanThresholds.lineEvaluationEnabled;
+quality.provenance.lineNoiseEvaluation.finalEnabled = ...
+    finalThresholds.lineEvaluationEnabled;
+quality.provenance.lineNoiseEvaluation.precleanReason = precleanSupport.reason;
+quality.provenance.lineNoiseEvaluation.postcleanReason = postcleanSupport.reason;
+quality.provenance.lineNoiseEvaluation.finalReason = finalSupport.reason;
 quality.channelAlignment = alignment;
 quality.comparability = comparability;
 quality.thresholds = thresholds;
+quality.stageThresholds = struct();
+quality.stageThresholds.preclean = precleanThresholds;
+quality.stageThresholds.postclean = postcleanThresholds;
+quality.stageThresholds.final = finalThresholds;
 quality.windows = windows;
 quality.metrics = struct();
 quality.metrics.preclean = preMetrics;
 quality.metrics.postclean = postMetrics;
 quality.metrics.final = finalMetrics;
 quality.metrics.pca = pcaMetrics;
+quality.metrics.icaSpatialImpact = icaSpatialImpact;
+quality.metrics.epochDetectors = actions.epochs.detectorMetrics;
 quality.actions = actions;
 quality.change = nf_change_metrics(preMetrics, postMetrics, pcaMetrics, comparability);
 quality.alerts = nf_quality_alerts(quality);
 
 figureHandle = [];
 if options.plot
-    if ~isempty(options.final)
-        actionLocations = options.final.chanlocs;
-        actionLabels = {options.final.chanlocs.labels};
-    else
-        actionLocations = locations;
-        actionLabels = alignment.labels;
-    end
+    actionLocations = EEG_preclean.chanlocs;
+    actionLabels = {EEG_preclean.chanlocs.labels};
     figureHandle = nf_quality_figure(quality, locations, actionLocations, ...
         actionLabels, char(options.visible), char(options.title));
     if ~isempty(options.savePath)
@@ -909,6 +944,259 @@ pca.selectionScore = selectionScore;
 pca.frontalWeights = frontalWeights;
 end
 
+function impact = nf_ica_spatial_impact(icaModel, report, maxSamples)
+impact = struct();
+impact.available = false;
+impact.reason = '';
+impact.ocularAvailable = false;
+impact.ocularReason = '';
+impact.channelLabels = {};
+impact.locations = struct([]);
+impact.rejectedComponents = [];
+impact.ocularRejectedComponents = [];
+impact.totalRejectedRmsMicrovolts = [];
+impact.ocularRejectedRmsMicrovolts = [];
+impact.originalRmsMicrovolts = [];
+impact.totalRejectedToOriginalRmsPercent = [];
+impact.totalFrontalPosteriorRmsRatio = NaN;
+impact.ocularFrontalPosteriorRmsRatio = NaN;
+impact.nSamples = 0;
+impact.reconstructionEquation = ...
+    'X_rejected = icawinv(:,R) * (icaweights * icasphere * X)(R,:)';
+impact.scalingNote = ...
+    ['Maps are RMS microvolts of the complete rejected-component sensor ' ...
+    'backprojection. They retain component activation scale and covariance.'];
+
+if isempty(icaModel)
+    impact.reason = 'No pre-subtraction ICA model was supplied.';
+    return
+end
+if isfield(report, 'steps') && isstruct(report.steps) && ...
+        isfield(report.steps, 'ica') && isstruct(report.steps.ica) && ...
+        isfield(report.steps.ica, 'applied') && ...
+        nf_logical_scalar(report.steps.ica.applied) && ...
+        ~logical(report.steps.ica.applied)
+    impact.reason = 'ICA cleaning was explicitly skipped.';
+    return
+end
+if isfield(report, 'ica') && isstruct(report.ica) && ...
+        strcmpi(strtrim(nf_get_text_field(report.ica, 'method', '')), 'none')
+    impact.reason = 'ICA cleaning method was none.';
+    return
+end
+required = {'data', 'icaweights', 'icasphere', 'icawinv'};
+for index = 1:numel(required)
+    if ~isfield(icaModel, required{index}) || isempty(icaModel.(required{index}))
+        impact.reason = sprintf('icaModel.%s was unavailable.', required{index});
+        return
+    end
+end
+if isfield(icaModel, 'icachansind') && ~isempty(icaModel.icachansind)
+    channelIndices = double(icaModel.icachansind(:)');
+else
+    channelIndices = 1:size(icaModel.icaweights, 2);
+end
+if any(~isfinite(channelIndices)) || ...
+        any(channelIndices ~= round(channelIndices)) || ...
+        any(channelIndices < 1) || any(channelIndices > icaModel.nbchan) || ...
+        numel(unique(channelIndices)) ~= numel(channelIndices)
+    impact.reason = 'The ICA channel index vector was invalid.';
+    return
+end
+
+weights = double(icaModel.icaweights);
+sphere = double(icaModel.icasphere);
+if ndims(weights) ~= 2 || ndims(sphere) ~= 2 || ...
+        size(weights, 2) ~= size(sphere, 1)
+    impact.reason = 'ICA weight and sphere dimensions are incompatible.';
+    return
+end
+unmixing = weights * sphere;
+mixing = double(icaModel.icawinv);
+componentCount = size(unmixing, 1);
+if any(~isfinite(unmixing(:))) || any(~isfinite(mixing(:)))
+    impact.reason = 'ICA mixing or unmixing weights contain NaN or Inf values.';
+    return
+end
+if size(unmixing, 2) ~= numel(channelIndices) || ...
+        size(mixing, 1) ~= numel(channelIndices) || ...
+        size(mixing, 2) ~= componentCount
+    impact.reason = 'ICA mixing/unmixing dimensions did not match icachansind.';
+    return
+end
+
+[rejected, rejectionAvailable, rejectionReason] = ...
+    nf_ica_rejected_components(report);
+if ~rejectionAvailable
+    impact.reason = rejectionReason;
+    return
+end
+if any(rejected < 1) || any(rejected > componentCount)
+    impact.reason = 'The reported rejected-component indices exceed the ICA rank.';
+    return
+end
+sampleTotal = icaModel.pnts * icaModel.trials;
+sampleCount = min(sampleTotal, maxSamples);
+sampleIndices = unique(round(linspace(1, sampleTotal, sampleCount)), 'stable');
+data = nf_sample_data(icaModel, channelIndices, sampleIndices);
+if any(~isfinite(data(:)))
+    impact.reason = 'The sampled ICA-model data contain NaN or Inf values.';
+    return
+end
+activations = unmixing * data;
+if isempty(rejected)
+    totalRemoved = zeros(numel(channelIndices), size(data, 2));
+else
+    totalRemoved = mixing(:, rejected) * activations(rejected, :);
+end
+[ocularRejected, ocularAvailable, ocularReason] = ...
+    nf_ica_ocular_components(report, rejected, componentCount);
+if ocularAvailable && ~isempty(ocularRejected)
+    ocularRemoved = mixing(:, ocularRejected) * ...
+        activations(ocularRejected, :);
+else
+    ocularRemoved = zeros(numel(channelIndices), size(data, 2));
+end
+data = data - mean(data, 2);
+totalRemoved = totalRemoved - mean(totalRemoved, 2);
+ocularRemoved = ocularRemoved - mean(ocularRemoved, 2);
+originalRms = sqrt(mean(data .^ 2, 2));
+totalRms = sqrt(mean(totalRemoved .^ 2, 2));
+ocularRms = sqrt(mean(ocularRemoved .^ 2, 2));
+
+impact.available = true;
+impact.reason = ...
+    'Rejected ICA activations were backprojected into sensor space.';
+impact.ocularAvailable = ocularAvailable;
+impact.ocularReason = ocularReason;
+impact.rejectedComponents = rejected;
+impact.ocularRejectedComponents = ocularRejected;
+impact.nComponents = componentCount;
+impact.nRejected = numel(rejected);
+impact.nOcularRejected = numel(ocularRejected);
+impact.nSamples = size(data, 2);
+impact.originalRmsMicrovolts = originalRms;
+impact.totalRejectedRmsMicrovolts = totalRms;
+impact.ocularRejectedRmsMicrovolts = ocularRms;
+impact.totalRejectedToOriginalRmsPercent = ...
+    100 .* totalRms ./ max(originalRms, eps);
+impact.channelIndices = channelIndices;
+impact.channelLabels = {icaModel.chanlocs(channelIndices).labels};
+impact.locations = icaModel.chanlocs(channelIndices);
+impact.totalFrontalPosteriorRmsRatio = ...
+    nf_frontal_posterior_rms_ratio(totalRms, impact.locations);
+impact.ocularFrontalPosteriorRmsRatio = ...
+    nf_frontal_posterior_rms_ratio(ocularRms, impact.locations);
+end
+
+function [rejected, available, reason] = nf_ica_rejected_components(report)
+rejected = [];
+available = false;
+reason = 'Rejected-component provenance was unavailable.';
+if ~isfield(report, 'ica') || ~isstruct(report.ica)
+    return
+end
+if isfield(report.ica, 'components') && ...
+        isstruct(report.ica.components) && ...
+        isfield(report.ica.components, 'rejected')
+    rejected = report.ica.components.rejected;
+    available = true;
+elseif isfield(report.ica, 'classification') && ...
+        isstruct(report.ica.classification) && ...
+        isfield(report.ica.classification, 'rejected')
+    rejected = report.ica.classification.rejected;
+    available = true;
+end
+if ~available
+    return
+end
+if ~isnumeric(rejected) || ~isreal(rejected) || ...
+        any(~isfinite(rejected(:))) || ...
+        any(rejected(:) ~= round(rejected(:))) || ...
+        any(rejected(:) < 1)
+    rejected = [];
+    available = false;
+    reason = 'Rejected-component provenance contained invalid indices.';
+    return
+end
+rejected = unique(reshape(rejected, 1, []), 'stable');
+reason = 'Rejected-component provenance was recorded.';
+end
+
+function [ocular, available, reason] = ...
+    nf_ica_ocular_components(report, rejected, componentCount)
+ocular = [];
+available = false;
+reason = 'The selected classifier does not identify ocular subclasses.';
+if ~isfield(report, 'ica') || ~isstruct(report.ica) || ...
+        ~isfield(report.ica, 'classification') || ...
+        ~isstruct(report.ica.classification)
+    return
+end
+classification = report.ica.classification;
+if isfield(classification, 'classNames')
+    classNames = nf_to_cellstr(classification.classNames);
+    eyeClass = find(strcmpi(strtrim(string(classNames)), 'eye'), 1);
+else
+    eyeClass = [];
+end
+explicitThresholds = isfield(classification, 'thresholds') && ...
+    isnumeric(classification.thresholds) && ...
+    ~isempty(classification.thresholds);
+if ~isempty(eyeClass) && explicitThresholds && ...
+        size(classification.thresholds, 1) >= eyeClass && ...
+        size(classification.thresholds, 2) == 2
+    eyeRange = double(classification.thresholds(eyeClass, :));
+    if all(isfinite(eyeRange)) && eyeRange(1) < eyeRange(2) && ...
+            isfield(classification, 'probabilities') && ...
+            isnumeric(classification.probabilities) && ...
+            size(classification.probabilities, 1) == componentCount && ...
+            size(classification.probabilities, 2) >= eyeClass
+        eyeProbability = classification.probabilities(:, eyeClass);
+        ocular = find(eyeProbability > eyeRange(1) & ...
+            eyeProbability < eyeRange(2));
+        ocular = intersect(ocular, rejected, 'stable');
+        available = true;
+        reason = ...
+            'Rejected components meeting the configured ICLabel Eye range.';
+        return
+    end
+    reason = 'The explicit ICLabel Eye rejection range was disabled.';
+    return
+end
+if ~isempty(eyeClass) && ...
+        ~explicitThresholds && ...
+        isfield(classification, 'winningClass') && ...
+        isnumeric(classification.winningClass) && ...
+        numel(classification.winningClass) == componentCount
+        winningClass = reshape(classification.winningClass, 1, []);
+        ocular = find(winningClass == eyeClass);
+        ocular = intersect(ocular, rejected, 'stable');
+        available = true;
+        reason = 'Rejected components whose dominant ICLabel class was Eye.';
+        return
+end
+fields = {'horizontalEyeMovement', 'verticalEyeMovement', 'blink'};
+fieldAvailable = false;
+candidate = [];
+for index = 1:numel(fields)
+    fieldName = fields{index};
+    if isfield(classification, fieldName) && ...
+            isnumeric(classification.(fieldName))
+        fieldAvailable = true;
+        candidate = [candidate reshape(classification.(fieldName), 1, [])];
+    end
+end
+if fieldAvailable
+    candidate = unique(round(candidate(isfinite(candidate))), 'stable');
+    candidate = candidate(candidate >= 1 & candidate <= componentCount);
+    ocular = intersect(candidate, rejected, 'stable');
+    available = true;
+    reason = ...
+        'Rejected ADJUST/adjusted_ADJUST horizontal-eye, vertical-eye, or blink components.';
+end
+end
+
 function sampled = nf_sample_data(EEG, channelIndices, linearIndices)
 sampled = zeros(numel(channelIndices), numel(linearIndices));
 for epochIndex = 1:EEG.trials
@@ -922,6 +1210,37 @@ for epochIndex = 1:EEG.trials
     sampled(:, selectedMask) = double(reshape(EEG.data(channelIndices, ...
         localIndices, epochIndex), numel(channelIndices), []));
 end
+end
+
+function ratio = nf_frontal_posterior_rms_ratio(values, locations)
+ratio = NaN;
+if isempty(values) || numel(values) ~= numel(locations)
+    return
+end
+theta = nan(1, numel(locations));
+radius = nan(1, numel(locations));
+for index = 1:numel(locations)
+    if isfield(locations(index), 'theta') && ...
+            isnumeric(locations(index).theta) && ...
+            isscalar(locations(index).theta) && ...
+            isfinite(locations(index).theta)
+        theta(index) = double(locations(index).theta);
+    end
+    if isfield(locations(index), 'radius') && ...
+            isnumeric(locations(index).radius) && ...
+            isscalar(locations(index).radius) && ...
+            isfinite(locations(index).radius)
+        radius(index) = double(locations(index).radius);
+    end
+end
+frontal = abs(theta) <= 60 & radius >= 0.25;
+posterior = abs(theta) >= 120 & radius >= 0.25;
+if ~any(frontal) || ~any(posterior)
+    return
+end
+frontalRms = sqrt(mean(double(values(frontal)) .^ 2));
+posteriorRms = sqrt(mean(double(values(posterior)) .^ 2));
+ratio = frontalRms ./ max(posteriorRms, eps);
 end
 
 function coordinates = nf_x_coordinates(locations)
@@ -1111,39 +1430,17 @@ end
 
 function context = nf_stage_context(report)
 context = struct();
-context.preStage = 'pre-cleaning';
-context.postStage = 'post-cleaning';
-context.scope = ['Matched diagnostics compare the two supplied datasets. ' ...
-    'Preprocessing actions are reported separately.'];
-
-icaApplied = false;
-icaApplicationRecorded = false;
-if isfield(report, 'steps') && isstruct(report.steps) && ...
-        isfield(report.steps, 'ica')
-    if isstruct(report.steps.ica)
-        if isfield(report.steps.ica, 'applied')
-            icaApplied = nf_get_logical_field( ...
-                report.steps.ica, 'applied', false);
-            icaApplicationRecorded = true;
-        end
-    elseif nf_logical_scalar(report.steps.ica)
-        icaApplied = logical(report.steps.ica);
-        icaApplicationRecorded = true;
-    end
-end
-if ~icaApplicationRecorded && isfield(report, 'ica') && isstruct(report.ica) && ...
-        isfield(report.ica, 'components') && isstruct(report.ica.components)
-    componentCount = nf_get_numeric_scalar( ...
-        report.ica.components, 'nComponents', 0);
-    icaApplied = componentCount > 0;
-end
-
-if icaApplied
-    context.preStage = 'pre-IC subtraction';
-    context.postStage = 'post-IC subtraction';
-    context.scope = ['Matched diagnostics isolate independent-component ' ...
-        'subtraction; filtering, channel handling, epoch cleaning, and final ' ...
-        'interpolation are reported separately.'];
+context.preStage = 'selected raw input';
+context.postStage = 'post-preprocessing';
+context.scope = ['The two supplied stages are described independently. ' ...
+    'Paired sample changes are shown only when their axes remain matched.'];
+if isfield(report, 'quality') && isstruct(report.quality)
+    context.preStage = nf_get_text_field( ...
+        report.quality, 'earlierStage', context.preStage);
+    context.postStage = nf_get_text_field( ...
+        report.quality, 'laterStage', context.postStage);
+    context.scope = nf_get_text_field( ...
+        report.quality, 'comparisonScope', context.scope);
 end
 end
 
@@ -1309,14 +1606,22 @@ if isfield(report, 'ica') && isstruct(report.ica)
     end
 end
 
+actions.channels = nf_add_prep_channel_actions( ...
+    actions.channels, report, preclean, finalEEG);
 actions.channels = nf_finalize_channel_actions(actions.channels, preclean);
 
-if isfield(report, 'gedai') && isstruct(report.gedai)
-    actions.gedai = report.gedai;
-    actions.gedai.available = nf_get_logical_field(report.gedai, 'applied', true);
-elseif isfield(report, 'preclean') && isstruct(report.preclean)
+precleanRecorded = isfield(report, 'preclean') && ...
+    isstruct(report.preclean) && ...
+    ~isempty(fieldnames(report.preclean));
+if precleanRecorded
     actions.gedai = report.preclean;
-    actions.gedai.available = true;
+    actions.gedai.available = nf_get_logical_field( ...
+        report.preclean, 'applied', true);
+elseif isfield(report, 'gedai') && isstruct(report.gedai) && ...
+        ~isempty(fieldnames(report.gedai))
+    actions.gedai = report.gedai;
+    actions.gedai.available = nf_get_logical_field( ...
+        report.gedai, 'applied', true);
 elseif isfield(report, 'steps') && isfield(report.steps, 'preclean')
     actions.gedai.available = logical(report.steps.preclean);
 end
@@ -1363,15 +1668,17 @@ channels.nInterpolated = 0;
 channels.nRemoved = 0;
 channels.cutoffUsed = NaN;
 channels.metrics = struct();
+channels.prep = nf_empty_prep_channel_actions();
 channels.categoryCountsAreExclusive = false;
 channels.categoryNote = ['Interpolated channels can also belong to artifact, ' ...
-    'reference, ICA-preparation, or rank-dependent categories.'];
+    'reference, PREP, ICA-preparation, or rank-dependent categories.'];
 channels.categories = struct();
 channels.categories.artifact = nf_make_channel_category({}, [], 0);
 channels.categories.reference = nf_make_channel_category({}, [], 0);
 channels.categories.icaPreparation = nf_make_channel_category({}, [], 0);
 channels.categories.rankDependent = nf_make_channel_category({}, [], 0);
 channels.categories.interpolated = nf_make_channel_category({}, [], 0);
+channels.categories.prepDetected = nf_make_channel_category({}, [], 0);
 channels.removed = nf_make_channel_category({}, [], 0);
 channels.missingAtFinalization = nf_make_channel_category({}, [], 0);
 end
@@ -1395,6 +1702,132 @@ else
 end
 end
 
+function prep = nf_empty_prep_channel_actions()
+prep = struct();
+prep.available = false;
+prep.source = '';
+prep.mappingNote = '';
+prep.detected = nf_make_channel_category({}, [], 0);
+prep.interpolated = nf_make_channel_category({}, [], 0);
+prep.removed = nf_make_channel_category({}, [], 0);
+prep.stillNoisy = nf_make_channel_category({}, [], 0);
+end
+
+function channels = nf_add_prep_channel_actions( ...
+        channels, report, preclean, finalEEG)
+if ~isfield(report, 'preclean') || ~isstruct(report.preclean) || ...
+        ~isfield(report.preclean, 'nativeNoiseDetectionSummary') || ...
+        ~isstruct(report.preclean.nativeNoiseDetectionSummary)
+    return
+end
+
+summary = report.preclean.nativeNoiseDetectionSummary;
+rawLabels = {preclean.chanlocs.labels};
+if isempty(finalEEG)
+    finalLabels = {};
+else
+    finalLabels = {finalEEG.chanlocs.labels};
+end
+interpolatedIndices = nf_reported_channel_indices( ...
+    nf_get_numeric_field(summary, 'interpolatedChannelNumbers', []));
+removedIndices = nf_reported_channel_indices( ...
+    nf_get_numeric_field(summary, 'removedChannelNumbers', []));
+stillNoisyIndices = nf_reported_channel_indices( ...
+    nf_get_numeric_field(summary, 'stillNoisyChannelNumbers', []));
+detectedIndices = unique([interpolatedIndices, removedIndices, ...
+    stillNoisyIndices], 'stable');
+
+prep = nf_empty_prep_channel_actions();
+prep.available = true;
+prep.source = ...
+    'report.preclean.nativeNoiseDetectionSummary (official PREP prepPipeline)';
+prep.mappingNote = ['Reported PREP acquisition-channel numbers are mapped to ' ...
+    'selected-raw labels. Final-montage labels are used only when raw labels ' ...
+    'are unavailable; unresolved numbers remain explicitly recorded.'];
+prep.detected = nf_prep_channel_category( ...
+    detectedIndices, rawLabels, finalLabels);
+prep.interpolated = nf_prep_channel_category( ...
+    interpolatedIndices, rawLabels, finalLabels);
+prep.removed = nf_prep_channel_category( ...
+    removedIndices, rawLabels, finalLabels);
+prep.stillNoisy = nf_prep_channel_category( ...
+    stillNoisyIndices, rawLabels, finalLabels);
+channels.prep = prep;
+
+channels.categories.artifact = nf_merge_channel_categories( ...
+    channels.categories.artifact, prep.detected);
+channels.categories.interpolated = nf_merge_channel_categories( ...
+    channels.categories.interpolated, prep.interpolated);
+channels.categories.prepDetected = prep.detected;
+channels.removed = nf_merge_channel_categories( ...
+    channels.removed, prep.removed);
+if ~isempty(finalLabels)
+    missingLabels = prep.removed.labels(~ismember( ...
+        lower(string(prep.removed.labels)), lower(string(finalLabels))));
+    prepMissing = nf_make_channel_category( ...
+        missingLabels, [], numel(missingLabels));
+    channels.missingAtFinalization = nf_merge_channel_categories( ...
+        channels.missingAtFinalization, prepMissing);
+end
+channels.available = true;
+channels.detectionApplied = true;
+channels.interpolated = channels.interpolated || ...
+    prep.interpolated.n > 0;
+channels.globalInterpolationRequested = ...
+    channels.globalInterpolationRequested || prep.interpolated.n > 0;
+if isempty(channels.method) || strcmpi(channels.method, 'none') || ...
+        strcmpi(channels.method, 'unknown')
+    channels.method = 'PREP prepPipeline';
+elseif isempty(strfind(lower(channels.method), 'prep'))
+    channels.method = [channels.method ' + PREP prepPipeline'];
+end
+end
+
+function indices = nf_reported_channel_indices(value)
+if ~isnumeric(value) || ~isreal(value)
+    indices = [];
+    return
+end
+indices = double(value(:)');
+indices = indices(isfinite(indices) & indices == round(indices) & indices >= 1);
+indices = unique(indices, 'stable');
+end
+
+function category = nf_prep_channel_category(indices, rawLabels, finalLabels)
+indices = nf_reported_channel_indices(indices);
+labels = {};
+rawMappedIndices = [];
+rawMappedCount = 0;
+finalMappedCount = 0;
+unresolvedIndices = [];
+for index = 1:numel(indices)
+    channelIndex = indices(index);
+    if channelIndex <= numel(rawLabels)
+        labels{end + 1} = rawLabels{channelIndex};
+        rawMappedIndices(end + 1) = channelIndex;
+        rawMappedCount = rawMappedCount + 1;
+    elseif isempty(rawLabels) && channelIndex <= numel(finalLabels)
+        labels{end + 1} = finalLabels{channelIndex};
+        finalMappedCount = finalMappedCount + 1;
+    else
+        unresolvedIndices(end + 1) = channelIndex;
+    end
+end
+category = nf_make_channel_category( ...
+    labels, rawMappedIndices, numel(indices));
+category.reportedIndices = indices;
+category.unresolvedIndices = unresolvedIndices;
+category.nMappedFromRaw = rawMappedCount;
+category.nMappedFromFinalFallback = finalMappedCount;
+end
+
+function merged = nf_merge_channel_categories(first, second)
+labels = nf_union_channel_labels(first.labels, second.labels);
+indices = unique([first.indices(:); second.indices(:)])';
+reportedCount = max([first.n, second.n, numel(labels), numel(indices)]);
+merged = nf_make_channel_category(labels, indices, reportedCount);
+end
+
 function channels = nf_finalize_channel_actions(channels, preclean)
 categories = channels.categories;
 channels.nDetected = categories.artifact.n;
@@ -1412,7 +1845,7 @@ end
 if ~channels.available
     categoryCounts = [categories.artifact.n, categories.reference.n, ...
         categories.icaPreparation.n, categories.rankDependent.n, ...
-        categories.interpolated.n];
+        categories.interpolated.n, categories.prepDetected.n];
     channels.available = any(categoryCounts > 0);
 end
 end
@@ -1464,6 +1897,11 @@ ica = nf_empty_ica_actions();
 ica.available = true;
 ica.method = nf_get_text_field(icaReport, 'method', 'unknown');
 ica.algorithm = nf_get_text_field(icaReport, 'algorithm', 'unknown');
+if strcmpi(strtrim(ica.method), 'none')
+    ica.available = false;
+    ica.algorithm = 'none';
+    return
+end
 if isfield(icaReport, 'rank') && isstruct(icaReport.rank)
     ica.rank = nf_get_numeric_field(icaReport.rank, 'afterRepair', NaN);
 else
@@ -1541,6 +1979,14 @@ epochs.voltageFlags = [];
 epochs.spectralFlags = [];
 epochs.badChannelEpoch = [];
 epochs.localInterpolationMask = [];
+epochs.activeDetectors = {};
+epochs.byDetectorChannel = struct();
+epochs.byDetectorEpoch = struct();
+epochs.detectorAnyEpoch = struct();
+epochs.detectors = repmat(nf_empty_detector_metric(), 1, 0);
+epochs.detectorMetrics = repmat(nf_empty_detector_metric(), 1, 0);
+epochs.detectorEpochCounts = [];
+epochs.detectorChannelEpochCounts = [];
 end
 
 function epochs = nf_parse_epoch_actions(epochReport)
@@ -1579,6 +2025,7 @@ epochs.badChannelEpoch = nf_get_array_field(masks, 'anyArtifact', ...
     nf_get_array_field(epochReport, 'badChannelEpoch', []));
 epochs.localInterpolationMask = nf_get_array_field(masks, ...
     'localInterpolation', []);
+epochs = nf_parse_epoch_detector_attribution(epochs, epochReport, masks);
 
 if isnan(epochs.nCandidate) && ~isempty(reasons)
     epochs.nCandidate = numel(reasons);
@@ -1609,6 +2056,16 @@ end
 if ~isempty(epochs.spectralFlags)
     epochs.nSpectralFlagged = sum(any(logical(epochs.spectralFlags), 1));
 end
+amplitudeIndex = find(strcmp(epochs.activeDetectors, 'amplitude'), 1);
+if isempty(epochs.voltageFlags) && ~isempty(amplitudeIndex)
+    epochs.nVoltageFlagged = ...
+        epochs.detectorMetrics(amplitudeIndex).nFlaggedEpochs;
+end
+fftIndex = find(strcmp(epochs.activeDetectors, 'fft'), 1);
+if isempty(epochs.spectralFlags) && ~isempty(fftIndex)
+    epochs.nSpectralFlagged = ...
+        epochs.detectorMetrics(fftIndex).nFlaggedEpochs;
+end
 
 if ~isempty(reasons)
     [reasonNames, ~, reasonIndex] = unique(reasons, 'stable');
@@ -1629,6 +2086,182 @@ end
 if isfinite(epochs.nCleanRetained) && isfinite(epochs.nRejected)
     epochs.dispositionCounts = [epochs.nCleanRetained, epochs.nLocallyRepaired, ...
         epochs.nRejected];
+end
+end
+
+function metric = nf_empty_detector_metric()
+metric = struct();
+metric.name = '';
+metric.displayName = '';
+metric.fieldName = '';
+metric.masksAvailable = false;
+metric.channelMaskAvailable = false;
+metric.epochMaskAvailable = false;
+metric.masksConsistent = true;
+metric.nFlaggedEpochs = NaN;
+metric.nFlaggedChannelEpochs = NaN;
+metric.nDirectEpochFlags = NaN;
+metric.nChannelsFlagged = NaN;
+end
+
+function epochs = nf_parse_epoch_detector_attribution( ...
+        epochs, epochReport, masks)
+activeDetectors = {};
+if isfield(epochReport, 'activeDetectors')
+    activeDetectors = nf_to_cellstr(epochReport.activeDetectors);
+elseif isfield(epochReport, 'detectors')
+    activeDetectors = nf_to_cellstr(epochReport.detectors);
+end
+if isfield(masks, 'byDetectorChannel') && ...
+        isstruct(masks.byDetectorChannel)
+    epochs.byDetectorChannel = masks.byDetectorChannel;
+else
+    epochs.byDetectorChannel = struct();
+end
+if isfield(masks, 'byDetectorEpoch') && ...
+        isstruct(masks.byDetectorEpoch)
+    epochs.byDetectorEpoch = masks.byDetectorEpoch;
+else
+    epochs.byDetectorEpoch = struct();
+end
+if isempty(activeDetectors)
+    activeDetectors = [fieldnames(epochs.byDetectorChannel); ...
+        fieldnames(epochs.byDetectorEpoch)]';
+end
+
+normalizedDetectors = {};
+for index = 1:numel(activeDetectors)
+    detector = nf_normalize_qc_detector_name(activeDetectors{index});
+    if isempty(detector) || strcmp(detector, 'none')
+        continue
+    end
+    normalizedDetectors{end + 1} = detector;
+end
+epochs.activeDetectors = unique(normalizedDetectors, 'stable');
+epochs.detectors = repmat(nf_empty_detector_metric(), ...
+    1, numel(epochs.activeDetectors));
+epochs.detectorAnyEpoch = struct();
+
+for index = 1:numel(epochs.activeDetectors)
+    detector = epochs.activeDetectors{index};
+    fieldName = nf_qc_detector_field(detector);
+    channelMask = nf_detector_mask(epochs.byDetectorChannel, fieldName);
+    epochMask = nf_detector_mask(epochs.byDetectorEpoch, fieldName);
+    metric = nf_empty_detector_metric();
+    metric.name = detector;
+    metric.displayName = nf_detector_display_name(detector);
+    metric.fieldName = fieldName;
+    metric.channelMaskAvailable = ~isempty(channelMask);
+    metric.epochMaskAvailable = ~isempty(epochMask);
+    metric.masksAvailable = ...
+        metric.channelMaskAvailable || metric.epochMaskAvailable;
+    if metric.channelMaskAvailable
+        channelAnyEpoch = any(channelMask, 1);
+        metric.nFlaggedChannelEpochs = sum(channelMask(:));
+        metric.nChannelsFlagged = sum(any(channelMask, 2));
+    else
+        channelAnyEpoch = [];
+    end
+    if metric.epochMaskAvailable
+        epochMask = reshape(epochMask, 1, []);
+        metric.nDirectEpochFlags = sum(epochMask);
+    end
+    if metric.channelMaskAvailable && metric.epochMaskAvailable && ...
+            numel(channelAnyEpoch) ~= numel(epochMask)
+        metric.masksConsistent = false;
+        anyEpoch = [];
+    elseif metric.channelMaskAvailable && metric.epochMaskAvailable
+        anyEpoch = channelAnyEpoch | epochMask;
+    elseif metric.channelMaskAvailable
+        anyEpoch = channelAnyEpoch;
+    elseif metric.epochMaskAvailable
+        anyEpoch = epochMask;
+    else
+        anyEpoch = [];
+    end
+    if ~isempty(anyEpoch)
+        metric.nFlaggedEpochs = sum(anyEpoch);
+    end
+    epochs.detectorAnyEpoch.(fieldName) = anyEpoch;
+    epochs.detectors(index) = metric;
+end
+epochs.detectorMetrics = epochs.detectors;
+if isempty(epochs.detectors)
+    epochs.detectorEpochCounts = [];
+    epochs.detectorChannelEpochCounts = [];
+else
+    epochs.detectorEpochCounts = [epochs.detectors.nFlaggedEpochs];
+    epochs.detectorChannelEpochCounts = ...
+        [epochs.detectors.nFlaggedChannelEpochs];
+end
+end
+
+function mask = nf_detector_mask(source, fieldName)
+mask = [];
+if ~isstruct(source) || ~isfield(source, fieldName)
+    return
+end
+candidate = source.(fieldName);
+if ~(isnumeric(candidate) || islogical(candidate)) || ...
+        ~isreal(candidate) || ndims(candidate) > 2
+    return
+end
+mask = logical(candidate);
+end
+
+function detector = nf_normalize_qc_detector_name(value)
+detector = lower(regexprep(strtrim(char(string(value))), ...
+    '[^a-zA-Z0-9]', ''));
+switch detector
+    case {'threshold', 'voltage'}
+        detector = 'amplitude';
+    case {'spectral', 'muscle'}
+        detector = 'fft';
+    case {'peaktopeak', 'mwpp'}
+        detector = 'peak2peak';
+    case {'electrodepop', 'pop'}
+        detector = 'step';
+    case {'fasttransition', 'derivative'}
+        detector = 'gradient';
+    case 'flat'
+        detector = 'flatline';
+    case {'clip', 'saturation'}
+        detector = 'clipping';
+    case 'jointprob'
+        detector = 'jointprobability';
+    case 'eeglabstatistics'
+        detector = 'eeglabstats';
+end
+end
+
+function fieldName = nf_qc_detector_field(detector)
+fieldName = lower(regexprep(char(detector), '[^a-zA-Z0-9]', ''));
+end
+
+function displayName = nf_detector_display_name(detector)
+switch detector
+    case 'amplitude'
+        displayName = 'amplitude';
+    case 'fft'
+        displayName = 'FFT';
+    case 'peak2peak'
+        displayName = 'peak-to-peak';
+    case 'step'
+        displayName = 'step/pop';
+    case 'gradient'
+        displayName = 'gradient';
+    case 'flatline'
+        displayName = 'flatline';
+    case 'clipping'
+        displayName = 'clipping';
+    case 'faster'
+        displayName = 'FASTER';
+    case 'eeglabstats'
+        displayName = 'EEGLAB stats';
+    case 'jointprobability'
+        displayName = 'joint probability';
+    otherwise
+        displayName = detector;
 end
 end
 
@@ -1669,9 +2302,17 @@ function change = nf_change_metrics(pre, post, pca, comparability)
 change = struct();
 change.available = comparability.paired;
 change.reason = comparability.reason;
+change.spatialDescriptiveAvailable = ...
+    numel(pre.artifact.channelFraction) == ...
+    numel(post.artifact.channelFraction);
+if change.spatialDescriptiveAvailable
+    change.channelArtifactFraction = post.artifact.channelFraction - ...
+        pre.artifact.channelFraction;
+else
+    change.channelArtifactFraction = [];
+end
 
 if ~comparability.paired
-    change.channelArtifactFraction = [];
     change.windowChannelFraction = [];
     change.anyWindowFraction = NaN;
     change.channelWindowFraction = NaN;
@@ -1681,8 +2322,6 @@ if ~comparability.paired
     return
 end
 
-change.channelArtifactFraction = post.artifact.channelFraction - ...
-    pre.artifact.channelFraction;
 change.windowChannelFraction = post.artifact.windowChannelFraction - ...
     pre.artifact.windowChannelFraction;
 change.anyWindowFraction = post.artifact.anyWindowFraction - ...
@@ -1816,49 +2455,50 @@ nf_plot_topography(nexttile(layout, 9), preBurden, locations, ...
 nf_plot_topography(nexttile(layout, 10), postBurden, locations, ...
     [quality.metrics.postclean.stage ' spatial burden'], [0 burdenLimit]);
 
-if quality.change.available
+if quality.change.spatialDescriptiveAvailable
     changeLimit = max(abs(quality.change.channelArtifactFraction));
     changeLimit = max(changeLimit, 0.01);
     nf_plot_topography(nexttile(layout, 11), ...
         quality.change.channelArtifactFraction, locations, ...
         'Later - earlier stage burden', [-changeLimit changeLimit]);
 else
-    nf_plot_message(nexttile(layout, 11), 'Burden change withheld', ...
-        quality.change.reason);
+    nf_plot_message(nexttile(layout, 11), ...
+        'Spatial burden change unavailable', quality.change.reason);
 end
 
 nf_plot_channel_actions(nexttile(layout, 12), actionLocations, ...
     actionLabels, quality.actions.channels);
 
-if quality.metrics.pca.available
-    pcaLimit = max(abs([quality.metrics.pca.candidatePreScaledMap; ...
-        quality.metrics.pca.candidatePostScaledMap]));
-    pcaLimit = max(pcaLimit, eps);
-    if quality.metrics.pca.ocularSelectionAvailable
-        preTitle = sprintf('%s frontal PC%d (%.1f%%)', ...
-            quality.metrics.preclean.stage, ...
-            quality.metrics.pca.candidateIndex, ...
-            quality.metrics.pca.candidateExplainedPercent);
-        postTitle = sprintf('%s projection (%.1f%% variance change)', ...
-            quality.metrics.postclean.stage, ...
-            quality.change.pcaCandidateVariancePercent);
-    else
-        preTitle = sprintf('%s PC%d (%.1f%%)', quality.metrics.preclean.stage, ...
-            quality.metrics.pca.candidateIndex, ...
-            quality.metrics.pca.candidateExplainedPercent);
-        postTitle = [quality.metrics.postclean.stage ' fixed-basis projection'];
-    end
+icaImpact = quality.metrics.icaSpatialImpact;
+if icaImpact.available
+    totalLimit = max(icaImpact.totalRejectedRmsMicrovolts);
+    totalLimit = max(totalLimit, eps);
+    totalTitle = sprintf('All %d rejected ICs: sensor RMS (uV)', ...
+        icaImpact.nRejected);
     nf_plot_topography(nexttile(layout, 13), ...
-        quality.metrics.pca.candidatePreScaledMap, locations, preTitle, ...
-        [-pcaLimit pcaLimit]);
-    nf_plot_topography(nexttile(layout, 14), ...
-        quality.metrics.pca.candidatePostScaledMap, locations, postTitle, ...
-        [-pcaLimit pcaLimit]);
+        icaImpact.totalRejectedRmsMicrovolts, icaImpact.locations, ...
+        totalTitle, [0 totalLimit]);
+    if icaImpact.ocularAvailable
+        ocularLimit = max(icaImpact.ocularRejectedRmsMicrovolts);
+        ocularLimit = max(ocularLimit, eps);
+        ocularTitle = sprintf('%d ocular rejected ICs: sensor RMS (uV)', ...
+            icaImpact.nOcularRejected);
+        nf_plot_topography(nexttile(layout, 14), ...
+            icaImpact.ocularRejectedRmsMicrovolts, ...
+            icaImpact.locations, ocularTitle, [0 ocularLimit]);
+    else
+        ratioLimit = max(icaImpact.totalRejectedToOriginalRmsPercent);
+        ratioLimit = max(ratioLimit, eps);
+        nf_plot_topography(nexttile(layout, 14), ...
+            icaImpact.totalRejectedToOriginalRmsPercent, ...
+            icaImpact.locations, ...
+            'Rejected IC RMS / pre-subtraction RMS (%)', [0 ratioLimit]);
+    end
 else
-    nf_plot_message(nexttile(layout, 13), 'Fixed-basis PCA unavailable', ...
-        quality.metrics.pca.reason);
-    nf_plot_message(nexttile(layout, 14), 'Fixed-basis PCA unavailable', ...
-        quality.metrics.pca.reason);
+    nf_plot_message(nexttile(layout, 13), ...
+        'Rejected-IC scalp contribution unavailable', icaImpact.reason);
+    nf_plot_message(nexttile(layout, 14), ...
+        'Ocular-removal scalp contribution unavailable', icaImpact.reason);
 end
 
 nf_plot_epochs(nexttile(layout, 15), quality.actions.epochs);
@@ -1904,6 +2544,8 @@ else
 end
 
 if isfield(quality.actions.gedai, 'available') && quality.actions.gedai.available
+    precleanMethod = nf_get_text_field(quality.actions.gedai, ...
+        'method', 'GEDAI');
     sensaiScore = nf_get_numeric_scalar(quality.actions.gedai, ...
         'sensaiScore', NaN);
     artifactFraction = NaN;
@@ -1914,12 +2556,22 @@ if isfield(quality.actions.gedai, 'available') && quality.actions.gedai.availabl
     end
     if isfinite(sensaiScore) && isfinite(artifactFraction)
         gedaiText = sprintf( ...
-            'GEDAI: SENS-AI %.3g; modeled samples %.1f%%', ...
+            '%s: SENS-AI %.3g; modeled samples %.1f%%', ...
+            precleanMethod, ...
             sensaiScore, 100 .* artifactFraction);
     elseif isfinite(sensaiScore)
-        gedaiText = sprintf('GEDAI: SENS-AI %.3g', sensaiScore);
+        gedaiText = sprintf( ...
+            '%s: SENS-AI %.3g', precleanMethod, sensaiScore);
     else
-        gedaiText = 'GEDAI/preclean: recorded';
+        removedRms = nf_get_numeric_scalar( ...
+            quality.actions.gedai, 'removedRMSMicrovolts', NaN);
+        if isfinite(removedRms)
+            gedaiText = sprintf( ...
+                '%s preclean: removed RMS %.3g uV', ...
+                precleanMethod, removedRms);
+        else
+            gedaiText = sprintf('%s preclean: recorded', precleanMethod);
+        end
     end
 else
     gedaiText = 'GEDAI/preclean: unavailable';
@@ -1930,12 +2582,20 @@ if quality.comparability.paired
 else
     comparisonText = 'paired changes: WITHHELD';
 end
-stageText = sprintf('matched stages: %s -> %s', ...
+stageText = sprintf('dashboard stages: %s -> %s', ...
     quality.metrics.preclean.stage, quality.metrics.postclean.stage);
-if quality.thresholds.lineEvaluationEnabled
-    lineText = 'line criterion: enabled';
+precleanLineEnabled = ...
+    quality.metrics.preclean.artifact.spectralAvailability.lineNoise;
+postcleanLineEnabled = ...
+    quality.metrics.postclean.artifact.spectralAvailability.lineNoise;
+if precleanLineEnabled && postcleanLineEnabled
+    lineText = 'line criterion: enabled at both displayed stages';
+elseif precleanLineEnabled
+    lineText = 'line criterion: raw stage only (later passband excludes it)';
+elseif postcleanLineEnabled
+    lineText = 'line criterion: later stage only';
 else
-    lineText = 'line criterion: disabled';
+    lineText = 'line criterion: disabled or unsupported';
 end
 if quality.metrics.final.available
     finalText = sprintf('final flagged channel-windows: %.1f%%', ...
@@ -1943,6 +2603,43 @@ if quality.metrics.final.available
 else
     finalText = 'final flagged channel-windows: unavailable';
 end
+icaImpact = quality.metrics.icaSpatialImpact;
+if icaImpact.available
+    icaImpactText = sprintf( ...
+        'rejected-IC sensor RMS: median %.3g uV; max %.3g uV', ...
+        median(icaImpact.totalRejectedRmsMicrovolts), ...
+        max(icaImpact.totalRejectedRmsMicrovolts));
+    if icaImpact.ocularAvailable && ...
+            isfinite(icaImpact.ocularFrontalPosteriorRmsRatio)
+        ocularSpatialText = sprintf( ...
+            'ocular removal frontal/posterior RMS ratio: %.2f', ...
+            icaImpact.ocularFrontalPosteriorRmsRatio);
+    elseif isfinite(icaImpact.totalFrontalPosteriorRmsRatio)
+        ocularSpatialText = sprintf( ...
+            'all rejected ICs frontal/posterior RMS ratio: %.2f', ...
+            icaImpact.totalFrontalPosteriorRmsRatio);
+    else
+        ocularSpatialText = ...
+            'rejected-IC frontal/posterior ratio: unavailable';
+    end
+else
+    icaImpactText = 'rejected-IC sensor RMS: unavailable';
+    ocularSpatialText = ...
+        'rejected-IC frontal/posterior ratio: unavailable';
+end
+if isempty(channels.method)
+    channelMethodText = 'channel actions: unavailable';
+else
+    channelMethodText = sprintf('channel actions: %s', channels.method);
+end
+prepText = '';
+if channels.prep.available
+    prepText = sprintf( ...
+        'PREP channels: detected %d; interpolated %d; removed %d; still noisy %d', ...
+        channels.prep.detected.n, channels.prep.interpolated.n, ...
+        channels.prep.removed.n, channels.prep.stillNoisy.n);
+end
+detectorText = nf_epoch_detector_ledger_text(epochs);
 
 lines = {
     comparisonText
@@ -1955,6 +2652,8 @@ lines = {
     notchText
     lineText
     gedaiText
+    channelMethodText
+    prepText
     sprintf('channels: artifact %d; reference %d', ...
         channels.categories.artifact.n, channels.categories.reference.n)
     sprintf('final montage: missing %d; interpolated %d', ...
@@ -1964,9 +2663,12 @@ lines = {
         channels.categories.icaPreparation.n, ...
         channels.categories.rankDependent.n)
     sprintf('ICs: %d retained; %d rejected', ica.nRetained, ica.nRejected)
+    icaImpactText
+    ocularSpatialText
     sprintf('epochs: %s candidate; %s retained; %s rejected', ...
         nf_number_text(epochs.nCandidate), nf_number_text(epochs.nRetained), ...
         nf_number_text(epochs.nRejected))
+    detectorText
     sprintf('local repairs: %d epochs / %d channel-epochs', ...
         epochs.nLocallyRepaired, epochs.nChannelEpochRepairs)
     sprintf('matched flagged channel-windows: %.1f%% -> %.1f%%', ...
@@ -1974,6 +2676,7 @@ lines = {
         100 .* quality.metrics.postclean.artifact.channelWindowFraction)
     finalText
     };
+lines = lines(~cellfun(@isempty, lines));
 
 text(axisHandle, 0, 1, strjoin(lines, newline), 'VerticalAlignment', 'top', ...
     'FontName', 'FixedWidth', 'FontSize', 9, 'Interpreter', 'none');
@@ -1994,6 +2697,20 @@ if isnumeric(value) && isscalar(value) && isfinite(value)
 else
     textValue = 'NA';
 end
+end
+
+function textValue = nf_epoch_detector_ledger_text(epochs)
+textValue = '';
+if isempty(epochs.detectorMetrics)
+    return
+end
+parts = cell(1, numel(epochs.detectorMetrics));
+for index = 1:numel(epochs.detectorMetrics)
+    metric = epochs.detectorMetrics(index);
+    parts{index} = sprintf('%s %s', metric.displayName, ...
+        nf_number_text(metric.nFlaggedEpochs));
+end
+textValue = ['detector flagged epochs: ' strjoin(parts, '; ')];
 end
 
 function nf_plot_psd(axisHandle, pre, post, preStage, postStage)
@@ -2123,12 +2840,12 @@ end
 
 function nf_plot_channel_actions(axisHandle, locations, labels, actions)
 categoryNames = {'interpolated', 'artifact', 'reference', ...
-    'icaPreparation', 'rankDependent'};
+    'icaPreparation', 'rankDependent', 'prepDetected'};
 displayNames = {'Interpolated', 'Artifact', 'Reference', ...
-    'ICA preparation', 'Rank dependent'};
-markers = {'+', 'o', 'd', 's', 'x'};
+    'ICA preparation', 'Rank dependent', 'PREP detected'};
+markers = {'+', 'o', 'd', 's', 'x', 'p'};
 colors = [0.15 0.60 0.30; 0.85 0.15 0.10; 0.55 0.20 0.70; ...
-    0.95 0.50 0.10; 0.10 0.40 0.85];
+    0.95 0.50 0.10; 0.10 0.40 0.85; 0.05 0.05 0.05];
 categoryIndices = cell(1, numel(categoryNames));
 reportedCategoryEntries = 0;
 mappedCategoryEntries = 0;
@@ -2136,9 +2853,11 @@ for categoryIndex = 1:numel(categoryNames)
     category = actions.categories.(categoryNames{categoryIndex});
     categoryIndices{categoryIndex} = nf_channel_category_indices( ...
         category, labels);
-    reportedCategoryEntries = reportedCategoryEntries + category.n;
-    mappedCategoryEntries = mappedCategoryEntries + ...
-        numel(categoryIndices{categoryIndex});
+    if ~strcmp(categoryNames{categoryIndex}, 'prepDetected')
+        reportedCategoryEntries = reportedCategoryEntries + category.n;
+        mappedCategoryEntries = mappedCategoryEntries + ...
+            numel(categoryIndices{categoryIndex});
+    end
 end
 unmappedCategoryEntries = max(0, ...
     reportedCategoryEntries - mappedCategoryEntries);
@@ -2303,8 +3022,11 @@ if ~isempty(epochs.badChannelEpoch) && ~isempty(epochs.rejectedMask)
         'Locally interpolated', 'Rejected'};
     xlabel(axisHandle, 'Original epoch');
     ylabel(axisHandle, 'Channels + reject strip');
-    title(axisHandle, sprintf('Threshold actions: %d repaired; %d rejected', ...
-        epochs.nLocallyRepaired, epochs.nRejected));
+    actionTitle = sprintf('Threshold actions: %d repaired; %d rejected', ...
+        epochs.nLocallyRepaired, epochs.nRejected);
+    detectorTitle = nf_epoch_detector_title_lines(epochs);
+    title(axisHandle, [{actionTitle}, detectorTitle], ...
+        'Interpreter', 'none');
     return
 end
 
@@ -2318,9 +3040,56 @@ bar(axisHandle, epochs.dispositionCounts, 'FaceColor', [0.35 0.60 0.45]);
 set(axisHandle, 'XTick', 1:numel(epochs.dispositionNames), ...
     'XTickLabel', epochs.dispositionNames, 'XTickLabelRotation', 25);
 ylabel(axisHandle, 'Epochs');
-title(axisHandle, sprintf('Epochs: voltage flags %d; spectral flags %d', ...
-    epochs.nVoltageFlagged, epochs.nSpectralFlagged));
+actionTitle = sprintf('Epochs: voltage flags %d; spectral flags %d', ...
+    epochs.nVoltageFlagged, epochs.nSpectralFlagged);
+detectorTitle = nf_epoch_detector_title_lines(epochs);
+title(axisHandle, [{actionTitle}, detectorTitle], 'Interpreter', 'none');
 grid(axisHandle, 'on');
+end
+
+function lines = nf_epoch_detector_title_lines(epochs)
+lines = {};
+if isempty(epochs.detectorMetrics)
+    return
+end
+parts = cell(1, numel(epochs.detectorMetrics));
+for index = 1:numel(epochs.detectorMetrics)
+    metric = epochs.detectorMetrics(index);
+    parts{index} = sprintf('%s %s', ...
+        nf_detector_short_name(metric.name), ...
+        nf_number_text(metric.nFlaggedEpochs));
+end
+detectorsPerLine = 5;
+for firstIndex = 1:detectorsPerLine:numel(parts)
+    lastIndex = min(firstIndex + detectorsPerLine - 1, numel(parts));
+    if firstIndex == 1
+        prefix = 'flagged epochs: ';
+    else
+        prefix = '';
+    end
+    lines{end + 1} = [prefix strjoin(parts(firstIndex:lastIndex), ' | ')];
+end
+end
+
+function name = nf_detector_short_name(detector)
+switch detector
+    case 'amplitude'
+        name = 'amp';
+    case 'peak2peak'
+        name = 'p2p';
+    case 'gradient'
+        name = 'grad';
+    case 'flatline'
+        name = 'flat';
+    case 'clipping'
+        name = 'clip';
+    case 'jointprobability'
+        name = 'jointP';
+    case 'eeglabstats'
+        name = 'EEGLAB';
+    otherwise
+        name = detector;
+end
 end
 
 function nf_plot_alerts(axisHandle, alerts)

@@ -1,11 +1,11 @@
 function [EEG, latencies] = nf_correctlatencies( EEG, targetEvent, shiftEvent, expectedCount )
-% NF_CORRECTLATENCIES    CORRECT EVENT CODES LATENCIES USING A SET OF EVENTS
+% NF_CORRECTLATENCIES  Correct event-code latencies using a second event set.
 %
 % [EEG, LATENCIES] = NF_correctlatencies(EEG, 'stim', 'photodiode', 400);
 %
 % Corrects EEG TTL trigger latency using another set of event codes
 % The other event codes are expected to come from an event marking device,
-% such as Cortech Solutions "Triggy", Cedrus "StimTracker", Black Box 
+% such as Cortech Solutions "Triggy", Cedrus "StimTracker", Black Box
 % Toolkit M2/M3, or some other comparable device.
 %
 % Name/value inputs:

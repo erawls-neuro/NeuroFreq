@@ -1,5 +1,5 @@
 function [EEG, indices, com, info] = nf_epochbynumber(EEG, epochs, xmin, xmax)
-% NF_EPOCHBYNUMBER  Select existing EEGLAB epochs without rebuilding events.
+% NF_EPOCHBYNUMBER  Select and crop EEGLAB epochs without rebuilding events.
 %
 % [EEG, INDICES, COM, INFO] = NF_EPOCHBYNUMBER(EEG, EPOCHS, XMIN, XMAX)
 % preserves the requested epoch order, crops to the requested time window,

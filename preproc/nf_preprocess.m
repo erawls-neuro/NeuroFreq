@@ -1,43 +1,88 @@
 function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
-% NF_PREPROCESS  Complete NeuroFreq adult/child EEGLAB preprocessing.
+% NF_PREPROCESS  Run reproducible flexible NeuroFreq EEG preprocessing.
 %
 % [EEG, REPORT, QUALITY, FIGUREHANDLE] = NF_PREPROCESS(EEG, ...)
 %
-% The two presets share filtering, FASTER, GEDAI, ICA training, epoch
-% handling, 125-uV thresholding, FFT muscle screening, interpolation, and
-% final reference. Their sole preset difference is the IC classifier:
+% Pipeline presets:
 %
-%   adult : ICLabel
-%   child : MADE adjusted_ADJUST
+%   BDC          FASTER channels + GEDAI + ICLabel + threshold/FFT rules
+%   MADE         FASTER channels + adjusted_ADJUST + threshold rules
+%   PREP         official PREP channel/reference code
+%   FASTER       official FASTER channel, epoch, and IC classifiers
+%   HAPPE+ER     installed HAPPE channel/wavelet stages + MARA and
+%                HAPPE-compatible epoch rules, composed by NeuroFreq
+%   cleanrawdata official clean_rawdata channel and ASR functions
+%   EEGLAB       legacy EEGLAB channel and epoch-statistics functions
 %
 % Common name/value inputs:
-%   preset                 'adult' (default) or 'child'
+%   preset                 'BDC' (default), 'MADE', 'PREP', 'FASTER',
+%                          'HAPPE+ER', 'cleanrawdata', or 'EEGLAB'
 %   events                 event type(s) for pop_epoch; [] makes fixed epochs
 %   epochLimits            [start end] seconds when events are supplied
 %   continuousEpochLength  1 second when events are empty
+%   epochStage             'auto' (default), 'beforeica', or 'afterica'.
+%                          For BDC with exactly one requested event type,
+%                          auto uses those event epochs for ICA fitting.
+%                          Other presets that use ICA retain fixed training
+%                          epochs unless beforeica is explicitly requested.
 %   baseline               false (default) or [start end] milliseconds
 %   lowpass                45 Hz; retains the complete 20-40-Hz muscle band
 %   highpass               0.3 Hz
 %   notch                  60 Hz; skipped when redundant below low-pass
 %   resample               250 Hz
 %   eegChannels            [] auto-selects channels typed EEG/empty
-%   channelMethod          'faster' (default) (may add other options later)
+%   channelMethod          faster, cleanrawdata, prep, happeer, eeglab,
+%                          or none
+%   fasterOptions          FASTER channel measure/z settings
+%   cleanrawdataOptions    clean_flatlines/clean_channels settings
+%   prepOptions            PREP removeTrend/findNoisyChannels settings
+%   happeerOptions         HAPPE bad-channel stage settings; acquisition
+%                          density is resolved from the original EEG count
+%                          unless supplied explicitly
+%   eeglabOptions          legacy pop_rejchan measures/thresholds
 %   maxBadChannels         floor(10%% of selected channels), used as QC limit
-%   badChannelReference    [] automatic, channel label, or index
+%   badChannelReference    [] automatic, channel label, or index in the
+%                          selected EEG montage
 %   cleanHighpass          1-Hz diagnostic copy for cleanrawdata channels
-%   precleanMethod         'gedai' (default) or 'asr'
+%   precleanMethod         gedai, asr, prep, happeer, or none
+%   asrOptions             direct clean_asr settings
+%   prepPipelineOptions    parameters passed to official prepPipeline
+%   happeerPrecleanOptions HAPPE wavelet settings including erpMode,
+%                          softThreshold, QC passband, and QC frequencies
 %   gedaiOptions           GEDAI v1.7 options; default uses the standard
 %                          precomputed 10-5 database. Use referenceMatrixType
 %                          'interpolated' for nonstandard coordinate montages.
-%   icaMethod              '' uses the preset classifier
+%   icaMethod              '' uses the preset classifier; iclabel,
+%                          adjustedadjust, adjust, mara, faster, or none
 %   icaAlgorithm           'runica' (default) or optional 'runamica15'
 %   randomSeed             1
 %   minimumSamplesPerRankSquared 20 for production ICA sufficiency
 %   iclabelThresholds      [] uses dominant ICLabel class, or a 7x2 matrix
+%   adjustOptions          ADJUST report/behavior settings
+%   maraOptions            MARA rejection controls
+%   fasterICAOptions       FASTER component measure/z and EOG settings;
+%                          numeric EOG indices refer to the selected raw
+%                          montage and are remapped by channel label
 %   voltageThreshold       125 microvolts
 %   powerThreshold         [-100 30] dB
-%   muscleRange            [20 40] Hz
+%   muscleRange            [20 40] Hz legacy FFT band
+%   epochDetectors         composable detector names: threshold, fft,
+%                          peak2peak, step, gradient, flatline, clipping,
+%                          faster, eeglabstats, jointprobability, or none
+%   fftBands               [] uses muscleRange; otherwise N-by-2 bands,
+%                          N-by-4 [low high lowerDb upperDb] rows, or
+%                          structures with frequency and power-threshold fields
 %   thresholdTimes         [] uses the full final epoch
+%   amplitudeOptions, fftOptions, peakToPeakOptions, stepOptions,
+%                          gradientOptions, flatlineOptions,
+%                          clippingOptions, fasterEpochOptions,
+%                          eeglabEpochOptions, and
+%                          jointProbabilityOptions expose detector settings
+%                          Numeric channel fields in these structures refer
+%                          to the selected raw-input montage and are remapped
+%                          by label after channel/ICA preparation.
+%   epochRepairOptions     per-detector and fallback mark/interpolate/reject
+%                          policies for composable detections
 %   localInterp            true
 %   maxLocalBad            floor(10%% of selected channels)
 %   frontalChannels        {} uses validated frontopolar labels/coordinates
@@ -78,8 +123,7 @@ function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
 %   currently performs no BIDS inference, entity naming, metadata writing,
 %   or directory construction.
 %
-% For compatibility, an event specification may be supplied as the first
-% positional argument, followed by name/value inputs.
+
 
 nf_validate_input_eeg(EEG);
 EEG = nf_ensure_event_fields(EEG);
@@ -89,31 +133,42 @@ varargin = nf_normalize_legacy_events(varargin);
 parser = inputParser;
 parser.FunctionName = 'nf_preprocess';
 parser.KeepUnmatched = false;
-addParameter(parser, 'preset', 'adult', @nf_is_text);
+addParameter(parser, 'preset', 'BDC', @nf_is_text);
 addParameter(parser, 'events', [], @nf_is_events);
 addParameter(parser, 'epochLimits', [], @nf_is_limits_or_empty);
 addParameter(parser, 'continuousEpochLength', 1, @nf_is_positive_scalar);
+addParameter(parser, 'epochStage', 'auto', @nf_is_text);
 addParameter(parser, 'baseline', false, @nf_is_baseline);
 addParameter(parser, 'lowpass', 45, @nf_is_positive_scalar);
 addParameter(parser, 'highpass', 0.3, @nf_is_nonnegative_scalar);
 addParameter(parser, 'notch', 60, @nf_is_nonnegative_scalar);
 addParameter(parser, 'resample', 250, @nf_is_positive_scalar);
 addParameter(parser, 'eegChannels', [], @nf_is_channel_specification);
-addParameter(parser, 'channelMethod', 'faster', @nf_is_text);
+addParameter(parser, 'channelMethod', '', @nf_is_text);
 addParameter(parser, 'maxBadChannels', floor(EEG.nbchan / 5), ...
     @nf_is_nonnegative_integer);
 addParameter(parser, 'badChannelReference', [], @nf_is_reference);
 addParameter(parser, 'fasterOptions', struct(), @nf_is_scalar_struct);
 addParameter(parser, 'cleanCorrelation', 0.8, @nf_is_correlation);
 addParameter(parser, 'cleanHighpass', 1, @nf_is_positive_scalar);
-addParameter(parser, 'precleanMethod', 'gedai', @nf_is_text);
+addParameter(parser, 'cleanrawdataOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'prepOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'happeerOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'eeglabOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'precleanMethod', '', @nf_is_text);
 addParameter(parser, 'gedaiOptions', struct(), @nf_is_gedai_options);
+addParameter(parser, 'asrOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'prepPipelineOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'happeerPrecleanOptions', struct(), @nf_is_scalar_struct);
 addParameter(parser, 'icaMethod', '', @nf_is_text);
 addParameter(parser, 'icaAlgorithm', 'runica', @nf_is_text);
 addParameter(parser, 'aggressiveICA', false, @nf_is_logical_scalar);
 addParameter(parser, 'randomSeed', 1, @nf_is_nonnegative_integer);
 addParameter(parser, 'iclabelThresholds', [], @nf_is_iclabel_thresholds);
 addParameter(parser, 'adjustReportFile', '', @nf_is_text_or_empty);
+addParameter(parser, 'adjustOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'maraOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'fasterICAOptions', struct(), @nf_is_scalar_struct);
 addParameter(parser, 'icaTrainingHighpass', 1, @nf_is_positive_scalar);
 addParameter(parser, 'icaTrainingEpochLength', 1, @nf_is_positive_scalar);
 addParameter(parser, 'icaTrainingVoltage', 1000, @nf_is_positive_scalar);
@@ -130,9 +185,23 @@ addParameter(parser, 'runicaStop', 1e-7, @nf_is_positive_scalar);
 addParameter(parser, 'voltageThreshold', 125, @nf_is_positive_scalar);
 addParameter(parser, 'powerThreshold', [-100 30], @nf_is_increasing_pair);
 addParameter(parser, 'muscleRange', [20 40], @nf_is_increasing_pair);
+addParameter(parser, 'epochDetectors', {}, @nf_is_method_list);
+addParameter(parser, 'fftBands', [], @nf_is_frequency_bands);
+addParameter(parser, 'amplitudeOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'fftOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'peakToPeakOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'stepOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'gradientOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'flatlineOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'clippingOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'fasterEpochOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'eeglabEpochOptions', struct(), @nf_is_scalar_struct);
+addParameter(parser, 'jointProbabilityOptions', struct(), ...
+    @nf_is_scalar_struct);
+addParameter(parser, 'epochRepairOptions', struct(), @nf_is_scalar_struct);
 addParameter(parser, 'thresholdTimes', [], @nf_is_limits_or_empty);
 addParameter(parser, 'localInterp', true, @nf_is_logical_scalar);
-addParameter(parser, 'maxLocalBad', floor(EEG.nbchan / 10), ...
+addParameter(parser, 'maxLocalBad', floor(EEG.nbchan / 5), ...
     @nf_is_nonnegative_integer);
 addParameter(parser, 'frontalChannels', {}, @nf_is_labels);
 addParameter(parser, 'globalInterpolation', true, @nf_is_logical_scalar);
@@ -146,14 +215,22 @@ addParameter(parser, 'save', false, @nf_is_save_request);
 addParameter(parser, 'log', false, @nf_is_logical_scalar);
 parse(parser, varargin{:});
 options = parser.Results;
-usingDefaultMaxBad = ismember('maxBadChannels', parser.UsingDefaults);
-usingDefaultMaxLocal = ismember('maxLocalBad', parser.UsingDefaults);
+usingDefaults = parser.UsingDefaults;
+usingDefaultMaxBad = nf_was_default(usingDefaults, 'maxBadChannels');
+usingDefaultMaxLocal = nf_was_default(usingDefaults, 'maxLocalBad');
 
-options.preset = lower(char(options.preset));
-options.channelMethod = lower(char(options.channelMethod));
-options.precleanMethod = lower(char(options.precleanMethod));
+options.preset = nf_normalize_preset(options.preset);
+[options, presetDefinition] = nf_apply_preset_defaults( ...
+    options, usingDefaults);
+options.channelMethod = nf_normalize_channel_method(options.channelMethod);
+options.precleanMethod = nf_normalize_preclean_method(options.precleanMethod);
 options.icaAlgorithm = lower(char(options.icaAlgorithm));
 options.icaMethod = nf_resolve_ica_method(options.preset, options.icaMethod);
+options.epochStageRequested = nf_normalize_epoch_stage(options.epochStage);
+[options.epochStage, options.epochStageResolution] = ...
+    nf_resolve_epoch_stage(options.epochStageRequested, options);
+options.epochDetectors = nf_normalize_epoch_detectors( ...
+    options.epochDetectors);
 options.interpolationMethod = nf_normalize_interpolation_method( ...
     options.interpolationMethod);
 options.qualityCompute = logical(options.qualityCompute || options.qualityPlot);
@@ -166,8 +243,15 @@ options.icaTrainingPower = nf_row_pair(options.icaTrainingPower);
 options.icaTrainingFrequencies = nf_row_pair(options.icaTrainingFrequencies);
 options.powerThreshold = nf_row_pair(options.powerThreshold);
 options.muscleRange = nf_row_pair(options.muscleRange);
+if ~isempty(options.fftBands)
+    options.fftBands = nf_normalize_frequency_bands( ...
+        options.fftBands, options.muscleRange);
+end
 options.thresholdTimes = nf_row_pair(options.thresholdTimes);
-options.gedaiOptions = nf_resolve_gedai_configuration(options.gedaiOptions);
+if strcmp(options.precleanMethod, 'gedai')
+    options.gedaiOptions = ...
+        nf_resolve_gedai_configuration(options.gedaiOptions);
+end
 
 artifactPlan = nf_resolve_artifact_plan(EEG, options);
 % Retain both onCleanup objects until the job reaches its finalization path.
@@ -195,35 +279,79 @@ try
     nf_preflight_dependencies(options);
 
     report = struct();
-    report.schemaVersion = '3.0.0';
+    report.schemaVersion = '4.1.0';
     report.started = datestr(now, 30); %#ok<TNOW1,DATST>
-    report.preset = options.preset;
-    if strcmp(options.channelMethod, 'faster') && ...
-            strcmp(options.precleanMethod, 'gedai')
-        report.pipelineMode = 'standard-preset';
-    else
-        report.pipelineMode = 'customized-common-stages';
-    end
-    report.presetDefinition.commonPipeline = ...
-        'Filtering + FASTER + GEDAI + common ICA preparation + voltage/FFT cleaning';
-    report.presetDefinition.standardVoltageThresholdMicrovolts = 125;
-    report.presetDefinition.classifier = options.icaMethod;
-    report.presetDefinition.onlyPresetDifference = ...
-        'adult uses ICLabel; child uses MADE adjusted_ADJUST';
+    report.preset = presetDefinition.displayName;
+    report.pipelineMode = 'preset-with-explicit-overrides';
+    report.presetDefinition = presetDefinition;
+    report.presetDefinition.resolvedChannelMethod = options.channelMethod;
+    report.presetDefinition.resolvedPrecleanMethod = options.precleanMethod;
+    report.presetDefinition.resolvedClassifier = options.icaMethod;
+    report.presetDefinition.resolvedEpochStage = options.epochStage;
+    report.presetDefinition.resolvedEpochDetectors = ...
+        options.epochDetectors;
     report.options = nf_report_options(options);
     report.input = nf_dataset_summary(EEG);
     report.steps = struct();
     report.channels = struct();
     report.gedai = struct();
+    report.preclean = struct();
     report.ica = struct();
     report.epochs = struct();
+    report.epochs.timing = options.epochStageResolution;
+    report.provenance = struct();
     report.quality = struct('computed', false, 'plotted', false, 'error', '');
+    report.quality.earlierStage = ...
+        'selected raw input before filtering and artifact correction';
+    if strcmp(options.icaMethod, 'none')
+        report.quality.laterStage = ...
+            'post-precleaning data before final epoch cleaning; ICA skipped';
+        report.quality.comparisonScope = ...
+            ['The dashboard spans filtering, bad-channel handling, and ' ...
+            'precleaning. Final epoch actions are reported separately.'];
+    else
+        report.quality.laterStage = ...
+            'post-ICA subtraction before final epoch cleaning';
+        report.quality.comparisonScope = ...
+            ['The dashboard spans filtering, bad-channel handling, ' ...
+            'precleaning, and ICA subtraction. Final epoch actions are ' ...
+            'reported separately.'];
+    end
     report.persistence = nf_initial_persistence_report(artifactPlan);
 
     [EEG, channelSelection] = nf_select_eeg_channels(EEG, options.eegChannels);
-    EEG = nf_normalize_channel_locations(EEG);
+    if nf_pipeline_requires_geometry(options)
+        EEG = nf_normalize_channel_locations(EEG);
+    else
+        nf_require_unique_labels({EEG.chanlocs.labels});
+    end
     report.channels.selection = channelSelection;
-    nf_validate_interpolation_locations(EEG.chanlocs);
+    if strcmp(options.channelMethod, 'happeer')
+        hasHappeDensity = isfield(options.happeerOptions, 'lowDensity') && ...
+            ~isempty(options.happeerOptions.lowDensity);
+        hasHappeParameterDensity = ...
+            isfield(options.happeerOptions, 'params') && ...
+            isstruct(options.happeerOptions.params) && ...
+            isfield(options.happeerOptions.params, 'lowDensity') && ...
+            ~isempty(options.happeerOptions.params.lowDensity);
+        if ~hasHappeDensity && ~hasHappeParameterDensity
+            options.happeerOptions.lowDensity = ...
+                channelSelection.nAcquisitionEEGChannels <= 32;
+            report.channels.happeerDensityResolution = struct( ...
+                'source', 'input chanlocs.type EEG-or-empty count', ...
+                'channelCount', ...
+                channelSelection.nAcquisitionEEGChannels, ...
+                'lowDensity', options.happeerOptions.lowDensity, ...
+                'inferredByNeuroFreq', true);
+        else
+            report.channels.happeerDensityResolution = struct( ...
+                'source', 'explicit happeerOptions', ...
+                'channelCount', ...
+                channelSelection.nAcquisitionEEGChannels, ...
+                'lowDensity', [], ...
+                'inferredByNeuroFreq', false);
+        end
+    end
     if usingDefaultMaxBad
         options.maxBadChannels = floor(EEG.nbchan / 5);
     end
@@ -235,11 +363,19 @@ try
             options.gedaiOptions, EEG.chanlocs);
     end
     report.options = nf_report_options(options);
-    if options.maxBadChannels >= EEG.nbchan - 2
+    epochRepairRequirements = nf_epoch_repair_requirements(options);
+    if ~strcmp(options.channelMethod, 'none') && ...
+            options.maxBadChannels >= EEG.nbchan - 2
         error('nf_preprocess:InvalidBadChannelLimit', ...
             'maxBadChannels must leave at least three selected EEG channels.');
     end
-    if options.localInterp && options.maxLocalBad > EEG.nbchan - 3
+    if epochRepairRequirements.channelRepairCapable && ...
+            options.maxLocalBad >= EEG.nbchan
+        error('nf_preprocess:InvalidLocalChannelLimit', ...
+            'maxLocalBad must be below the selected EEG channel count.');
+    end
+    if epochRepairRequirements.requiresInterpolation && ...
+            options.maxLocalBad > EEG.nbchan - 3
         error('nf_preprocess:InvalidLocalChannelLimit', ...
             'maxLocalBad must leave at least three interpolation donor channels.');
     end
@@ -249,32 +385,115 @@ try
         EEG.etc = struct();
     end
     EEG.etc.ogchan = originalMontage;
+    if options.qualityCompute
+        EEG_preclean = EEG;
+    else
+        EEG_preclean = [];
+    end
+    useUnfilteredChannelDiagnostic = ...
+        nf_channel_detection_uses_unfiltered_input(options.channelMethod);
+    if useUnfilteredChannelDiagnostic
+        EEG_channelDiagnostic = EEG;
+    else
+        EEG_channelDiagnostic = [];
+    end
+    precleanRanEarly = false;
+    precleanInfo = struct();
+    gedaiInfo = struct();
+    gedaiInfo.applied = false;
+    if strcmp(options.precleanMethod, 'prep')
+        [EEG, precleanInfo] = nf_run_prep_pipeline( ...
+            EEG, options.prepPipelineOptions);
+        precleanRanEarly = true;
+        nf_check_job_log(artifactPlan, 'PREP pipeline');
+    end
 
-    [EEG, filterInfo] = nf_filter(EEG, options.lowpass, options.highpass, ...
-        options.notch, options.resample);
+    deferHappeErpFilter = strcmp(options.precleanMethod, 'happeer') && ...
+        nf_happeer_erp_mode( ...
+        options.happeerPrecleanOptions, options.events);
+    if deferHappeErpFilter
+        preWaveletNotch = options.notch;
+        skippedPreWaveletNotch = false;
+        if preWaveletNotch > 0 && ...
+                preWaveletNotch + 2 >= EEG.srate / 2
+            preWaveletNotch = 0;
+            skippedPreWaveletNotch = true;
+        end
+        [EEG, filterInfo] = nf_filter( ...
+            EEG, 0, 0, preWaveletNotch, options.resample);
+        filterInfo.requested.notchHz = options.notch;
+        if skippedPreWaveletNotch
+            filterInfo.skipped{end + 1} = ...
+                ['Pre-wavelet notch skipped because its stop band was ' ...
+                'not below the input Nyquist frequency.'];
+        end
+        filterInfo.deferredAnalysisPassband = true;
+        filterInfo.order = ...
+            ['HAPPE ERP composition: line-noise notch and resampling before ' ...
+            'the HAPPE channel/wavelet stages; analysis passband afterward.'];
+    else
+        [EEG, filterInfo] = nf_filter( ...
+            EEG, options.lowpass, options.highpass, ...
+            options.notch, options.resample);
+        filterInfo.deferredAnalysisPassband = false;
+    end
     report.steps.filter = filterInfo;
     nf_check_job_log(artifactPlan, 'filtering');
 
-    if strcmp(options.channelMethod, 'none')
-        channelInfo = struct();
-        channelInfo.method = 'none';
-        channelInfo.removed.labels = {};
-        channelInfo.removed.nRemoved = 0;
+    if useUnfilteredChannelDiagnostic
+        channelInput = EEG_channelDiagnostic;
     else
-        [EEG, channelInfo] = nf_badchans(EEG, options.maxBadChannels, ...
-            false, options.channelMethod, ...
-            'reference', options.badChannelReference, ...
-            'fasterOptions', options.fasterOptions, ...
-            'cleanCorrelation', options.cleanCorrelation, ...
-            'cleanHighpass', options.cleanHighpass, ...
-            'interpolationMethod', options.interpolationMethod);
+        channelInput = EEG;
+    end
+    [channelOutput, channelInfo] = nf_badchans( ...
+        channelInput, options.maxBadChannels, ...
+        false, options.channelMethod, ...
+        'reference', options.badChannelReference, ...
+        'fasterOptions', options.fasterOptions, ...
+        'cleanCorrelation', options.cleanCorrelation, ...
+        'cleanHighpass', options.cleanHighpass, ...
+        'cleanrawdataOptions', options.cleanrawdataOptions, ...
+        'prepOptions', options.prepOptions, ...
+        'happeerOptions', options.happeerOptions, ...
+        'eeglabOptions', options.eeglabOptions, ...
+        'interpolationMethod', options.interpolationMethod);
+    if useUnfilteredChannelDiagnostic
+        [EEG, channelTransfer] = nf_apply_channel_detection( ...
+            EEG, channelOutput, channelInfo);
+        channelInfo.inputStage = ...
+            'selected raw input before analysis low-pass and resampling';
+        channelInfo.transferToAnalysisData = channelTransfer;
+    else
+        EEG = channelOutput;
+        if deferHappeErpFilter && strcmp(options.channelMethod, 'happeer')
+            channelInfo.inputStage = ...
+                ['pre-wavelet line-noise/resampled data before the ERP ' ...
+                'analysis passband'];
+        else
+            channelInfo.inputStage = 'analysis-filtered working data';
+        end
+    end
+    if strcmp(options.preset, 'faster') && ...
+            strcmp(options.channelMethod, 'faster') && ...
+            isfield(channelInfo, 'provenance') && ...
+            isfield(channelInfo.provenance, 'contractLevel') && ...
+            ~strcmp(channelInfo.provenance.contractLevel, ...
+            'vendor-exact-stage')
+        error('nf_preprocess:FASTERPresetReferenceRequired', ...
+            ['The FASTER comparison preset requires vendor-exact ' ...
+            'channel_properties. NeuroFreq could not recover a recording ' ...
+            'reference and therefore refused its compatible no-reference ' ...
+            'implementation. Supply badChannelReference or repair the ' ...
+            'reference metadata.']);
     end
     report.channels.detection = channelInfo;
     report.steps.badChannels.applied = ~strcmp(options.channelMethod, 'none');
     report.steps.badChannels.method = options.channelMethod;
     nf_check_job_log(artifactPlan, 'bad-channel detection');
 
-    if strcmp(options.precleanMethod, 'gedai')
+    if precleanRanEarly
+        gedaiInfo.applied = false;
+    elseif strcmp(options.precleanMethod, 'gedai')
         gedaiConfiguration = nf_subset_gedai_reference( ...
             options.gedaiOptions, originalMontage, EEG.chanlocs);
         if ischar(gedaiConfiguration.referenceMatrixType) && ...
@@ -282,21 +501,52 @@ try
             nf_validate_gedai_standard_labels(EEG.chanlocs);
         end
         [EEG, gedaiInfo] = nf_run_gedai(EEG, gedaiConfiguration);
+        precleanInfo = gedaiInfo;
+    elseif strcmp(options.precleanMethod, 'asr')
+        [EEG, precleanInfo] = nf_run_asr(EEG, options.asrOptions);
+        gedaiInfo = struct();
+        gedaiInfo.applied = false;
+    elseif strcmp(options.precleanMethod, 'happeer')
+        [EEG, precleanInfo] = nf_run_happeer_preclean( ...
+            EEG, options.happeerPrecleanOptions, options);
+        if deferHappeErpFilter
+            [EEG, filterInfo] = nf_apply_deferred_happe_filter( ...
+                EEG, filterInfo, options);
+            report.steps.filter = filterInfo;
+            nf_check_job_log( ...
+                artifactPlan, 'post-wavelet ERP analysis filtering');
+        end
+        gedaiInfo = struct();
+        gedaiInfo.applied = false;
     else
         gedaiInfo = struct();
         gedaiInfo.applied = false;
+        precleanInfo = struct();
+        precleanInfo.applied = false;
+        precleanInfo.method = 'none';
     end
     EEG = eeg_checkset(EEG);
     report.gedai = gedaiInfo;
+    report.preclean = precleanInfo;
+    report.steps.preclean.applied = precleanInfo.applied;
+    report.steps.preclean.method = options.precleanMethod;
     report.steps.gedai.applied = gedaiInfo.applied;
-    nf_check_job_log(artifactPlan, 'GEDAI');
-    if options.qualityCompute
-        EEG_preclean = EEG;
-    else
-        EEG_preclean = [];
-    end
+    nf_check_job_log(artifactPlan, 'precleaning');
 
-    [EEG, icaInfo] = nf_cleanic(EEG, ...
+    [options.fasterICAOptions, fasterIcaOptionRemapping] = ...
+        nf_remap_faster_ica_options( ...
+        options.fasterICAOptions, options.icaMethod, ...
+        originalMontage, EEG.chanlocs);
+    report.channels.fasterICAOptionRemapping = ...
+        fasterIcaOptionRemapping;
+    if strcmp(options.epochStage, 'beforeica')
+        icaTrainingEvents = options.eventValidation.popEpochEvents;
+        icaTrainingEpochLimits = options.epochLimits;
+    else
+        icaTrainingEvents = {};
+        icaTrainingEpochLimits = [];
+    end
+    [EEG, icaInfo, EEG_icaModel] = nf_cleanic(EEG, ...
         options.icaMethod, options.aggressiveICA, ...
         'algorithm', options.icaAlgorithm, ...
         'randomSeed', options.randomSeed, ...
@@ -309,8 +559,13 @@ try
         'minimumTrainingEpochs', options.minimumTrainingEpochs, ...
         'minimumSamplesPerRankSquared', ...
         options.minimumSamplesPerRankSquared, ...
+        'trainingEvents', icaTrainingEvents, ...
+        'trainingEpochLimits', icaTrainingEpochLimits, ...
         'iclabelThresholds', options.iclabelThresholds, ...
         'adjustReportFile', options.adjustReportFile, ...
+        'adjustOptions', options.adjustOptions, ...
+        'maraOptions', options.maraOptions, ...
+        'fasterOptions', options.fasterICAOptions, ...
         'amicaMaxIterations', options.amicaMaxIterations, ...
         'amicaThreads', options.amicaThreads, ...
         'amicaProcesses', options.amicaProcesses, ...
@@ -322,12 +577,60 @@ try
         EEG_postclean = [];
     end
     report.ica = icaInfo;
-    report.steps.ica.applied = true;
+    report.steps.ica.applied = ~strcmp(options.icaMethod, 'none');
     report.steps.ica.method = options.icaMethod;
-    report.steps.ica.algorithm = options.icaAlgorithm;
+    report.steps.ica.algorithm = icaInfo.algorithm;
+    report.steps.ica.epochStage = options.epochStage;
+    if isfield(icaInfo.training, 'source')
+        report.steps.ica.trainingEpochSource = icaInfo.training.source;
+    else
+        report.steps.ica.trainingEpochSource = 'none';
+    end
+    if isfield(icaInfo, 'classification') && ...
+            isfield(icaInfo.classification, 'dataScope')
+        report.steps.ica.classifierDataScope = ...
+            icaInfo.classification.dataScope;
+    end
+    if isfield(icaInfo, 'componentSubtractionDataScope')
+        report.steps.ica.componentSubtractionDataScope = ...
+            icaInfo.componentSubtractionDataScope;
+    end
     nf_check_job_log(artifactPlan, 'ICA cleaning');
 
     [EEG, epochInfo] = nf_make_final_epochs(EEG, options);
+    if strcmp(options.epochStage, 'beforeica')
+        trainingIndices = icaInfo.training.candidateEventIndices;
+        finalIndices = epochInfo.candidateEventIndices;
+        trainingLatencies = ...
+            icaInfo.training.candidateEventLatenciesSamples;
+        finalLatencies = epochInfo.candidateEventLatenciesSamples;
+        epochInfo.matchesIcaCandidateEventSelection = ...
+            isequal(trainingIndices, finalIndices) && ...
+            isequal(trainingLatencies, finalLatencies);
+        epochInfo.icaTrainingCandidateEventIndices = trainingIndices;
+        epochInfo.icaTrainingRetainedEventIndices = ...
+            icaInfo.training.retainedEventIndices;
+        if ~epochInfo.matchesIcaCandidateEventSelection
+            error('nf_preprocess:ICAEventEpochMismatch', ...
+                ['Final epoching did not reproduce the complete candidate ' ...
+                'event selection used to construct the ICA-fitting epochs. ' ...
+                'No output was produced because event identity changed ' ...
+                'unexpectedly between ICA preparation and final epoching.']);
+        end
+    else
+        epochInfo.matchesIcaCandidateEventSelection = [];
+        epochInfo.icaTrainingCandidateEventIndices = [];
+        epochInfo.icaTrainingRetainedEventIndices = [];
+    end
+    epochInfo.icaTrainingEpochStage = options.epochStage;
+    if strcmp(icaInfo.algorithm, 'none')
+        epochInfo.finalMaterializationStage = ...
+            ['after filtering and precleaning; ICA fitting and subtraction ' ...
+            'were skipped'];
+    else
+        epochInfo.finalMaterializationStage = ...
+            'after ICA component subtraction';
+    end
     report.epochs.creation = epochInfo;
     report.steps.epoch = epochInfo;
     nf_check_job_log(artifactPlan, 'epoch creation');
@@ -356,16 +659,34 @@ try
             thresholdTimes, [EEG.xmin EEG.xmax], 1 / EEG.srate, ...
             'thresholdTimes');
     end
+    [options, epochChannelRemapping] = ...
+        nf_remap_epoch_channel_options( ...
+        options, originalMontage, EEG.chanlocs);
+    report.epochs.channelOptionRemapping = epochChannelRemapping;
     [EEG, ~, thresholdInfo] = nf_thresh(EEG, ...
         options.voltageThreshold, options.powerThreshold, ...
         options.muscleRange, thresholdTimes, options.localInterp, ...
         options.maxLocalBad, options.frontalChannels, ...
-        'interpolationMethod', options.interpolationMethod);
+        'interpolationMethod', options.interpolationMethod, ...
+        'detectors', options.epochDetectors, ...
+        'fftBands', options.fftBands, ...
+        'amplitudeOptions', options.amplitudeOptions, ...
+        'fftOptions', options.fftOptions, ...
+        'peak2peakOptions', options.peakToPeakOptions, ...
+        'stepOptions', options.stepOptions, ...
+        'gradientOptions', options.gradientOptions, ...
+        'flatlineOptions', options.flatlineOptions, ...
+        'clippingOptions', options.clippingOptions, ...
+        'fasterOptions', options.fasterEpochOptions, ...
+        'eeglabOptions', options.eeglabEpochOptions, ...
+        'jointProbabilityOptions', options.jointProbabilityOptions, ...
+        'repairOptions', options.epochRepairOptions);
     report.epochs.threshold = thresholdInfo;
     report.epochs.threshold.requestedTimesSeconds = options.thresholdTimes;
     report.epochs.threshold.appliedTimesSeconds = thresholdTimes;
     report.epochs.threshold.endpointAdjusted = thresholdAdjustment;
-    report.steps.threshold.applied = true;
+    report.steps.threshold.applied = ...
+        ~all(strcmp(options.epochDetectors, 'none'));
     report.steps.threshold.nRejected = thresholdInfo.nRejected;
     report.steps.threshold.nLocallyRepaired = ...
         thresholdInfo.nLocallyRepairedEpochs;
@@ -375,6 +696,8 @@ try
         EEG, originalMontage, options, channelInfo);
     report.channels.finalization = interpolationInfo;
     report.steps.finalization = interpolationInfo;
+    report.provenance = nf_collect_pipeline_provenance( ...
+        channelInfo, precleanInfo, icaInfo, thresholdInfo);
     EEG = eeg_checkset(EEG);
     nf_check_job_log(artifactPlan, 'montage finalization');
 
@@ -384,6 +707,7 @@ try
         try
             [quality, figureHandle] = nf_eegquality(EEG_preclean, ...
                 EEG_postclean, 'final', EEG, 'report', report, ...
+                'icaModel', EEG_icaModel, ...
                 'plot', logical(options.qualityPlot), ...
                 'visible', char(options.qualityVisible), ...
                 options.qualityOptions{:});
@@ -436,6 +760,11 @@ try
     if ~isfield(EEG, 'etc') || isempty(EEG.etc)
         EEG.etc = struct();
     end
+    if ~isfield(EEG.etc, 'neurofreq') || ...
+            ~isstruct(EEG.etc.neurofreq)
+        EEG.etc.neurofreq = struct();
+    end
+    EEG.etc.neurofreq.provenance = report.provenance;
     EEG = nf_remove_duplicate_helper_ledgers(EEG);
     EEG.etc.preprocess = report;
     if ~isfield(EEG.etc, 'nf_preprocess_history')
@@ -588,8 +917,6 @@ end
 nf_assert_new_artifact(plan.datasetPath);
 nf_assert_new_artifact(plan.legacyFdtPath);
 nf_assert_new_artifact(plan.legacyDatPath);
-nf_assert_new_artifact(plan.qualityFigurePath);
-nf_assert_new_artifact(plan.qualityPdfPath);
 nf_assert_new_artifact(plan.logPath);
 
 if exist(plan.outputDirectory, 'file') == 2
@@ -610,8 +937,6 @@ cleanup = nf_acquire_bundle_lock(plan.bundleLockPath);
 nf_assert_new_artifact(plan.datasetPath);
 nf_assert_new_artifact(plan.legacyFdtPath);
 nf_assert_new_artifact(plan.legacyDatPath);
-nf_assert_new_artifact(plan.qualityFigurePath);
-nf_assert_new_artifact(plan.qualityPdfPath);
 nf_assert_new_artifact(plan.logPath);
 end
 
@@ -1702,6 +2027,26 @@ end
 end
 
 function [EEG, info] = nf_run_gedai(EEG, configuration)
+contract = nf_vendor_function_contract('GEDAI', -12, 10);
+contract.level = 'vendor-exact-stage';
+contract.completePipeline = true;
+contract.provider = 'GEDAI';
+contract.statement = ...
+    ['The uniquely resolved installed GEDAI entry point made the ' ...
+    'artifact-modeling decision; no NeuroFreq substitute was used.'];
+if ischar(configuration.referenceMatrixType) && ...
+        strcmp(configuration.referenceMatrixType, 'precomputed')
+    gedaiDirectory = fileparts(contract.path);
+    databasePath = fullfile(gedaiDirectory, 'auxiliaries', ...
+        'fsavLEADFIELD_4_GEDAI.mat');
+    contract.referenceDatabase.path = databasePath;
+    contract.referenceDatabase.sha256 = nf_file_sha256(databasePath);
+    if isempty(contract.referenceDatabase.sha256)
+        error('nf_preprocess:GEDAIDatabaseHashFailed', ...
+            ['Could not calculate the SHA-256 identity of GEDAI''s ' ...
+            'precomputed lead-field database at %s.'], databasePath);
+    end
+end
 gedaiArguments = {configuration.artifactThresholdType, ...
     configuration.epochSizeInCycles, configuration.lowcutFrequency, ...
     configuration.referenceMatrixType, configuration.parallel, ...
@@ -1725,6 +2070,8 @@ EEG = eeg_checkset(EEG);
 
 info = struct();
 info.applied = true;
+info.method = 'gedai';
+info.contract = contract;
 info.configuration = nf_compact_gedai_configuration(configuration);
 info.sensaiScore = sensai;
 info.sensaiScorePerBand = sensaiByBand;
@@ -1740,6 +2087,594 @@ if isfield(EEG, 'etc') && isfield(EEG.etc, 'GEDAI')
     EEG.etc = rmfield(EEG.etc, 'GEDAI');
     info.nativeLedgerRemoved = true;
 end
+end
+
+function [EEG, info] = nf_run_asr(EEG, supplied)
+configuration = nf_resolve_asr_options(supplied);
+contract = nf_vendor_function_contract('clean_asr', 11, 1);
+normalizedContractPath = lower(strrep(contract.path, '\', '/'));
+if isempty(strfind(normalizedContractPath, 'clean_rawdata')) && ...
+        isempty(strfind(normalizedContractPath, 'cleanrawdata'))
+    error('nf_preprocess:InvalidCleanRawDataProvider', ...
+        ['clean_asr did not resolve inside an identifiable clean_rawdata ' ...
+        'installation. Resolved path: %s'], contract.path);
+end
+if isfield(EEG, 'icaweights') && ~isempty(EEG.icaweights)
+    error('nf_preprocess:StaleICAForASR', ...
+        ['ASR changes the channel data. Remove any existing ICA ' ...
+        'decomposition before nf_preprocess.']);
+end
+before = double(EEG.data);
+EEG = clean_asr(EEG, configuration.cutoff, ...
+    configuration.windowLength, configuration.stepSize, ...
+    configuration.maxDimensions, ...
+    configuration.referenceMaxBadChannels, ...
+    configuration.referenceTolerances, ...
+    configuration.referenceWindowLength, configuration.useGPU, ...
+    configuration.useRiemannian, configuration.maxMemory);
+EEG = eeg_checkset(EEG);
+after = double(EEG.data);
+if ~isequal(size(before), size(after))
+    error('nf_preprocess:ASRDimensionChange', ...
+        'clean_asr unexpectedly changed the data dimensions.');
+end
+difference = before - after;
+
+info = struct();
+info.applied = true;
+info.method = 'asr';
+info.configuration = configuration;
+info.contract = contract;
+info.contract.level = 'vendor-exact-stage';
+info.contract.completePipeline = false;
+info.contract.statement = ...
+    ['The installed clean_rawdata clean_asr function was called directly. ' ...
+    'No native substitute or silent fallback was used.'];
+info.changedSampleFraction = nnz(difference ~= 0) / numel(difference);
+info.removedRMSMicrovolts = sqrt(mean(difference(:) .^ 2));
+end
+
+function configuration = nf_resolve_asr_options(supplied)
+configuration = struct();
+configuration.cutoff = 20;
+configuration.windowLength = [];
+configuration.stepSize = [];
+configuration.maxDimensions = 0.66;
+configuration.referenceMaxBadChannels = 0.075;
+configuration.referenceTolerances = [-3.5 5.5];
+configuration.referenceWindowLength = 1;
+configuration.useGPU = false;
+configuration.useRiemannian = false;
+configuration.maxMemory = 64;
+configuration = nf_merge_option_struct( ...
+    configuration, supplied, 'asrOptions');
+nf_require_positive(configuration.cutoff, 'asrOptions.cutoff');
+if ~isempty(configuration.windowLength)
+    nf_require_positive( ...
+        configuration.windowLength, 'asrOptions.windowLength');
+end
+if ~isempty(configuration.stepSize)
+    nf_require_positive(configuration.stepSize, 'asrOptions.stepSize');
+end
+nf_require_positive( ...
+    configuration.maxDimensions, 'asrOptions.maxDimensions');
+if isnumeric(configuration.referenceMaxBadChannels)
+    nf_require_positive( ...
+        configuration.referenceMaxBadChannels, ...
+        'asrOptions.referenceMaxBadChannels');
+elseif nf_is_text(configuration.referenceMaxBadChannels) && ...
+        strcmpi(strtrim(char(configuration.referenceMaxBadChannels)), 'off')
+    configuration.referenceMaxBadChannels = 'off';
+else
+    error('nf_preprocess:InvalidASROptions', ...
+        'asrOptions.referenceMaxBadChannels must be positive or off.');
+end
+if isnumeric(configuration.referenceTolerances) && ...
+        (~isreal(configuration.referenceTolerances) || ...
+        numel(configuration.referenceTolerances) ~= 2 || ...
+        any(~isfinite(configuration.referenceTolerances)))
+    error('nf_preprocess:InvalidASROptions', ...
+        'asrOptions.referenceTolerances must be two finite values or off.');
+elseif nf_is_text(configuration.referenceTolerances) && ...
+        strcmpi(strtrim(char(configuration.referenceTolerances)), 'off')
+    configuration.referenceTolerances = 'off';
+elseif ~isnumeric(configuration.referenceTolerances)
+    error('nf_preprocess:InvalidASROptions', ...
+        'asrOptions.referenceTolerances must be two finite values or off.');
+end
+if isnumeric(configuration.referenceWindowLength)
+    nf_require_positive( ...
+        configuration.referenceWindowLength, ...
+        'asrOptions.referenceWindowLength');
+elseif nf_is_text(configuration.referenceWindowLength) && ...
+        strcmpi(strtrim(char(configuration.referenceWindowLength)), 'off')
+    configuration.referenceWindowLength = 'off';
+else
+    error('nf_preprocess:InvalidASROptions', ...
+        'asrOptions.referenceWindowLength must be positive or off.');
+end
+if ~nf_is_logical_scalar(configuration.useGPU) || ...
+        ~nf_is_logical_scalar(configuration.useRiemannian)
+    error('nf_preprocess:InvalidASROptions', ...
+        'ASR useGPU and useRiemannian settings must be logical scalars.');
+end
+configuration.useGPU = logical(configuration.useGPU);
+configuration.useRiemannian = logical(configuration.useRiemannian);
+nf_require_positive(configuration.maxMemory, 'asrOptions.maxMemory');
+end
+
+function [EEG, info] = nf_run_prep_pipeline(EEG, supplied)
+pipelineContract = nf_vendor_function_contract('prepPipeline', 2, 3);
+versionContract = nf_vendor_function_contract('getPrepVersion', 0, 3);
+normalizedPath = lower(strrep(pipelineContract.path, '\', '/'));
+if isempty(strfind(normalizedPath, '/preppipeline/preppipeline.m'))
+    error('nf_preprocess:InvalidPREPProvider', ...
+        ['prepPipeline did not resolve to the expected PREP directory. ' ...
+        'Resolved path: %s'], pipelineContract.path);
+end
+prepRoot = fileparts(pipelineContract.path);
+normalizedPrepRoot = lower(strrep(prepRoot, '\', '/'));
+normalizedVersionPath = lower(strrep(versionContract.path, '\', '/'));
+if ~startsWith(normalizedVersionPath, [normalizedPrepRoot '/'])
+    error('nf_preprocess:MixedPREPInstall', ...
+        ['getPrepVersion did not resolve inside the same PREP package as ' ...
+        'prepPipeline. Remove mixed or shadowed PREP installations.']);
+end
+if EEG.trials ~= 1 || ndims(EEG.data) > 2
+    error('nf_preprocess:PREPRequiresContinuousData', ...
+        'The complete PREP pipeline requires continuous two-dimensional EEG.');
+end
+if isfield(EEG, 'icaweights') && ~isempty(EEG.icaweights)
+    error('nf_preprocess:StaleICAForPREP', ...
+        ['PREP changes the channel data. Remove any existing ICA ' ...
+        'decomposition before nf_preprocess.']);
+end
+params = supplied;
+if ~isfield(params, 'name') || isempty(params.name)
+    if isfield(EEG, 'setname') && ~isempty(EEG.setname)
+        params.name = EEG.setname;
+    elseif isfield(EEG, 'filename') && ~isempty(EEG.filename)
+        params.name = EEG.filename;
+    else
+        params.name = 'NeuroFreq_PREP_input';
+    end
+end
+identity = nf_dataset_identity(EEG);
+warningState = warning;
+pathState = path;
+workingDirectory = pwd;
+randomState = rng;
+environmentCleanup = onCleanup(@() nf_restore_matlab_environment( ...
+    warningState, pathState, workingDirectory, randomState));
+[EEG, resolvedParams, computationTimes] = prepPipeline(EEG, params);
+clear environmentCleanup
+EEG = nf_restore_dataset_identity(EEG, identity);
+if ~isfield(EEG, 'etc') || ...
+        ~isfield(EEG.etc, 'noiseDetection') || ...
+        ~isstruct(EEG.etc.noiseDetection) || ...
+        ~isfield(EEG.etc.noiseDetection, 'errors')
+    error('nf_preprocess:PREPIncomplete', ...
+        ['prepPipeline returned without the required ' ...
+        'EEG.etc.noiseDetection.errors report.']);
+end
+errors = EEG.etc.noiseDetection.errors;
+status = '';
+if isstruct(errors) && isfield(errors, 'status')
+    status = char(string(errors.status));
+end
+if ~strcmpi(strtrim(status), 'good')
+    diagnostic = strtrim(evalc('disp(errors)'));
+    error('nf_preprocess:PREPFailed', ...
+        'prepPipeline reported status %s:\n%s', status, diagnostic);
+end
+EEG = eeg_checkset(EEG);
+try
+    prepVersion = getPrepVersion();
+catch
+    prepVersion = '';
+end
+
+info = struct();
+info.applied = true;
+info.method = 'prep';
+info.resolvedParameters = resolvedParams;
+info.computationTimesSeconds = computationTimes;
+info.nativeNoiseDetectionLocation = 'EEG.etc.noiseDetection';
+info.nativeNoiseDetectionSummary = nf_prep_noise_summary( ...
+    EEG.etc.noiseDetection);
+info.contract = pipelineContract;
+info.contract.level = 'vendor-exact-pipeline';
+info.contract.completePipeline = true;
+info.contract.provider = 'PREP / VisLab EEG-Clean-Tools';
+info.contract.release = prepVersion;
+info.contract.versionFunction = versionContract;
+info.contract.packageRoot = prepRoot;
+info.contract.coLocatedVersionFunctionVerified = true;
+info.contract.upstreamReleaseVerified = false;
+info.contract.statement = ...
+    ['The uniquely resolved installed prepPipeline entry point performed PREP ' ...
+    'detrending for detection, line-noise removal, robust referencing, ' ...
+    'noisy-channel detection, and interpolation. NeuroFreq then continues ' ...
+    'with only the explicitly resolved downstream stages.'];
+end
+
+function summary = nf_prep_noise_summary(noiseDetection)
+summary = struct();
+summary.version = '';
+if isfield(noiseDetection, 'version')
+    summary.version = noiseDetection.version;
+end
+summary.errors = noiseDetection.errors;
+numericFields = {'interpolatedChannelNumbers', ...
+    'removedChannelNumbers', 'stillNoisyChannelNumbers'};
+for index = 1:numel(numericFields)
+    fieldName = numericFields{index};
+    if isfield(noiseDetection, fieldName)
+        summary.(fieldName) = noiseDetection.(fieldName);
+    else
+        summary.(fieldName) = [];
+    end
+end
+end
+
+function [EEG, info] = nf_run_happeer_preclean( ...
+    EEG, supplied, pipelineOptions)
+configuration = nf_resolve_happeer_preclean_options( ...
+    supplied, pipelineOptions);
+contract = nf_vendor_function_contract('happe_wavThresh', 5, 3);
+normalizedContractPath = lower(strrep(contract.path, '\', '/'));
+if isempty(strfind(normalizedContractPath, 'happe'))
+    error('nf_preprocess:InvalidHAPPEProvider', ...
+        ['happe_wavThresh did not resolve inside an identifiable HAPPE ' ...
+        'installation. Resolved path: %s'], contract.path);
+end
+dependencyNames = {'assessPipelineStep', 'calcSNR_PSNR', ...
+    'wdenoise', 'mscohere', 'pop_eegfiltnew'};
+dependencyContracts = cell(1, numel(dependencyNames));
+for index = 1:numel(dependencyNames)
+    dependencyContracts{index} = nf_vendor_function_contract( ...
+        dependencyNames{index}, [], []);
+end
+dependencies = [dependencyContracts{:}];
+happeStageRoot = fileparts(contract.path);
+for index = 1:2
+    if ~strcmpi(fileparts(dependencies(index).path), happeStageRoot)
+        error('nf_preprocess:MixedHAPPEInstall', ...
+            ['%s did not resolve beside happe_wavThresh. Remove mixed or ' ...
+            'shadowed HAPPE installations.'], dependencies(index).function);
+    end
+end
+if EEG.trials ~= 1 || ndims(EEG.data) > 2
+    error('nf_preprocess:HAPPERequiresContinuousData', ...
+        ['The official HAPPE wavelet helper flattens input and does not ' ...
+        'restore epoch dimensions. Continuous two-dimensional EEG is required.']);
+end
+if isfield(EEG, 'icaweights') && ~isempty(EEG.icaweights)
+    error('nf_preprocess:StaleICAForHAPPE', ...
+        ['HAPPE wavelet correction changes the channel data but does not ' ...
+        'clear ICA fields. Remove the existing decomposition first.']);
+end
+if EEG.pnts < 1000
+    error('nf_preprocess:HAPPERecordingTooShort', ...
+        ['The official HAPPE QC calculation uses a 1000-sample coherence ' ...
+        'window; this recording is too short.']);
+end
+if any(configuration.qcFrequencies >= EEG.srate / 2) || ...
+        any(configuration.qcFrequencies > configuration.lowpass)
+    error('nf_preprocess:HAPPEQCFrequency', ...
+        ['Every HAPPE QC frequency must be below the data Nyquist ' ...
+        'frequency and inside the configured retained passband.']);
+end
+
+params = struct();
+params.wavelet = struct();
+params.wavelet.legacy = false;
+params.wavelet.softThresh = logical(configuration.softThreshold);
+params.paradigm = struct();
+params.paradigm.ERP = struct();
+params.paradigm.ERP.on = configuration.erpMode;
+params.filt = struct();
+params.filt.highpass = configuration.highpass;
+params.filt.lowpass = configuration.lowpass;
+params.QCfreqs = configuration.qcFrequencies;
+wavMeans = [];
+dataQC = cell(1, 6);
+currFile = 1;
+identity = nf_dataset_identity(EEG);
+before = double(EEG.data);
+warningState = warning;
+pathState = path;
+workingDirectory = pwd;
+randomState = rng;
+environmentCleanup = onCleanup(@() nf_restore_matlab_environment( ...
+    warningState, pathState, workingDirectory, randomState));
+[EEG, wavMeans, dataQC] = happe_wavThresh( ...
+    EEG, params, wavMeans, dataQC, currFile);
+clear environmentCleanup
+EEG = nf_restore_dataset_identity(EEG, identity);
+EEG = eeg_checkset(EEG);
+after = double(EEG.data);
+if ~isequal(size(before), size(after))
+    error('nf_preprocess:HAPPEDimensionChange', ...
+        'happe_wavThresh unexpectedly changed the data dimensions.');
+end
+difference = before - after;
+
+info = struct();
+info.applied = true;
+info.method = 'happeer';
+info.configuration = configuration;
+info.contract = contract;
+info.contract.level = 'vendor-exact-stage';
+info.contract.completePipeline = false;
+info.contract.dependencies = dependencies;
+info.contract.packageStageRoot = happeStageRoot;
+info.contract.coLocatedHappeHelpersVerified = true;
+info.contract.upstreamReleaseVerified = false;
+info.contract.statement = ...
+    ['The uniquely resolved installed happe_wavThresh function was called ' ...
+    'directly with its co-located HAPPE QC helpers; exact file hashes are ' ...
+    'recorded. This proves stage-code identity, not upstream release ' ...
+    'authenticity or complete ordered HAPPE+ER pipeline equivalence.'];
+info.waveletMetrics = wavMeans;
+info.waveletMetricNames = [{'RMSE', 'MAE', 'SNR', 'peakSNR', ...
+    'allDataPearsonR'} nf_happe_coherence_names( ...
+    configuration.qcFrequencies)];
+info.rawDataQC = dataQC;
+if size(dataQC, 1) >= 1 && size(dataQC, 2) >= 6
+    info.retainedVariancePercent = dataQC{1, 6};
+else
+    info.retainedVariancePercent = NaN;
+end
+info.changedSampleFraction = nnz(difference ~= 0) / numel(difference);
+info.removedRMSMicrovolts = sqrt(mean(difference(:) .^ 2));
+end
+
+function configuration = nf_resolve_happeer_preclean_options( ...
+    supplied, pipelineOptions)
+configuration = struct();
+configuration.softThreshold = false;
+configuration.erpMode = [];
+configuration.highpass = pipelineOptions.highpass;
+configuration.lowpass = pipelineOptions.lowpass;
+configuration.qcFrequencies = [0.5 1 2 5 8 12 20 30 40 45 70];
+qcFrequenciesSupplied = isfield(supplied, 'qcFrequencies');
+configuration = nf_merge_option_struct( ...
+    configuration, supplied, 'happeerPrecleanOptions');
+if ~nf_is_logical_scalar(configuration.softThreshold)
+    error('nf_preprocess:InvalidHAPPEOptions', ...
+        'happeerPrecleanOptions.softThreshold must be a logical scalar.');
+end
+configuration.softThreshold = logical(configuration.softThreshold);
+if isempty(configuration.erpMode)
+    configuration.erpMode = ~isempty(pipelineOptions.events);
+    configuration.erpModeSource = ...
+        'inferred from whether event-locked epochs were requested';
+elseif nf_is_logical_scalar(configuration.erpMode)
+    configuration.erpMode = logical(configuration.erpMode);
+    configuration.erpModeSource = 'explicit happeerPrecleanOptions.erpMode';
+else
+    error('nf_preprocess:InvalidHAPPEOptions', ...
+        'happeerPrecleanOptions.erpMode must be empty or binary.');
+end
+nf_require_positive( ...
+    configuration.highpass, 'happeerPrecleanOptions.highpass');
+nf_require_positive( ...
+    configuration.lowpass, 'happeerPrecleanOptions.lowpass');
+if configuration.highpass >= configuration.lowpass
+    error('nf_preprocess:InvalidHAPPEOptions', ...
+        'The HAPPE QC highpass must be below its lowpass.');
+end
+if ~qcFrequenciesSupplied
+    qcUpper = min(configuration.lowpass, pipelineOptions.resample / 2);
+    configuration.qcFrequencies = ...
+        configuration.qcFrequencies( ...
+        configuration.qcFrequencies < qcUpper);
+end
+frequencies = configuration.qcFrequencies;
+if ~isnumeric(frequencies) || ~isreal(frequencies) || ...
+        isempty(frequencies) || any(~isfinite(frequencies(:))) || ...
+        any(frequencies(:) <= 0)
+    error('nf_preprocess:InvalidHAPPEOptions', ...
+        'happeerPrecleanOptions.qcFrequencies must be positive finite values.');
+end
+configuration.qcFrequencies = reshape(double(frequencies), 1, []);
+end
+
+function erpMode = nf_happeer_erp_mode(supplied, events)
+erpMode = ~isempty(events);
+if ~isfield(supplied, 'erpMode') || isempty(supplied.erpMode)
+    return
+end
+if ~nf_is_logical_scalar(supplied.erpMode)
+    error('nf_preprocess:InvalidHAPPEOptions', ...
+        'happeerPrecleanOptions.erpMode must be empty or binary.');
+end
+erpMode = logical(supplied.erpMode);
+end
+
+function [EEG, info] = nf_apply_deferred_happe_filter( ...
+        EEG, preliminaryInfo, options)
+info = preliminaryInfo;
+preWaveletInfo = preliminaryInfo;
+postWaveletInfo = struct();
+postWaveletInfo.started = datestr(now, 30); %#ok<TNOW1,DATST>
+postWaveletInfo.inputSrate = EEG.srate;
+postWaveletInfo.inputPnts = EEG.pnts;
+postWaveletInfo.inputTrials = EEG.trials;
+postWaveletInfo.applied = struct( ...
+    'highpass', false, 'notch', false, ...
+    'lowpass', false, 'resample', false);
+
+if options.highpass > 0
+    EEG = pop_eegfiltnew(EEG, 'locutoff', options.highpass);
+    EEG = eeg_checkset(EEG);
+    info.applied.highpass = true;
+    postWaveletInfo.applied.highpass = true;
+end
+if options.lowpass > 0
+    EEG = pop_eegfiltnew(EEG, 'hicutoff', options.lowpass);
+    EEG = eeg_checkset(EEG);
+    info.applied.lowpass = true;
+    postWaveletInfo.applied.lowpass = true;
+end
+
+postWaveletInfo.finished = datestr(now, 30); %#ok<TNOW1,DATST>
+postWaveletInfo.outputSrate = EEG.srate;
+postWaveletInfo.outputPnts = EEG.pnts;
+postWaveletInfo.outputTrials = EEG.trials;
+info.requested.lowpassHz = options.lowpass;
+info.requested.highpassHz = options.highpass;
+info.requested.notchHz = options.notch;
+info.requested.targetRateHz = options.resample;
+info.finished = postWaveletInfo.finished;
+info.outputSrate = EEG.srate;
+info.outputPnts = EEG.pnts;
+info.outputTrials = EEG.trials;
+info.eeglabHistoryLength = 0;
+if isfield(EEG, 'history') && ~isempty(EEG.history)
+    info.eeglabHistoryLength = numel(EEG.history);
+end
+info.deferredAnalysisPassband = true;
+info.stages = struct();
+info.stages.preWaveletLineNoiseAndResample = preWaveletInfo;
+info.stages.postWaveletAnalysisPassband = postWaveletInfo;
+
+if ~isfield(EEG, 'etc') || isempty(EEG.etc)
+    EEG.etc = struct();
+end
+EEG.etc.nf_filter = info;
+if isfield(EEG.etc, 'nf_filter_history') && ...
+        iscell(EEG.etc.nf_filter_history) && ...
+        ~isempty(EEG.etc.nf_filter_history)
+    EEG.etc.nf_filter_history{end} = info;
+end
+end
+
+function names = nf_happe_coherence_names(frequencies)
+names = cell(1, numel(frequencies));
+for index = 1:numel(frequencies)
+    names{index} = sprintf('coherence_%gHz', frequencies(index));
+end
+end
+
+function identity = nf_dataset_identity(EEG)
+identity = struct();
+fields = {'setname', 'filename', 'filepath'};
+for index = 1:numel(fields)
+    fieldName = fields{index};
+    if isfield(EEG, fieldName)
+        identity.(fieldName) = EEG.(fieldName);
+    end
+end
+end
+
+function EEG = nf_restore_dataset_identity(EEG, identity)
+fields = fieldnames(identity);
+for index = 1:numel(fields)
+    fieldName = fields{index};
+    EEG.(fieldName) = identity.(fieldName);
+end
+end
+
+function configuration = nf_merge_option_struct( ...
+    configuration, supplied, optionName)
+allowed = fieldnames(configuration);
+names = fieldnames(supplied);
+for index = 1:numel(names)
+    name = names{index};
+    if ~ismember(name, allowed)
+        error('nf_preprocess:UnknownOptionField', ...
+            'Unknown %s field: %s.', optionName, name);
+    end
+    configuration.(name) = supplied.(name);
+end
+end
+
+function contract = nf_vendor_function_contract( ...
+    functionName, expectedInputs, expectedOutputs)
+resolved = which(functionName, '-all');
+if isempty(resolved)
+    error('nf_preprocess:MissingVendorFunction', ...
+        'Required vendor function %s was not found.', functionName);
+end
+if ischar(resolved) && size(resolved, 1) > 1
+    paths = cellstr(resolved);
+elseif ischar(resolved)
+    paths = {strtrim(resolved)};
+else
+    paths = resolved;
+end
+paths = cellfun(@strtrim, paths, 'UniformOutput', false);
+paths = unique(paths, 'stable');
+if numel(paths) ~= 1
+    error('nf_preprocess:AmbiguousVendorFunction', ...
+        ['Multiple copies of %s are on the MATLAB path. Remove path ' ...
+        'ambiguity before running a named vendor method.'], functionName);
+end
+try
+    observedInputs = nargin(functionName);
+catch
+    observedInputs = NaN;
+end
+try
+    observedOutputs = nargout(functionName);
+catch
+    observedOutputs = NaN;
+end
+if ~isempty(expectedInputs) && observedInputs ~= expectedInputs
+    error('nf_preprocess:VendorSignatureMismatch', ...
+        '%s has %g inputs; this adapter requires %g.', ...
+        functionName, observedInputs, expectedInputs);
+end
+if ~isempty(expectedOutputs) && observedOutputs ~= expectedOutputs
+    error('nf_preprocess:VendorSignatureMismatch', ...
+        '%s has %g outputs; this adapter requires %g.', ...
+        functionName, observedOutputs, expectedOutputs);
+end
+metadata = dir(paths{1});
+if isempty(metadata) || metadata.isdir
+    error('nf_preprocess:UnreadableVendorFunction', ...
+        '%s did not resolve to a readable source file.', functionName);
+end
+contract = struct();
+contract.function = functionName;
+contract.path = paths{1};
+contract.nargin = observedInputs;
+contract.nargout = observedOutputs;
+contract.fileBytes = metadata.bytes;
+contract.fileModified = metadata.date;
+contract.sha256 = nf_file_sha256(paths{1});
+if isempty(contract.sha256)
+    error('nf_preprocess:VendorHashFailed', ...
+        ['Could not calculate a SHA-256 identity for %s. A named vendor ' ...
+        'stage will not run without a verifiable source-file identity.'], ...
+        functionName);
+end
+end
+
+function digest = nf_file_sha256(pathValue)
+digest = '';
+fileIdentifier = fopen(pathValue, 'rb');
+if fileIdentifier < 0
+    return
+end
+fileCleanup = onCleanup(@() fclose(fileIdentifier));
+try
+    engine = java.security.MessageDigest.getInstance('SHA-256');
+    while true
+        block = fread(fileIdentifier, 1048576, '*uint8');
+        if isempty(block)
+            break
+        end
+        engine.update(block);
+    end
+    rawDigest = typecast(engine.digest(), 'uint8');
+    digest = lower(reshape(dec2hex(rawDigest, 2)', 1, []));
+catch
+    digest = '';
+end
+clear fileCleanup
 end
 
 function nf_restore_matlab_environment(warningState, pathState, ...
@@ -1983,15 +2918,28 @@ end
 function [EEG, info] = nf_make_final_epochs(EEG, options)
 EEG = nf_ensure_event_fields(EEG);
 if ~isempty(options.events)
+    EEG = nf_sort_continuous_events(EEG);
     survivingValidation = nf_validate_requested_events(EEG, options.events);
-    [EEG, acceptedIndices] = pop_epoch(EEG, ...
+    candidateEventIndices = ...
+        sort(unique([survivingValidation.matchedEventIndices{:}]));
+    sourceEventLatencies = double([EEG.event.latency]);
+    [EEG, candidateEventPositions] = pop_epoch(EEG, ...
         survivingValidation.popEpochEvents, ...
-        options.epochLimits, 'epochinfo', 'yes');
+        options.epochLimits, ...
+        'eventindices', candidateEventIndices, ...
+        'epochinfo', 'yes');
+    candidateEventPositions = reshape(candidateEventPositions, 1, []);
+    candidateEventIndices = ...
+        candidateEventIndices(candidateEventPositions);
+    candidateEventLatencies = ...
+        sourceEventLatencies(candidateEventIndices);
     mode = 'event-locked';
     eventTypes = options.events;
 else
     survivingValidation = struct();
-    acceptedIndices = [];
+    candidateEventPositions = [];
+    candidateEventIndices = [];
+    candidateEventLatencies = [];
     EEG = eeg_regepochs(EEG, 'recurrence', options.continuousEpochLength, ...
         'limits', [0 options.continuousEpochLength], 'rmbase', NaN, ...
         'eventtype', 'nf_fixed_epoch');
@@ -1999,9 +2947,13 @@ else
     eventTypes = {};
 end
 EEG = eeg_checkset(EEG);
-if EEG.trials < 2
+populationDetectors = {'faster', 'jointprobability', 'eeglabstats'};
+minimumEpochs = 1 + ...
+    double(any(ismember(options.epochDetectors, populationDetectors)));
+if EEG.trials < minimumEpochs
     error('nf_preprocess:InsufficientEpochs', ...
-        'Final epoching produced fewer than two complete epochs.');
+        ['Final epoching produced fewer than %d complete epoch(s), the ' ...
+        'minimum for the selected detector configuration.'], minimumEpochs);
 end
 if ~isfield(EEG, 'etc') || isempty(EEG.etc)
     EEG.etc = struct();
@@ -2013,12 +2965,146 @@ info.mode = mode;
 info.events = eventTypes;
 info.inputEventValidation = options.eventValidation;
 info.preEpochEventValidation = survivingValidation;
-info.acceptedEventIndices = acceptedIndices;
-info.nAcceptedEvents = numel(acceptedIndices);
+info.candidateEventIndices = candidateEventIndices;
+info.candidateEventPositions = candidateEventPositions;
+info.candidateEventLatenciesSamples = candidateEventLatencies;
+info.candidateEventLatenciesSeconds = ...
+    (candidateEventLatencies - 1) / EEG.srate;
+info.acceptedEventIndices = candidateEventIndices;
+info.acceptedEventPositions = candidateEventPositions;
+if strcmp(mode, 'event-locked')
+    info.acceptedEventSemantics = ...
+        ['Complete final candidate epochs accepted by pop_epoch before the ' ...
+        'configured final artifact detectors and repair/rejection policies.'];
+else
+    info.acceptedEventSemantics = ...
+        ['Not applicable to fixed-length eeg_regepochs creation; event ' ...
+        'identity ledgers are empty.'];
+end
+info.nAcceptedEvents = numel(candidateEventIndices);
 info.requestedLimitsSeconds = options.epochLimits;
 info.actualLimitsSeconds = [EEG.xmin EEG.xmax];
 info.nCreated = EEG.trials;
+info.minimumRequired = minimumEpochs;
 info.pnts = EEG.pnts;
+end
+
+function [options, mapping] = nf_remap_epoch_channel_options( ...
+        options, sourceMontage, targetMontage)
+mapping = struct();
+mapping.source = 'selected raw-input montage';
+mapping.target = 'post-ICA working montage';
+mapping.policy = ...
+    ['Explicit numeric channel fields are resolved to raw-input labels and ' ...
+    'then remapped. A requested channel removed upstream is an error.'];
+mapping.entries = {};
+optionNames = { ...
+    'amplitudeOptions', ...
+    'fftOptions', ...
+    'peakToPeakOptions', ...
+    'stepOptions', ...
+    'gradientOptions', ...
+    'flatlineOptions', ...
+    'clippingOptions', ...
+    'fasterEpochOptions', ...
+    'eeglabEpochOptions', ...
+    'jointProbabilityOptions'};
+detectorNames = {'threshold', 'fft', 'peak2peak', 'step', 'gradient', ...
+    'flatline', 'clipping', 'faster', 'eeglabstats', ...
+    'jointprobability'};
+channelFields = {'channelIndices', 'localChannelIndices', 'ignoredChannels'};
+sourceLabels = string({sourceMontage.labels});
+targetLabels = string({targetMontage.labels});
+
+for optionIndex = 1:numel(optionNames)
+    if ~any(strcmp(options.epochDetectors, detectorNames{optionIndex}))
+        continue
+    end
+    optionName = optionNames{optionIndex};
+    settings = options.(optionName);
+    for fieldIndex = 1:numel(channelFields)
+        fieldName = channelFields{fieldIndex};
+        if ~isfield(settings, fieldName) || isempty(settings.(fieldName))
+            continue
+        end
+        requested = settings.(fieldName);
+        if ~isnumeric(requested) || ~isreal(requested) || ...
+                ~isvector(requested) || any(~isfinite(requested)) || ...
+                any(requested ~= round(requested)) || any(requested < 1) || ...
+                any(requested > numel(sourceLabels)) || ...
+                numel(unique(requested)) ~= numel(requested)
+            error('nf_preprocess:InvalidEpochChannelIndices', ...
+                ['%s.%s must contain unique indices into the selected ' ...
+                'raw-input montage.'], optionName, fieldName);
+        end
+        requested = reshape(double(requested), 1, []);
+        requestedLabels = sourceLabels(requested);
+        [present, remapped] = ismember( ...
+            lower(requestedLabels), lower(targetLabels));
+        if any(~present)
+            missingLabels = strjoin(cellstr(requestedLabels(~present)), ', ');
+            error('nf_preprocess:EpochChannelUnavailable', ...
+                ['%s.%s requested channel(s) removed before epoch ' ...
+                'detection: %s. Change the upstream channel method or ' ...
+                'remove those channels from the detector selection.'], ...
+                optionName, fieldName, missingLabels);
+        end
+        settings.(fieldName) = reshape(remapped, 1, []);
+        entry = struct();
+        entry.option = optionName;
+        entry.field = fieldName;
+        entry.requestedIndices = requested;
+        entry.requestedLabels = cellstr(requestedLabels);
+        entry.resolvedIndices = reshape(remapped, 1, []);
+        mapping.entries{end + 1} = entry;
+    end
+    options.(optionName) = settings;
+end
+end
+
+function [settings, mapping] = nf_remap_faster_ica_options( ...
+        settings, method, sourceMontage, targetMontage)
+mapping = struct();
+mapping.applied = false;
+mapping.source = 'selected raw-input montage';
+mapping.target = 'pre-ICA working montage';
+mapping.requestedIndices = [];
+mapping.requestedLabels = {};
+mapping.resolvedIndices = [];
+if ~strcmp(method, 'faster') || ...
+        ~isfield(settings, 'eogChannels') || ...
+        isempty(settings.eogChannels)
+    return
+end
+
+requested = settings.eogChannels;
+if ~isnumeric(requested) || ~isreal(requested) || ...
+        ~isvector(requested) || any(~isfinite(requested)) || ...
+        any(requested ~= round(requested)) || any(requested < 1) || ...
+        any(requested > numel(sourceMontage)) || ...
+        numel(unique(requested)) ~= numel(requested)
+    error('nf_preprocess:InvalidFASTERICAChannels', ...
+        ['fasterICAOptions.eogChannels must contain unique indices into ' ...
+        'the selected raw-input montage.']);
+end
+requested = reshape(double(requested), 1, []);
+sourceLabels = string({sourceMontage.labels});
+targetLabels = string({targetMontage.labels});
+requestedLabels = sourceLabels(requested);
+[present, remapped] = ismember(lower(requestedLabels), lower(targetLabels));
+if any(~present)
+    missingLabels = strjoin(cellstr(requestedLabels(~present)), ', ');
+    error('nf_preprocess:FASTERICAChannelUnavailable', ...
+        ['fasterICAOptions.eogChannels requested channel(s) removed before ' ...
+        'ICA: %s. Change upstream channel handling or the EOG selection.'], ...
+        missingLabels);
+end
+
+settings.eogChannels = reshape(double(remapped), 1, []);
+mapping.applied = true;
+mapping.requestedIndices = requested;
+mapping.requestedLabels = cellstr(requestedLabels);
+mapping.resolvedIndices = settings.eogChannels;
 end
 
 function [window, adjusted] = nf_fit_epoch_window(window, actualLimits, ...
@@ -2066,6 +3152,16 @@ if ~isfield(EEG, 'setname') || ...
 else
     EEG.setname = char(EEG.setname);
 end
+end
+
+function EEG = nf_sort_continuous_events(EEG)
+if ~isfield(EEG, 'event') || isempty(EEG.event)
+    return
+end
+nf_validate_event_latencies(EEG);
+latencies = double([EEG.event.latency]);
+[~, eventOrder] = sort(latencies);
+EEG.event = EEG.event(eventOrder);
 end
 
 function events = nf_pop_epoch_events(events)
@@ -2202,25 +3298,32 @@ end
 function [EEG, info] = nf_select_eeg_channels(EEG, requested)
 labels = {EEG.chanlocs.labels};
 nf_require_unique_labels(labels);
-
-if isempty(requested)
-    selected = true(1, EEG.nbchan);
-    typesAvailable = isfield(EEG.chanlocs, 'type');
-    if typesAvailable
-        for index = 1:EEG.nbchan
-            channelType = EEG.chanlocs(index).type;
-            if isempty(channelType)
-                selected(index) = true;
-            else
-                selected(index) = strcmpi(strtrim(char(channelType)), 'eeg');
-            end
-        end
-        if ~any(selected)
-            error('nf_preprocess:NoEEGChannels', ...
-                'No channels typed EEG or empty were found. Supply eegChannels explicitly.');
+acquisitionEEG = true(1, EEG.nbchan);
+typesAvailable = isfield(EEG.chanlocs, 'type');
+if typesAvailable
+    for index = 1:EEG.nbchan
+        channelType = EEG.chanlocs(index).type;
+        if isempty(channelType)
+            acquisitionEEG(index) = true;
+        elseif nf_is_text(channelType)
+            acquisitionEEG(index) = ...
+                strcmpi(strtrim(char(channelType)), 'eeg');
+        else
+            acquisitionEEG(index) = false;
         end
     end
-    selectionSource = 'chanlocs.type (EEG or empty)';
+    if ~any(acquisitionEEG)
+        acquisitionEEG = true(1, EEG.nbchan);
+    end
+end
+
+if isempty(requested)
+    selected = acquisitionEEG;
+    if typesAvailable
+        selectionSource = 'chanlocs.type (EEG or empty)';
+    else
+        selectionSource = 'all input channels (no chanlocs.type field)';
+    end
 else
     selected = false(1, EEG.nbchan);
     indices = nf_resolve_channels(EEG, requested);
@@ -2245,6 +3348,62 @@ info.selectedLabels = labels(selected);
 info.excludedLabels = excludedLabels;
 info.nSelected = sum(selected);
 info.nExcluded = sum(~selected);
+info.nAcquisitionEEGChannels = sum(acquisitionEEG);
+end
+
+function useUnfiltered = nf_channel_detection_uses_unfiltered_input(method)
+useUnfiltered = ismember(method, {'cleanrawdata', 'prep'});
+end
+
+function [EEG, transfer] = nf_apply_channel_detection( ...
+    EEG, detectorEEG, channelInfo)
+workingLabels = {EEG.chanlocs.labels};
+detectorLabels = {detectorEEG.chanlocs.labels};
+nf_require_unique_labels(workingLabels);
+nf_require_unique_labels(detectorLabels);
+[present, keepIndices] = ismember( ...
+    lower(string(detectorLabels)), lower(string(workingLabels)));
+if any(~present)
+    missing = strjoin(cellstr(string(detectorLabels(~present))), ', ');
+    error('nf_preprocess:ChannelDetectionTransferFailed', ...
+        ['The unfiltered detector returned channel labels that are absent ' ...
+        'from the analysis-filtered data: %s'], missing);
+end
+if any(diff(keepIndices) <= 0)
+    error('nf_preprocess:ChannelDetectionOrderChanged', ...
+        ['The unfiltered detector changed retained channel order. ' ...
+        'NeuroFreq requires label-preserving channel removal.']);
+end
+removedMask = true(1, numel(workingLabels));
+removedMask(keepIndices) = false;
+if any(removedMask)
+    EEG = pop_select(EEG, 'channel', keepIndices);
+    EEG = eeg_checkset(EEG);
+end
+if ~isfield(EEG, 'etc') || isempty(EEG.etc)
+    EEG.etc = struct();
+end
+EEG.etc.badchans = channelInfo.artifact.nDetected;
+EEG.etc.badchanindices = channelInfo.artifact.indices;
+EEG.etc.badchanlabels = channelInfo.artifact.labels;
+EEG.etc.nf_removed_reference = struct( ...
+    'removed', channelInfo.reference.removedZeroReference, ...
+    'index', channelInfo.reference.index, ...
+    'label', channelInfo.reference.label);
+EEG.etc.nf_badchans = channelInfo;
+
+transfer = struct();
+transfer.applied = any(removedMask);
+transfer.matching = 'case-insensitive unique channel labels';
+transfer.retainedIndicesInAnalysisData = keepIndices;
+transfer.retainedLabels = detectorLabels;
+transfer.removedIndicesInAnalysisData = find(removedMask);
+transfer.removedLabels = workingLabels(removedMask);
+transfer.nRemoved = sum(removedMask);
+transfer.sampleDecisionsTransferred = false;
+transfer.statement = ...
+    ['Only channel-removal decisions were transferred. No samples or ' ...
+    'filtered values from the diagnostic copy entered the analysis data.'];
 end
 
 function indices = nf_resolve_channels(EEG, requested)
@@ -2278,31 +3437,409 @@ if isempty(indices) || any(~isfinite(indices)) || any(indices ~= round(indices))
 end
 end
 
-function method = nf_resolve_ica_method(preset, supplied)
-if ~ismember(preset, {'adult', 'child'})
-    error('nf_preprocess:UnknownPreset', ...
-        'preset must be ''adult'' or ''child''.');
+function preset = nf_normalize_preset(value)
+normalized = lower(regexprep(strtrim(char(value)), '[^a-zA-Z0-9]', ''));
+switch normalized
+    case {'bdc', 'adult'}
+        preset = 'bdc';
+    case {'made', 'child'}
+        preset = 'made';
+    case 'prep'
+        preset = 'prep';
+    case 'faster'
+        preset = 'faster';
+    case {'happeer', 'happeerp'}
+        preset = 'happeer';
+    case {'cleanrawdata', 'cleanraw'}
+        preset = 'cleanrawdata';
+    case {'eeglab', 'legacy', 'legacyeeglab'}
+        preset = 'eeglab';
+    otherwise
+        error('nf_preprocess:UnknownPreset', ...
+            ['preset must be BDC, MADE, PREP, FASTER, HAPPE+ER, ' ...
+            'cleanrawdata, or EEGLAB.']);
 end
-if strcmp(preset, 'adult')
-    expected = 'iclabel';
+end
+
+function stage = nf_normalize_epoch_stage(value)
+normalized = lower(regexprep(strtrim(char(value)), '[^a-zA-Z0-9]', ''));
+switch normalized
+    case 'auto'
+        stage = 'auto';
+    case {'beforeica', 'preica', 'before'}
+        stage = 'beforeica';
+    case {'afterica', 'postica', 'after'}
+        stage = 'afterica';
+    otherwise
+        error('nf_preprocess:UnknownEpochStage', ...
+            'epochStage must be auto, beforeica, or afterica.');
+end
+end
+
+function [resolved, details] = nf_resolve_epoch_stage(requested, options)
+eventTypes = nf_pop_epoch_events(options.events);
+eventTypeCount = nf_unique_event_type_count(eventTypes);
+
+details = struct();
+details.requested = requested;
+details.resolved = '';
+details.reason = '';
+details.eventTypeCount = eventTypeCount;
+
+if strcmp(requested, 'beforeica')
+    resolved = 'beforeica';
+    details.reason = 'Explicit epochStage override.';
+elseif strcmp(requested, 'afterica')
+    resolved = 'afterica';
+    details.reason = 'Explicit epochStage override.';
+elseif strcmp(options.preset, 'bdc') && ...
+        eventTypeCount == 1 && ~strcmp(options.icaMethod, 'none')
+    resolved = 'beforeica';
+    details.reason = ...
+        ['BDC auto behavior with exactly one requested event type: use the ' ...
+        'requested event epochs for ICA fitting.'];
 else
-    expected = 'adjustedadjust';
+    resolved = 'afterica';
+    if isempty(eventTypes)
+        details.reason = ...
+            'No requested event type was available for event-scoped ICA fitting.';
+    elseif strcmp(options.icaMethod, 'none')
+        details.reason = ...
+            'ICA is disabled, so only final analysis epoching is performed.';
+    elseif ~strcmp(options.preset, 'bdc')
+        details.reason = ...
+            'This preset retains its existing fixed-epoch ICA preparation.';
+    elseif eventTypeCount ~= 1
+        details.reason = ...
+            ['BDC auto behavior requires exactly one requested event type; ' ...
+            'multiple types retain fixed-epoch ICA preparation.'];
+    end
 end
-if isempty(supplied)
-    method = expected;
+
+details.resolved = resolved;
+details.eventScopedIcaTraining = strcmp(resolved, 'beforeica');
+if strcmp(resolved, 'beforeica')
+    details.scope = ...
+        ['The requested event epochs define the ICA fitting copy. Filtering ' ...
+        'and precleaning remain continuous; final epochs are materialized ' ...
+        'after component subtraction.'];
+elseif strcmp(options.icaMethod, 'none')
+    details.scope = ...
+        ['ICA is disabled. Requested event epochs or fixed analysis epochs ' ...
+        'are materialized after filtering and precleaning.'];
+else
+    details.scope = ...
+        ['ICA uses the existing fixed-length training preparation. Final ' ...
+        'analysis epochs are materialized after component subtraction.'];
+end
+if strcmp(options.icaMethod, 'none')
+    details.finalEpochMaterialization = ...
+        ['after filtering and precleaning; ICA fitting and subtraction ' ...
+        'are skipped'];
+else
+    details.finalEpochMaterialization = ...
+        'after ICA component subtraction';
+end
+end
+
+function count = nf_unique_event_type_count(events)
+if isempty(events)
+    count = 0;
     return
 end
-method = lower(char(supplied));
-if ismember(method, {'made', 'adjusted_adjust', 'adjusted_adust', ...
-        'adjusted-adjust', 'adjusted-adust', 'adjustedadjust', ...
-        'adjustedadust'})
-    method = 'adjustedadjust';
+keys = cell(1, numel(events));
+for eventIndex = 1:numel(events)
+    value = events{eventIndex};
+    if isstring(value) && isscalar(value)
+        value = char(value);
+    end
+    if ischar(value)
+        keys{eventIndex} = deblank(value);
+    elseif isnumeric(value) && isscalar(value) && isfinite(value)
+        keys{eventIndex} = num2str(value, 15);
+    else
+        keys{eventIndex} = sprintf( ...
+            '<invalid-%s-%d>', class(value), eventIndex);
+    end
 end
-if ~strcmp(method, expected)
-    error('nf_preprocess:PresetClassifierInvariant', ...
-        ['The %s preset requires %s. adult and child share every other ' ...
-        'stage and differ only in their component classifier.'], ...
-        preset, expected);
+count = numel(unique(keys));
+end
+
+function [options, definition] = nf_apply_preset_defaults( ...
+    options, usingDefaults)
+definition = struct();
+definition.name = options.preset;
+definition.fullPublishedPipelineClaim = false;
+definition.contract = ...
+    ['NeuroFreq composition. Each named external stage must execute the ' ...
+    'installed vendor implementation and records its own provenance.'];
+definition.futureComparisonNote = ...
+    ['Compare resolved stages and provenance, not the preset label alone. ' ...
+    'A vendor-stage call is not reported as a complete vendor pipeline.'];
+
+switch options.preset
+    case 'bdc'
+        definition.displayName = 'BDC';
+        definition.description = ...
+            'BDC lab pipeline: FASTER channels, GEDAI, ICLabel, threshold and FFT.';
+        defaults = nf_preset_values( ...
+            'faster', 'gedai', 'iclabel', {'threshold', 'fft'});
+    case 'made'
+        definition.displayName = 'MADE';
+        definition.description = ...
+            ['MADE-oriented pipeline: FASTER channels and adjusted_ADJUST. ' ...
+            'GEDAI is intentionally absent.'];
+        defaults = nf_preset_values( ...
+            'faster', 'none', 'adjustedadjust', {'threshold', 'fft'});
+    case 'prep'
+        definition.displayName = 'PREP';
+        definition.fullPublishedPipelineClaim = true;
+        definition.description = ...
+            ['Official complete PREP routine, followed only by the resolved ' ...
+            'NeuroFreq filter/epoch container; no ICA or artifact detector ' ...
+            'is added by default.'];
+        defaults = nf_preset_values( ...
+            'none', 'prep', 'none', {'none'});
+        defaults.globalInterpolation = false;
+        defaults.rereference = false;
+    case 'faster'
+        definition.displayName = 'FASTER';
+        definition.description = ...
+            ['Vendor-exact FASTER channel, epoch, local epoch-channel, and ' ...
+            'component stages embedded in NeuroFreq orchestration.'];
+        defaults = nf_preset_values( ...
+            'faster', 'none', 'faster', {'faster'});
+        defaults.fasterEpochOptions = struct( ...
+            'localChannelDetection', true, ...
+            'exactVendorInterpolation', true);
+    case 'happeer'
+        definition.displayName = 'HAPPE+ER';
+        definition.description = ...
+            ['NeuroFreq composition calling installed HAPPE channel and ' ...
+            'wavelet stages, MARA, amplitude, and joint-probability epoch ' ...
+            'detection. It does not claim complete HAPPE+ER stage-order ' ...
+            'or full-pipeline equivalence.'];
+        defaults = nf_preset_values( ...
+            'happeer', 'happeer', 'mara', ...
+            {'threshold', 'jointprobability'});
+    case 'cleanrawdata'
+        definition.displayName = 'clean_rawdata';
+        definition.description = ...
+            ['Official clean_flatlines, clean_channels, and clean_asr ' ...
+            'functions without an added ICA or epoch classifier.'];
+        defaults = nf_preset_values( ...
+            'cleanrawdata', 'asr', 'none', {'none'});
+        defaults.globalInterpolation = false;
+    case 'eeglab'
+        definition.displayName = 'EEGLAB';
+        definition.description = ...
+            ['Legacy EEGLAB channel statistics and composable amplitude, ' ...
+            'spectral, and epoch-statistics rules.'];
+        defaults = nf_preset_values( ...
+            'eeglab', 'none', 'none', ...
+            {'threshold', 'fft', 'eeglabstats'});
+end
+
+names = fieldnames(defaults);
+for index = 1:numel(names)
+    name = names{index};
+    if strcmp(options.preset, 'faster') && ...
+            strcmp(name, 'fasterEpochOptions')
+        resolvedFasterEpochOptions = defaults.fasterEpochOptions;
+        suppliedFields = fieldnames(options.fasterEpochOptions);
+        for fieldIndex = 1:numel(suppliedFields)
+            fieldName = suppliedFields{fieldIndex};
+            resolvedFasterEpochOptions.(fieldName) = ...
+                options.fasterEpochOptions.(fieldName);
+        end
+        localDetectionSupplied = ...
+            any(strcmp(suppliedFields, 'localChannelDetection'));
+        exactInterpolationSupplied = ...
+            any(strcmp(suppliedFields, 'exactVendorInterpolation'));
+        if localDetectionSupplied && ~exactInterpolationSupplied && ...
+                nf_is_logical_scalar( ...
+                resolvedFasterEpochOptions.localChannelDetection) && ...
+                ~logical( ...
+                resolvedFasterEpochOptions.localChannelDetection)
+            resolvedFasterEpochOptions.exactVendorInterpolation = false;
+        end
+        options.fasterEpochOptions = resolvedFasterEpochOptions;
+        continue
+    end
+    applyDefault = nf_was_default(usingDefaults, name);
+    if ismember(name, {'channelMethod', 'precleanMethod', 'icaMethod'}) && ...
+            isempty(strtrim(char(options.(name))))
+        applyDefault = true;
+    end
+    if applyDefault
+        options.(name) = defaults.(name);
+    end
+end
+definition.defaultStages = defaults;
+definition.explicitOverrides = nf_explicit_option_names( ...
+    options, usingDefaults);
+end
+
+function values = nf_preset_values( ...
+    channelMethod, precleanMethod, icaMethod, epochDetectors)
+values = struct();
+values.channelMethod = channelMethod;
+values.precleanMethod = precleanMethod;
+values.icaMethod = icaMethod;
+values.epochDetectors = epochDetectors;
+end
+
+function names = nf_explicit_option_names(options, usingDefaults)
+allNames = fieldnames(options);
+defaultNames = lower(string(usingDefaults));
+explicitMask = ~ismember(lower(string(allNames)), defaultNames);
+names = allNames(explicitMask);
+end
+
+function wasDefault = nf_was_default(usingDefaults, requestedName)
+wasDefault = any(strcmpi(usingDefaults, requestedName));
+end
+
+function method = nf_normalize_channel_method(value)
+normalized = lower(regexprep(strtrim(char(value)), '[^a-zA-Z0-9]', ''));
+switch normalized
+    case 'faster'
+        method = 'faster';
+    case {'cleanrawdata', 'cleanraw'}
+        method = 'cleanrawdata';
+    case 'prep'
+        method = 'prep';
+    case {'happeer', 'happeerp'}
+        method = 'happeer';
+    case {'eeglab', 'legacy', 'legacyeeglab'}
+        method = 'eeglab';
+    case 'none'
+        method = 'none';
+    otherwise
+        error('nf_preprocess:UnknownChannelMethod', ...
+            ['channelMethod must be faster, cleanrawdata, prep, happeer, ' ...
+            'eeglab, or none.']);
+end
+end
+
+function method = nf_normalize_preclean_method(value)
+normalized = lower(regexprep(strtrim(char(value)), '[^a-zA-Z0-9]', ''));
+switch normalized
+    case 'gedai'
+        method = 'gedai';
+    case {'asr', 'cleanasr'}
+        method = 'asr';
+    case 'prep'
+        method = 'prep';
+    case {'happeer', 'happeerp', 'happewavelet'}
+        method = 'happeer';
+    case 'none'
+        method = 'none';
+    otherwise
+        error('nf_preprocess:UnknownPrecleanMethod', ...
+            'precleanMethod must be gedai, asr, prep, happeer, or none.');
+end
+end
+
+function method = nf_resolve_ica_method(~, supplied)
+normalized = lower(regexprep(strtrim(char(supplied)), '[^a-zA-Z0-9]', ''));
+switch normalized
+    case 'iclabel'
+        method = 'iclabel';
+    case {'made', 'adjustedadjust', 'adjustedadust'}
+        method = 'adjustedadjust';
+    case 'adjust'
+        method = 'adjust';
+    case 'mara'
+        method = 'mara';
+    case 'faster'
+        method = 'faster';
+    case 'none'
+        method = 'none';
+    otherwise
+        error('nf_preprocess:UnknownICAMethod', ...
+            ['icaMethod must be iclabel, adjustedadjust, adjust, mara, ' ...
+            'faster, or none.']);
+end
+end
+
+function detectors = nf_normalize_epoch_detectors(value)
+if isempty(value)
+    detectors = {'none'};
+elseif ischar(value)
+    detectors = {value};
+elseif isstring(value)
+    detectors = cellstr(value(:));
+else
+    detectors = value(:)';
+end
+normalized = cell(1, numel(detectors));
+for index = 1:numel(detectors)
+    token = lower(regexprep(strtrim(char(detectors{index})), ...
+        '[^a-zA-Z0-9]', ''));
+    switch token
+        case {'threshold', 'amplitude', 'voltage'}
+            normalized{index} = 'threshold';
+        case {'fft', 'spectral', 'muscle'}
+            normalized{index} = 'fft';
+        case {'peak2peak', 'peaktopeak', 'movingwindowpeaktopeak', 'mwpp'}
+            normalized{index} = 'peak2peak';
+        case {'step', 'electrodepop', 'pop'}
+            normalized{index} = 'step';
+        case {'gradient', 'fasttransition', 'derivative'}
+            normalized{index} = 'gradient';
+        case 'flatline'
+            normalized{index} = 'flatline';
+        case {'clipping', 'clip'}
+            normalized{index} = 'clipping';
+        case 'faster'
+            normalized{index} = 'faster';
+        case {'eeglabstats', 'eeglabstatistics', 'eeglab'}
+            normalized{index} = 'eeglabstats';
+        case {'jointprobability', 'jointprob', 'joint'}
+            normalized{index} = 'jointprobability';
+        case {'none', 'off'}
+            normalized{index} = 'none';
+        otherwise
+            error('nf_preprocess:UnknownEpochDetector', ...
+                'Unknown epoch detector: %s.', char(detectors{index}));
+    end
+end
+detectors = unique(normalized, 'stable');
+if numel(detectors) > 1 && any(strcmp(detectors, 'none'))
+    error('nf_preprocess:ConflictingEpochDetectors', ...
+        'epochDetectors cannot combine none with active detectors.');
+end
+end
+
+function bands = nf_normalize_frequency_bands(value, defaultBand)
+if isempty(value)
+    bands = reshape(defaultBand, 1, 2);
+else
+    bands = value;
+    if isnumeric(bands) && isvector(bands)
+        if numel(bands) == 2
+            bands = reshape(bands, 1, 2);
+        elseif numel(bands) == 4
+            bands = reshape(bands, 1, 4);
+        end
+    end
+end
+end
+
+function limits = nf_fft_frequency_limits(value)
+if isnumeric(value)
+    limits = double(value(:, 1:2));
+    return
+end
+limits = zeros(numel(value), 2);
+for index = 1:numel(value)
+    if isfield(value(index), 'frequencyRangeHz')
+        range = value(index).frequencyRangeHz;
+    else
+        range = value(index).frequencyRange;
+    end
+    limits(index, :) = reshape(double(range), 1, 2);
 end
 end
 
@@ -2317,7 +3854,7 @@ for optionIndex = 1:2:numel(options.qualityOptions)
             'Every qualityOptions parameter name must be scalar text.');
     end
 end
-reservedQualityOptions = {'final', 'report', 'plot', 'visible'};
+reservedQualityOptions = {'final', 'report', 'plot', 'visible', 'icaModel'};
 for optionIndex = 1:numel(reservedQualityOptions)
     if nf_quality_options_contains(options.qualityOptions, ...
             reservedQualityOptions{optionIndex})
@@ -2351,15 +3888,38 @@ if options.highpass >= EEG.srate / 2 || ...
     error('nf_preprocess:InvalidHighpass', ...
         'highpass must be below both input and output Nyquist frequencies.');
 end
-if options.muscleRange(1) < 0 || ...
-        options.muscleRange(2) > options.lowpass || ...
-        options.muscleRange(2) >= options.resample / 2
-    error('nf_preprocess:InvalidMuscleBand', ...
-        'The complete muscleRange must be retained by lowpass and resampling.');
+if any(strcmp(options.epochDetectors, 'fft'))
+    if ~isempty(options.fftBands) && ...
+            isfield(options.fftOptions, 'bands')
+        error('nf_preprocess:ConflictingFFTBands', ...
+            ['Specify FFT bands with either fftBands or fftOptions.bands, ' ...
+            'not both.']);
+    end
+    effectiveFFTBands = options.fftBands;
+    if isempty(effectiveFFTBands)
+        if isfield(options.fftOptions, 'bands') && ...
+                ~isempty(options.fftOptions.bands)
+            effectiveFFTBands = options.fftOptions.bands;
+        else
+            effectiveFFTBands = options.muscleRange;
+        end
+    end
+    fftFrequencyLimits = nf_fft_frequency_limits(effectiveFFTBands);
+    for bandIndex = 1:size(fftFrequencyLimits, 1)
+        band = fftFrequencyLimits(bandIndex, :);
+        if band(1) < 0 || band(2) > options.lowpass || ...
+                band(2) >= options.resample / 2
+            error('nf_preprocess:InvalidFFTBand', ...
+                ['Every complete fftBands row must be retained by lowpass ' ...
+                'and resampling. Invalid row: [%g %g].'], ...
+                band(1), band(2));
+        end
+    end
 end
-if options.icaTrainingFrequencies(1) < 0 || ...
+if ~strcmp(options.icaMethod, 'none') && ...
+        (options.icaTrainingFrequencies(1) < 0 || ...
         options.icaTrainingFrequencies(2) > options.lowpass || ...
-        options.icaTrainingFrequencies(2) >= options.resample / 2
+        options.icaTrainingFrequencies(2) >= options.resample / 2)
     error('nf_preprocess:InvalidICATrainingBand', ...
         'The complete ICA training frequency range must be retained.');
 end
@@ -2375,6 +3935,16 @@ if ~isempty(options.events) && ...
         (~isfield(EEG, 'event') || isempty(EEG.event))
     error('nf_preprocess:MissingEvents', ...
         'The dataset contains no events for event-locked epoching.');
+end
+if strcmp(options.epochStage, 'beforeica') && isempty(options.events)
+    error('nf_preprocess:MissingICAEvents', ...
+        ['epochStage=''beforeica'' requires events and epochLimits so the ' ...
+        'requested task epochs can define the ICA fitting data.']);
+end
+if strcmp(options.epochStage, 'beforeica') && ...
+        strcmp(options.icaMethod, 'none')
+    error('nf_preprocess:ICAStageWithoutICA', ...
+        'epochStage=''beforeica'' cannot be used when icaMethod=''none''.');
 end
 if ~isempty(options.epochLimits)
     finalLimits = options.epochLimits;
@@ -2395,23 +3965,29 @@ if ~isempty(options.thresholdTimes) && ...
     error('nf_preprocess:InvalidThresholdTimes', ...
         'thresholdTimes must fall inside the final epoch limits.');
 end
-if ~ismember(options.channelMethod, {'faster', 'cleanrawdata', 'none'})
+if ~ismember(options.channelMethod, ...
+        {'faster', 'cleanrawdata', 'prep', 'happeer', 'eeglab', 'none'})
     error('nf_preprocess:UnknownChannelMethod', ...
-        'channelMethod must be faster, cleanrawdata, or none.');
+        ['channelMethod must be faster, cleanrawdata, prep, happeer, ' ...
+        'eeglab, or none.']);
 end
-if ~ismember(options.precleanMethod, {'gedai', 'none'})
+if ~ismember(options.precleanMethod, ...
+        {'gedai', 'asr', 'prep', 'happeer', 'none'})
     error('nf_preprocess:UnknownPrecleanMethod', ...
-        'precleanMethod must be gedai or none.');
+        'precleanMethod must be gedai, asr, prep, happeer, or none.');
 end
-if ~ismember(options.icaAlgorithm, {'runamica15', 'runica'})
+if ~strcmp(options.icaMethod, 'none') && ...
+        ~ismember(options.icaAlgorithm, {'runamica15', 'runica'})
     error('nf_preprocess:UnknownICAAlgorithm', ...
         'icaAlgorithm must be runamica15 or runica.');
 end
-if options.cleanHighpass >= options.resample / 2
+if strcmp(options.channelMethod, 'cleanrawdata') && ...
+        options.cleanHighpass >= options.resample / 2
     error('nf_preprocess:InvalidCleanHighpass', ...
         'cleanHighpass must be below the post-resampling Nyquist frequency.');
 end
-if options.icaTrainingHighpass >= options.resample / 2
+if ~strcmp(options.icaMethod, 'none') && ...
+        options.icaTrainingHighpass >= options.resample / 2
     error('nf_preprocess:InvalidICATrainingHighpass', ...
         'icaTrainingHighpass must be below the post-resampling Nyquist frequency.');
 end
@@ -2436,28 +4012,34 @@ if strcmp(options.precleanMethod, 'gedai')
             'events; FASTER and nf_thresh own rejection in this pipeline.']);
     end
 end
-if strcmp(options.preset, 'child') && options.resample < 100
-    error('nf_preprocess:ChildSamplingRate', ...
-        ['The child adjusted_ADJUST feature extractor requires a sampling ' ...
+if strcmp(options.icaMethod, 'adjustedadjust') && options.resample < 100
+    error('nf_preprocess:MADESamplingRate', ...
+        ['The MADE adjusted_ADJUST feature extractor requires a sampling ' ...
         'rate of at least 100 Hz.']);
 end
-if strcmp(options.preset, 'child') && ...
+if strcmp(options.icaMethod, 'adjustedadjust') && ...
         options.icaTrainingEpochLength * options.resample < 100
-    error('nf_preprocess:ChildEpochLength', ...
+    error('nf_preprocess:MADEEpochLength', ...
         ['icaTrainingEpochLength must yield at least 100 samples per MADE ' ...
         'adjusted_ADJUST feature epoch.']);
 end
-if nf_contains_boundary_event(EEG)
+if nf_contains_boundary_event(EEG) && ...
+        (ismember(options.precleanMethod, {'gedai', 'asr', 'happeer'}) || ...
+        ~strcmp(options.icaMethod, 'none'))
     error('nf_preprocess:BoundaryUnsupported', ...
-        ['GEDAI v1.7 and the common ICA-training filter do not honor EEGLAB ' ...
-        'boundary events. Segment the recording before nf_preprocess.']);
+        ['The selected precleaner or common ICA-training filter does not ' ...
+        'honor EEGLAB boundary events. Segment the recording before ' ...
+        'nf_preprocess, or use PREP/none with ICA disabled.']);
 end
-nf_validate_faster_options(options.fasterOptions);
-if strcmp(options.icaMethod, 'adjustedadjust') && options.aggressiveICA
+if strcmp(options.channelMethod, 'faster')
+    nf_validate_faster_options(options.fasterOptions);
+end
+if ~ismember(options.icaMethod, {'iclabel', 'none'}) && ...
+        options.aggressiveICA
     error('nf_preprocess:ClassifierOptionMismatch', ...
         'aggressiveICA applies only to ICLabel.');
 end
-if strcmp(options.icaMethod, 'adjustedadjust') && ...
+if ~ismember(options.icaMethod, {'iclabel', 'none'}) && ...
         ~isempty(options.iclabelThresholds)
     error('nf_preprocess:ClassifierOptionMismatch', ...
         'iclabelThresholds apply only to ICLabel.');
@@ -2466,19 +4048,47 @@ end
 
 function nf_preflight_dependencies(options)
 required = {'eeg_checkset', 'pop_select', 'pop_eegfiltnew', ...
-    'pop_resample', 'eeg_regepochs', 'pop_eegthresh', 'pop_rejspec', ...
-    'pop_rejepoch', 'pop_subcomp', 'eeg_interp', ...
-    'pop_reref', 'convertlocs', 'nf_filter', ...
+    'pop_resample', 'nf_filter', ...
     'nf_badchans', 'nf_cleanic', 'nf_thresh'};
-if strcmp(options.icaAlgorithm, 'runica')
+if nf_pipeline_requires_geometry(options)
+    required{end + 1} = 'convertlocs';
+end
+mayRestoreChannels = options.globalInterpolation && ...
+    (~strcmp(options.channelMethod, 'none') || ...
+    ~strcmp(options.icaMethod, 'none'));
+epochRepairRequirements = nf_epoch_repair_requirements(options);
+if mayRestoreChannels || ...
+        epochRepairRequirements.requiresEeglabInterpolation
+    required{end + 1} = 'eeg_interp';
+end
+if options.rereference || strcmp(options.channelMethod, 'faster')
+    required{end + 1} = 'pop_reref';
+end
+if ~strcmp(options.icaMethod, 'none')
+    required{end + 1} = 'pop_subcomp';
+end
+if ~strcmp(options.icaMethod, 'none') && ...
+        strcmp(options.icaAlgorithm, 'runica')
     required{end + 1} = 'pop_runica';
+end
+if any(strcmp(options.epochDetectors, 'threshold'))
+    required{end + 1} = 'pop_eegthresh';
+end
+if any(strcmp(options.epochDetectors, 'fft'))
+    required{end + 1} = 'pop_rejspec';
+end
+if ~all(strcmp(options.epochDetectors, 'none'))
+    required{end + 1} = 'pop_rejepoch';
 end
 if ~isempty(options.events)
     required{end + 1} = 'pop_epoch';
+else
+    required{end + 1} = 'eeg_regepochs';
 end
 if isnumeric(options.baseline) && numel(options.baseline) == 2
     required{end + 1} = 'pop_rmbase';
 end
+
 for index = 1:numel(required)
     if exist(required{index}, 'file') ~= 2
         error('nf_preprocess:MissingDependency', ...
@@ -2486,22 +4096,112 @@ for index = 1:numel(required)
     end
 end
 if strcmp(options.channelMethod, 'faster')
-    fasterDependencies = {'channel_properties', 'min_z', ...
-        'distancematrix', 'hurst_exponent', ...
-        'nanmean', 'nanmedian'};
-    for index = 1:numel(fasterDependencies)
-        if ~nf_function_available(fasterDependencies{index})
+    fasterChannelDependencies = {'channel_properties', 'min_z', ...
+        'distancematrix', 'hurst_exponent', 'nanmean'};
+    for index = 1:numel(fasterChannelDependencies)
+        if ~nf_function_available(fasterChannelDependencies{index})
             error('nf_preprocess:MissingFASTER', ...
-                ['FASTER dependency %s was not found. Install the complete ' ...
-                'FASTER distribution and its MATLAB dependencies.'], ...
-                fasterDependencies{index});
+                ['FASTER channel dependency %s was not found. Install the ' ...
+                'complete FASTER distribution and its MATLAB dependencies.'], ...
+                fasterChannelDependencies{index});
         end
     end
 end
-if strcmp(options.channelMethod, 'cleanrawdata') && ...
-        exist('clean_channels', 'file') ~= 2
+if strcmp(options.icaMethod, 'faster')
+    fasterICAdependencies = {'component_properties', 'min_z', ...
+        'hurst_exponent', 'eeg_getica', 'pwelch', 'kurt', 'nanmean'};
+    for index = 1:numel(fasterICAdependencies)
+        if ~nf_function_available(fasterICAdependencies{index})
+            error('nf_preprocess:MissingFASTER', ...
+                ['FASTER ICA dependency %s was not found. Install the ' ...
+                'complete FASTER distribution and its MATLAB dependencies.'], ...
+                fasterICAdependencies{index});
+        end
+    end
+end
+if any(strcmp(options.epochDetectors, 'faster'))
+    fasterEpochDependencies = {'epoch_properties', 'min_z'};
+    if isfield(options.fasterEpochOptions, 'localChannelDetection') && ...
+            nf_is_logical_scalar( ...
+            options.fasterEpochOptions.localChannelDetection) && ...
+            logical(options.fasterEpochOptions.localChannelDetection)
+        fasterEpochDependencies{end + 1} = ...
+            'single_epoch_channel_properties';
+    end
+    if isfield(options.fasterEpochOptions, 'exactVendorInterpolation') && ...
+            nf_is_logical_scalar( ...
+            options.fasterEpochOptions.exactVendorInterpolation) && ...
+            logical(options.fasterEpochOptions.exactVendorInterpolation)
+        fasterEpochDependencies{end + 1} = 'h_epoch_interp_spl';
+    end
+    for index = 1:numel(fasterEpochDependencies)
+        if ~nf_function_available(fasterEpochDependencies{index})
+            error('nf_preprocess:MissingFASTER', ...
+                ['FASTER epoch dependency %s was not found. Install the ' ...
+                'complete FASTER distribution and its MATLAB dependencies.'], ...
+                fasterEpochDependencies{index});
+        end
+    end
+end
+if strcmp(options.channelMethod, 'cleanrawdata')
+    cleanRawDependencies = {'clean_flatlines', 'clean_channels'};
+    for index = 1:numel(cleanRawDependencies)
+        if exist(cleanRawDependencies{index}, 'file') ~= 2
+            error('nf_preprocess:MissingCleanRawData', ...
+                ['%s.m from the official clean_rawdata distribution is ' ...
+                'required.'], cleanRawDependencies{index});
+        end
+    end
+end
+if strcmp(options.channelMethod, 'prep') && ...
+        (~nf_function_available('removeTrend') || ...
+        ~nf_function_available('findNoisyChannels'))
+    error('nf_preprocess:MissingPREP', ...
+        ['removeTrend.m and findNoisyChannels.m from the PREP ' ...
+        'distribution are required for channelMethod=prep.']);
+end
+if strcmp(options.channelMethod, 'happeer')
+    happeChannelDependencies = { ...
+        'happe_detectBadChans', 'pop_clean_rawdata', 'pop_rejchan'};
+    for index = 1:numel(happeChannelDependencies)
+        if ~nf_function_available(happeChannelDependencies{index})
+            error('nf_preprocess:MissingHAPPE', ...
+                ['%s is required for channelMethod=HAPPE+ER. Install the ' ...
+                'complete compatible HAPPE distribution.'], ...
+                happeChannelDependencies{index});
+        end
+    end
+end
+if strcmp(options.channelMethod, 'eeglab') && ...
+        ~nf_function_available('pop_rejchan')
+    error('nf_preprocess:MissingEEGLABChannelFunction', ...
+        'pop_rejchan.m is required for channelMethod=EEGLAB.');
+end
+if strcmp(options.precleanMethod, 'asr') && ...
+        exist('clean_asr', 'file') ~= 2
     error('nf_preprocess:MissingCleanRawData', ...
-        'clean_channels.m from clean_rawdata is required.');
+        'clean_asr.m from the official clean_rawdata distribution is required.');
+end
+if strcmp(options.precleanMethod, 'prep')
+    prepDependencies = {'prepPipeline', 'getPrepVersion'};
+    for index = 1:numel(prepDependencies)
+        if exist(prepDependencies{index}, 'file') ~= 2
+            error('nf_preprocess:MissingPREP', ...
+                ['%s.m from the installed PREP distribution is required.'], ...
+                prepDependencies{index});
+        end
+    end
+end
+if strcmp(options.precleanMethod, 'happeer')
+    happeDependencies = {'happe_wavThresh', 'assessPipelineStep', ...
+        'calcSNR_PSNR', 'wdenoise', 'mscohere'};
+    for index = 1:numel(happeDependencies)
+        if ~nf_function_available(happeDependencies{index})
+            error('nf_preprocess:MissingHAPPE', ...
+                ['%s is required for the installed HAPPE+ER ' ...
+                'wavelet stage.'], happeDependencies{index});
+        end
+    end
 end
 if strcmp(options.precleanMethod, 'gedai')
     if exist('GEDAI', 'file') ~= 2
@@ -2538,26 +4238,27 @@ if strcmp(options.precleanMethod, 'gedai')
         end
     end
 end
-if strcmp(options.icaAlgorithm, 'runamica15') && ...
+if ~strcmp(options.icaMethod, 'none') && ...
+        strcmp(options.icaAlgorithm, 'runamica15') && ...
         (exist('pop_runamica', 'file') ~= 2 || exist('runamica15', 'file') ~= 2)
     error('nf_preprocess:MissingAMICA', ...
         'The current AMICA plugin is required for icaAlgorithm=runamica15.');
 end
 if strcmp(options.icaMethod, 'iclabel') && exist('pop_iclabel', 'file') ~= 2
     error('nf_preprocess:MissingICLabel', ...
-        'The ICLabel plugin is required for the adult preset.');
+        'The ICLabel plugin is required for icaMethod=iclabel.');
 end
 if strcmp(options.icaMethod, 'adjustedadjust')
-    childDependencies = {'adjusted_ADJUST', 'compute_GD_feat', ...
+    madeDependencies = {'adjusted_ADJUST', 'compute_GD_feat', ...
         'computeSED_NOnorm', 'computeSAD', 'EM', 'trim_and_mean', ...
         'trim_and_max', 'MARA_extract_time_freq_features', ...
         'beall_horizontal', 'beall_blink_detection', 'Spatial_Info_eyes', ...
         'spectopo', 'fitlm', 'findpeaks', 'kurt'};
-    for index = 1:numel(childDependencies)
-        if exist(childDependencies{index}, 'file') ~= 2
+    for index = 1:numel(madeDependencies)
+        if exist(madeDependencies{index}, 'file') ~= 2
             error('nf_preprocess:MissingAdjustedAdjust', ...
-                ['The child preset requires %s.m from the complete MADE/' ...
-                'adjusted_ADJUST dependency set.'], childDependencies{index});
+                ['MADE adjusted_ADJUST requires %s.m from the complete MADE/' ...
+                'adjusted_ADJUST dependency set.'], madeDependencies{index});
         end
     end
 end
@@ -2565,6 +4266,142 @@ if nf_save_requested(options.save) && ...
         ~nf_function_available('pop_saveset')
     error('nf_preprocess:MissingSaveFunction', ...
         'EEGLAB pop_saveset.m is required when save is requested.');
+end
+end
+
+function requirements = nf_epoch_repair_requirements(options)
+nativeDetectors = {'threshold', 'fft', 'peak2peak', 'step', ...
+    'gradient', 'flatline', 'clipping'};
+nativeRepairCapable = ...
+    any(ismember(options.epochDetectors, nativeDetectors));
+fasterActive = any(strcmp(options.epochDetectors, 'faster'));
+fasterLocalDetection = false;
+fasterVendorInterpolation = false;
+if fasterActive && ...
+        isfield(options.fasterEpochOptions, 'localChannelDetection')
+    value = options.fasterEpochOptions.localChannelDetection;
+    if ~nf_is_logical_scalar(value)
+        error('nf_preprocess:InvalidFasterEpochOptions', ...
+            ['fasterEpochOptions.localChannelDetection must be a logical ' ...
+            'scalar.']);
+    end
+    fasterLocalDetection = logical(value);
+end
+if fasterActive && ...
+        isfield(options.fasterEpochOptions, 'exactVendorInterpolation')
+    value = options.fasterEpochOptions.exactVendorInterpolation;
+    if ~nf_is_logical_scalar(value)
+        error('nf_preprocess:InvalidFasterEpochOptions', ...
+            ['fasterEpochOptions.exactVendorInterpolation must be a ' ...
+            'logical scalar.']);
+    end
+    fasterVendorInterpolation = logical(value);
+end
+if fasterVendorInterpolation && ~fasterLocalDetection
+    error('nf_preprocess:InvalidFasterEpochOptions', ...
+        ['fasterEpochOptions.exactVendorInterpolation requires ' ...
+        'localChannelDetection=true.']);
+end
+
+requirements = struct();
+requirements.channelRepairCapable = ...
+    nativeRepairCapable || fasterLocalDetection;
+requirements.requiresInterpolation = false;
+requirements.requiresEeglabInterpolation = false;
+requirements.requiresGeometry = false;
+if ~requirements.channelRepairCapable
+    return
+end
+
+if options.localInterp
+    sparseAction = 'interpolate';
+else
+    sparseAction = 'rejectepoch';
+end
+frontalAction = 'rejectepoch';
+excessAction = 'rejectepoch';
+overrides = options.epochRepairOptions;
+if isfield(overrides, 'sparseChannelAction')
+    sparseAction = nf_normalize_epoch_channel_action( ...
+        overrides.sparseChannelAction, ...
+        'epochRepairOptions.sparseChannelAction');
+end
+if isfield(overrides, 'frontalAction')
+    frontalAction = nf_normalize_epoch_channel_action( ...
+        overrides.frontalAction, 'epochRepairOptions.frontalAction');
+end
+if isfield(overrides, 'excessChannelAction')
+    excessAction = nf_normalize_epoch_channel_action( ...
+        overrides.excessChannelAction, ...
+        'epochRepairOptions.excessChannelAction');
+end
+actions = {sparseAction, frontalAction, excessAction};
+requirements.requiresEeglabInterpolation = ...
+    any(strcmp(actions, 'interpolate'));
+requirements.requiresInterpolation = ...
+    requirements.requiresEeglabInterpolation || fasterVendorInterpolation;
+requirements.requiresGeometry = requirements.requiresInterpolation || ...
+    ~strcmp(frontalAction, sparseAction);
+end
+
+function action = nf_normalize_epoch_channel_action(value, fieldName)
+if ~nf_is_text(value)
+    error('nf_preprocess:InvalidEpochRepairAction', ...
+        '%s must be scalar text.', fieldName);
+end
+normalized = lower(regexprep(strtrim(char(value)), '[ _-]', ''));
+switch normalized
+    case {'interpolate', 'repair'}
+        action = 'interpolate';
+    case {'reject', 'rejectepoch', 'delete'}
+        action = 'rejectepoch';
+    case {'mark', 'retain', 'none'}
+        action = 'mark';
+    otherwise
+        error('nf_preprocess:InvalidEpochRepairAction', ...
+            '%s must be interpolate, rejectepoch, or mark.', fieldName);
+end
+end
+
+function required = nf_pipeline_requires_geometry(options)
+channelGeometryMethods = {'faster', 'cleanrawdata', 'prep', 'happeer'};
+precleanGeometryMethods = {'gedai', 'prep'};
+mayRestoreChannels = options.globalInterpolation && ...
+    ~strcmp(options.channelMethod, 'none');
+epochRepairRequirements = nf_epoch_repair_requirements(options);
+required = any(strcmp(options.channelMethod, channelGeometryMethods)) || ...
+    any(strcmp(options.precleanMethod, precleanGeometryMethods)) || ...
+    ~strcmp(options.icaMethod, 'none') || options.qualityCompute || ...
+    mayRestoreChannels || epochRepairRequirements.requiresGeometry;
+end
+
+function provenance = nf_collect_pipeline_provenance( ...
+    channelInfo, precleanInfo, icaInfo, thresholdInfo)
+provenance = struct();
+provenance.contractVocabulary = struct();
+provenance.contractVocabulary.vendorExact = ...
+    'The named installed vendor entry point made the scientific decision.';
+provenance.contractVocabulary.vendorPrimitive = ...
+    ['Named vendor primitives ran, with NeuroFreq composing decisions or ' ...
+    'stage order.'];
+provenance.contractVocabulary.native = ...
+    'NeuroFreq implemented the explicitly described rule.';
+provenance.completePipelineEquivalenceRequiresExplicitClaim = true;
+provenance.channels = nf_extract_provenance(channelInfo);
+if isfield(precleanInfo, 'contract')
+    provenance.preclean = precleanInfo.contract;
+else
+    provenance.preclean = nf_extract_provenance(precleanInfo);
+end
+provenance.ica = nf_extract_provenance(icaInfo);
+provenance.epochs = nf_extract_provenance(thresholdInfo);
+end
+
+function provenance = nf_extract_provenance(info)
+if isstruct(info) && isfield(info, 'provenance')
+    provenance = info.provenance;
+else
+    provenance = struct();
 end
 end
 
@@ -2601,7 +4438,7 @@ software.eeglab = '';
 if exist('eeg_getversion', 'file') == 2
     software.eeglab = eeg_getversion;
 end
-software.neuroFreqPreprocessSchema = '3.0.0';
+software.neuroFreqPreprocessSchema = '4.1.0';
 end
 
 function history = nf_compact_history(report)
@@ -2616,7 +4453,8 @@ if isfield(report, 'persistenceFinished')
     history.persistenceFinished = report.persistenceFinished;
 end
 history.preset = report.preset;
-history.classifier = report.presetDefinition.classifier;
+history.classifier = report.presetDefinition.resolvedClassifier;
+history.epochTiming = report.epochs.timing;
 history.input = report.input;
 history.output = report.output;
 history.quality = report.quality;
@@ -2645,7 +4483,9 @@ reported = options;
 if isfield(reported, 'eventValidation')
     reported = rmfield(reported, 'eventValidation');
 end
-if isfield(reported, 'gedaiOptions')
+if isfield(reported, 'gedaiOptions') && ...
+        isstruct(reported.gedaiOptions) && ...
+        isfield(reported.gedaiOptions, 'referenceMatrixType')
     reported.gedaiOptions = nf_compact_gedai_configuration( ...
         reported.gedaiOptions);
 end
@@ -2747,7 +4587,7 @@ if ~nf_is_scalar_struct(options)
     error('nf_preprocess:InvalidFASTEROptions', ...
         'fasterOptions must be one scalar structure.');
 end
-allowed = {'measure', 'z', 'stat'};
+allowed = {'measure', 'z'};
 names = fieldnames(options);
 for index = 1:numel(names)
     if ~ismember(names{index}, allowed)
@@ -2769,14 +4609,6 @@ if isfield(options, 'z')
             any(~isfinite(value(:))) || any(value(:) <= 0)
         error('nf_preprocess:InvalidFASTEROptions', ...
             'fasterOptions.z must contain three positive finite values.');
-    end
-end
-if isfield(options, 'stat')
-    value = options.stat;
-    if ~nf_is_text(value) || ...
-            ~ismember(lower(strtrim(char(value))), {'iqr', 'z'})
-        error('nf_preprocess:InvalidFASTEROptions', ...
-            'fasterOptions.stat must be ''iqr'' or ''z''.');
     end
 end
 end
@@ -3206,6 +5038,77 @@ end
 function valid = nf_is_channel_specification(value)
 valid = isempty(value) || islogical(value) || isnumeric(value) || ...
     ischar(value) || isstring(value) || iscellstr(value);
+end
+
+function valid = nf_is_method_list(value)
+valid = isempty(value) || ischar(value) || isstring(value) || ...
+    iscellstr(value);
+end
+
+function valid = nf_is_frequency_bands(value)
+if isempty(value)
+    valid = true;
+    return
+end
+if isnumeric(value)
+    valid = isreal(value) && ...
+        (size(value, 2) == 2 || size(value, 2) == 4 || ...
+        (isvector(value) && ismember(numel(value), [2 4]))) && ...
+        all(isfinite(value(:)));
+    if ~valid
+        return
+    end
+    if isvector(value)
+        if numel(value) == 2
+            value = reshape(value, 1, 2);
+        else
+            value = reshape(value, 1, 4);
+        end
+    end
+    valid = all(value(:, 1) >= 0) && ...
+        all(value(:, 1) < value(:, 2));
+    if size(value, 2) == 4
+        valid = valid && all(value(:, 3) < value(:, 4));
+    end
+    return
+end
+if ~isstruct(value) || isempty(value)
+    valid = false;
+    return
+end
+valid = true;
+allowed = {'frequencyRangeHz', 'frequencyRange', ...
+    'powerThresholdDb', 'powerThreshold'};
+for index = 1:numel(value)
+    names = fieldnames(value(index));
+    if any(~ismember(names, allowed))
+        valid = false;
+        return
+    end
+    if isfield(value(index), 'frequencyRangeHz')
+        frequency = value(index).frequencyRangeHz;
+    elseif isfield(value(index), 'frequencyRange')
+        frequency = value(index).frequencyRange;
+    else
+        valid = false;
+        return
+    end
+    if ~nf_is_increasing_pair(frequency) || frequency(1) < 0
+        valid = false;
+        return
+    end
+    if isfield(value(index), 'powerThresholdDb')
+        power = value(index).powerThresholdDb;
+    elseif isfield(value(index), 'powerThreshold')
+        power = value(index).powerThreshold;
+    else
+        power = [];
+    end
+    if ~isempty(power) && ~nf_is_increasing_pair(power)
+        valid = false;
+        return
+    end
+end
 end
 
 function valid = nf_is_correlation(value)

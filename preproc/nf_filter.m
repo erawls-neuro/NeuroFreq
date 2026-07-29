@@ -1,5 +1,5 @@
 function [EEG, info] = nf_filter(EEG, lowpass, highpass, notch, targetRate)
-% NF_FILTER  Filtering and resampling for raw M/EEG.
+% NF_FILTER  Filter and resample raw M/EEG.
 %
 % [EEG, INFO] = NF_FILTER(EEG, LOWPASS, HIGHPASS, NOTCH, TARGETRATE)
 %
@@ -15,6 +15,11 @@ if nargin < 2 || isempty(lowpass)
 end
 if nargin < 3 || isempty(highpass)
     highpass = 0.3;
+end
+if highpass>lowpass % you mixed them up
+    lpt = lowpass;
+    lowpass = highpass;
+    highpass = lpt;
 end
 if nargin < 4 || isempty(notch)
     notch = 60;

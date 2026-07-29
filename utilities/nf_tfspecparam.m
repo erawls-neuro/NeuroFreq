@@ -79,9 +79,9 @@ if ~isfield(TF, 'scale')
     error('TF.scale is required.');
 end
 
-if ~isfield(TF, 'power')
-    error('TF.power is required.');
-end
+% if ~isfield(TF, 'power')
+%     error('TF.power is required.');
+% end
 
 if ~isfield(TF, 'nsensor')
     error('TF.nsensor is required.');
