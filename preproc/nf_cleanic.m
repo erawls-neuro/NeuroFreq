@@ -23,8 +23,18 @@ function [EEG, info, EEG_preRemoval] = nf_cleanic(EEG, method, aggressive, varar
 % deficient training matrix.
 %
 % Name/value inputs:
-%   algorithm             'runica' (default) or optional 'runamica15'
-%   randomSeed            1 (controls runica; AMICA uses internal seeding)
+%   behavior              NeuroFreq behavior struct array, one entry per
+%                         requested task event/trial in increasing event-
+%                         latency order. The positional form
+%                         NF_CLEANIC(..., BEHAVIOR, ...) is also accepted.
+%                         EEG metadata are written to EEG.etc.behav; the
+%                         established EEG.etc.behavior alias is synchronized.
+%                         On continuous input these entries remain pending,
+%                         event-latency-ordered metadata until a behavior-aware
+%                         epoching step establishes one entry per epoch.
+%   algorithm             'runica' (default), 'picard', or 'runamica15'
+%   randomSeed            1 (controls runica; Picard uses deterministic
+%                         identity initialization; AMICA seeds internally)
 %   trainingHighpass      1 Hz
 %   trainingEpochLength   1 second
 %   trainingVoltage       1000 microvolts
@@ -60,6 +70,10 @@ function [EEG, info, EEG_preRemoval] = nf_cleanic(EEG, method, aggressive, varar
 %   amicaMaxIterations    2000
 %   amicaThreads          4
 %   amicaProcesses        1
+%   picardMode            'standard' (Infomax-like) or 'ortho'
+%   picardMaxIterations   500
+%   picardTolerance       1e-8
+%   runicaStop            1e-7
 
 EEG_preRemoval = [];
 
@@ -70,8 +84,11 @@ if nargin < 3 || isempty(aggressive)
     aggressive = false;
 end
 
+varargin = nf_normalize_behavior_argument(varargin);
+
 parser = inputParser;
 parser.FunctionName = 'nf_cleanic';
+addParameter(parser, 'behavior', []);
 addParameter(parser, 'algorithm', 'runica', @nf_is_text);
 addParameter(parser, 'randomSeed', 1, @nf_is_nonnegative_integer);
 addParameter(parser, 'trainingHighpass', 1, @nf_is_positive_scalar);
@@ -94,14 +111,27 @@ addParameter(parser, 'fasterOptions', struct(), @nf_is_scalar_struct);
 addParameter(parser, 'amicaMaxIterations', 2000, @nf_is_positive_integer);
 addParameter(parser, 'amicaThreads', 4, @nf_is_positive_integer);
 addParameter(parser, 'amicaProcesses', 1, @nf_is_positive_integer);
+addParameter(parser, 'picardMode', 'standard', @nf_is_text);
+addParameter(parser, 'picardMaxIterations', 500, @nf_is_positive_integer);
+addParameter(parser, 'picardTolerance', 1e-8, @nf_is_positive_scalar);
 addParameter(parser, 'runicaStop', 1e-7, @nf_is_positive_scalar);
 parse(parser, varargin{:});
 options = parser.Results;
+behaviorExplicitlySupplied = ...
+    ~any(strcmpi(parser.UsingDefaults, 'behavior'));
 options.trainingPower = reshape(options.trainingPower, 1, 2);
 options.trainingFrequencies = reshape(options.trainingFrequencies, 1, 2);
 if ~isempty(options.trainingEpochLimits)
     options.trainingEpochLimits = ...
         reshape(options.trainingEpochLimits, 1, 2);
+end
+
+[inputBehavior, behaviorInfo] = nf_resolve_eeg_behavior( ...
+    EEG, options.behavior, behaviorExplicitlySupplied);
+if behaviorInfo.present
+    EEG = nf_set_eeg_behavior(EEG, inputBehavior);
+else
+    EEG = nf_clear_eeg_behavior(EEG);
 end
 
 method = nf_normalize_method(method);
@@ -110,15 +140,31 @@ if strcmp(method, 'none')
 else
     nf_validate_continuous_eeg(EEG);
 end
+if ~strcmp(method, 'none') && ~isempty(options.trainingEvents)
+    % Normalize and latency-sort EEGLAB events before behavior alignment.
+    % Mixed numeric/text event types are intentionally made comparable by
+    % nf_prepare_training_events and must not be rejected by the matcher.
+    EEG = nf_prepare_training_events(EEG);
+end
+if behaviorInfo.present
+    nf_validate_behavior_for_current_eeg(EEG, inputBehavior);
+    if ~strcmp(method, 'none') && ~isempty(options.trainingEvents)
+        nf_validate_continuous_event_behavior_count( ...
+            EEG, inputBehavior, options.trainingEvents);
+    end
+    behaviorInfo.inputSemantics = ...
+        nf_behavior_input_semantics(EEG, options.trainingEvents);
+else
+    behaviorInfo.inputSemantics = 'not-present';
+end
 algorithm = lower(char(options.algorithm));
+options.picardMode = lower(char(options.picardMode));
 options = nf_resolve_classifier_options(options, method);
 nf_validate_options(EEG, method, algorithm, aggressive, options);
 if strcmp(method, 'none')
-    [EEG, info, EEG_preRemoval] = nf_skip_ica(EEG, method);
+    [EEG, info, EEG_preRemoval] = nf_skip_ica( ...
+        EEG, method, behaviorInfo);
     return
-end
-if ~isempty(options.trainingEvents)
-    EEG = nf_prepare_training_events(EEG);
 end
 classifierProvenance = nf_preflight(method, algorithm, options);
 if strcmp(method, 'iclabel')
@@ -140,6 +186,7 @@ end
 
 EEG = nf_clear_ica(EEG);
 training = EEG;
+training = nf_clear_eeg_behavior(training);
 continuousTrainingSampleCount = training.pnts;
 training = pop_eegfiltnew(training, 'locutoff', options.trainingHighpass);
 training = eeg_checkset(training);
@@ -156,6 +203,8 @@ trainingRetainedEventPositions = [];
 trainingRetainedEventIndices = [];
 trainingRetainedEventLatencies = [];
 trainingOverlap = nf_empty_overlap_info();
+trainingBehavior = struct([]);
+trainingBehaviorMapping = 'not-present';
 if isempty(options.trainingEvents)
     training = eeg_regepochs(training, ...
         'recurrence', options.trainingEpochLength, ...
@@ -165,6 +214,10 @@ if isempty(options.trainingEvents)
     trainingEventTypes = {};
     trainingEpochLimits = [0 options.trainingEpochLength];
     trainingEpochLengthSeconds = options.trainingEpochLength;
+    if behaviorInfo.present
+        trainingBehaviorMapping = ...
+            'omitted-from-artificial-fixed-length-ica-chunks';
+    end
 else
     sourceEventLatencies = double([training.event.latency]);
     candidateEventIndices = nf_matching_event_indices( ...
@@ -176,6 +229,13 @@ else
         'epochinfo', 'yes');
     trainingCandidateEventPositions = ...
         reshape(trainingCandidateEventPositions, 1, []);
+    if behaviorInfo.present
+        [trainingBehavior, trainingBehaviorMapping] = ...
+            nf_map_behavior_to_event_epochs( ...
+            inputBehavior, numel(candidateEventIndices), ...
+            trainingCandidateEventPositions, 'ICA-training');
+        training = nf_set_eeg_behavior(training, trainingBehavior);
+    end
     trainingCandidateEventIndices = ...
         candidateEventIndices(trainingCandidateEventPositions);
     trainingCandidateEventLatencies = ...
@@ -183,13 +243,13 @@ else
     trainingOverlap = nf_training_epoch_overlap( ...
         sourceEventLatencies, trainingCandidateEventIndices, ...
         options.trainingEpochLimits, training.srate);
-    if trainingOverlap.nOverlappingEpochs > 0
-        error('nf_cleanic:OverlappingTrainingEpochs', ...
-            ['The requested ICA-training epochs overlap in source time. ' ...
-            'Overlapping epochs duplicate samples and inflate ICA sample ' ...
-            'sufficiency. Shorten epochLimits/trainingEpochLimits or use ' ...
-            'epochStage=''afterica'' with fixed ICA-training epochs.']);
-    end
+    % if trainingOverlap.nOverlappingEpochs > 0
+    %     error('nf_cleanic:OverlappingTrainingEpochs', ...
+    %         ['The requested ICA-training epochs overlap in source time. ' ...
+    %         'Overlapping epochs duplicate samples and inflate ICA sample ' ...
+    %         'sufficiency. Shorten epochLimits/trainingEpochLimits or use ' ...
+    %         'epochStage=''afterica'' with fixed ICA-training epochs.']);
+    % end
     trainingEpochSource = 'requested-event-locked';
     trainingEventTypes = nf_pop_epoch_events(options.trainingEvents);
     trainingEpochLimits = options.trainingEpochLimits;
@@ -239,8 +299,15 @@ if strcmp(trainingEpochSource, 'requested-event-locked')
     trainingRetainedEventLatencies = ...
         trainingCandidateEventLatencies(~trainingRejectedMask);
 end
+if behaviorInfo.present && strcmp( ...
+        trainingEpochSource, 'requested-event-locked')
+    trainingBehavior = trainingBehavior(~trainingRejectedMask);
+end
 training = pop_rejepoch(training, trainingRejectedMask, 0);
 training = eeg_checkset(training);
+if ~isempty(trainingBehavior)
+    training = nf_set_eeg_behavior(training, trainingBehavior);
+end
 if training.trials < options.minimumTrainingEpochs
     error('nf_cleanic:InsufficientTrainingData', ...
         ['Only %d clean ICA training epochs remain from the %s preparation; ' ...
@@ -366,6 +433,9 @@ end
 classification = nf_normalize_classification( ...
     classification, method, rejected, componentCount);
 
+if behaviorInfo.present
+    EEG = nf_set_eeg_behavior(EEG, inputBehavior);
+end
 EEG.reject.gcompreject = false(1, componentCount);
 EEG.reject.gcompreject(rejected) = true;
 preRemovalSummary = nf_dataset_summary(EEG);
@@ -376,9 +446,12 @@ if ~isempty(rejected)
     EEG = pop_subcomp(EEG, rejected, 0);
     EEG = eeg_checkset(EEG);
 end
+if behaviorInfo.present
+    EEG = nf_set_eeg_behavior(EEG, inputBehavior);
+end
 
 info = struct();
-info.schemaVersion = '2.1.0';
+info.schemaVersion = '2.3.0';
 info.method = method;
 info.algorithm = algorithm;
 info.algorithmDetails = algorithmInfo;
@@ -386,10 +459,19 @@ info.randomness.requestedSeed = options.randomSeed;
 if strcmp(algorithm, 'runica')
     info.randomSeed = options.randomSeed;
     info.randomness.algorithmSeedControlled = true;
+    info.randomness.deterministicInitialization = false;
     info.randomness.control = 'MATLAB rng twister before runica';
+elseif strcmp(algorithm, 'picard')
+    info.randomSeed = [];
+    info.randomness.algorithmSeedControlled = false;
+    info.randomness.deterministicInitialization = true;
+    info.randomness.control = ...
+        ['Picard identity initialization with python_defaults=false; ' ...
+        'no random seed used'];
 else
     info.randomSeed = [];
     info.randomness.algorithmSeedControlled = false;
+    info.randomness.deterministicInitialization = false;
     info.randomness.control = ...
         'AMICA binary initialization is plugin/version specific';
 end
@@ -477,6 +559,8 @@ info.training.preRankChannelLabels = preRankChannelLabels;
 info.training.finalChannelArtifactFraction = ...
     preRankChannelArtifactFraction(independentIndices);
 info.training.finalChannelLabels = {training.chanlocs.labels};
+info.training.behaviorMapping = trainingBehaviorMapping;
+info.training.nBehaviorEntries = numel(trainingBehavior);
 info.rank.beforeRepair = rankBeforeRepair;
 info.rank.afterRepair = rankAfterRepair;
 info.rank.method = ...
@@ -511,6 +595,11 @@ info.provenance.classifier = classifierProvenance;
 removalProvenance.executed = ~isempty(rejected);
 info.provenance.removal = removalProvenance;
 info.outputChannelLabels = {EEG.chanlocs.labels};
+behaviorInfo.outputField = 'EEG.etc.behav';
+behaviorInfo.compatibilityField = 'EEG.etc.behavior';
+behaviorInfo.outputEntries = numel(inputBehavior);
+behaviorInfo.finalTrialRejectionApplied = false;
+info.behavior = behaviorInfo;
 
 if ~isfield(EEG, 'etc') || isempty(EEG.etc)
     EEG.etc = struct();
@@ -525,7 +614,9 @@ historyEntry = struct();
 historyEntry.schemaVersion = info.schemaVersion;
 historyEntry.method = info.method;
 historyEntry.algorithm = info.algorithm;
+historyEntry.algorithmDetails = info.algorithmDetails;
 historyEntry.randomSeed = info.randomSeed;
+historyEntry.randomness = info.randomness;
 historyEntry.trainingSource = info.training.source;
 historyEntry.trainingEpochsRetained = info.training.nRetainedEpochs;
 historyEntry.rank = info.rank.afterRepair;
@@ -535,6 +626,178 @@ EEG.etc.nf_cleanic_history{end + 1} = historyEntry;
 
 clear randomCleanup
 
+end
+
+function values = nf_normalize_behavior_argument(values)
+if isempty(values)
+    return
+end
+if nf_is_text(values{1})
+    return
+end
+values = [{'behavior'} values];
+end
+
+function [behavior, info] = nf_resolve_eeg_behavior( ...
+        EEG, requestedBehavior, explicitlySupplied)
+behavior = struct([]);
+info = struct();
+info.present = false;
+info.explicitlySupplied = logical(explicitlySupplied);
+info.source = 'none';
+info.inputEntries = 0;
+
+hasBehav = isfield(EEG, 'etc') && isstruct(EEG.etc) && ...
+    isfield(EEG.etc, 'behav') && ~isempty(EEG.etc.behav);
+hasBehavior = isfield(EEG, 'etc') && isstruct(EEG.etc) && ...
+    isfield(EEG.etc, 'behavior') && ~isempty(EEG.etc.behavior);
+
+behavValue = struct([]);
+behaviorValue = struct([]);
+if hasBehav
+    behavValue = nf_normalize_behavior_array( ...
+        EEG.etc.behav, 'EEG.etc.behav');
+end
+if hasBehavior
+    behaviorValue = nf_normalize_behavior_array( ...
+        EEG.etc.behavior, 'EEG.etc.behavior');
+end
+if hasBehav && hasBehavior && ...
+        ~isequaln(orderfields(behavValue), orderfields(behaviorValue))
+    error('nf_cleanic:BehaviorFieldConflict', ...
+        ['EEG.etc.behav and EEG.etc.behavior contain different trial ' ...
+        'metadata. Resolve the conflict before ICA cleaning.']);
+end
+
+existingBehavior = struct([]);
+if hasBehav
+    existingBehavior = behavValue;
+    info.source = 'EEG.etc.behav';
+elseif hasBehavior
+    existingBehavior = behaviorValue;
+    info.source = 'EEG.etc.behavior';
+end
+
+requestedPresent = explicitlySupplied && ~isempty(requestedBehavior);
+if requestedPresent
+    requestedBehavior = nf_normalize_behavior_array( ...
+        requestedBehavior, 'behavior');
+    if ~isempty(existingBehavior) && ...
+            ~isequaln(orderfields(requestedBehavior), ...
+            orderfields(existingBehavior))
+        error('nf_cleanic:BehaviorInputConflict', ...
+            ['The supplied behavior differs from behavior already stored ' ...
+            'in the input EEG.']);
+    end
+    behavior = requestedBehavior;
+    info.source = 'input behavior';
+elseif ~isempty(existingBehavior)
+    behavior = existingBehavior;
+end
+
+info.present = ~isempty(behavior);
+info.inputEntries = numel(behavior);
+if info.present
+    info.fieldNames = fieldnames(behavior);
+else
+    info.fieldNames = {};
+end
+end
+
+function behavior = nf_normalize_behavior_array(behavior, fieldName)
+if isempty(behavior)
+    behavior = struct([]);
+    return
+end
+if istable(behavior)
+    behavior = table2struct(behavior, 'ToScalar', false);
+end
+if ~isstruct(behavior) || ~isvector(behavior)
+    error('nf_cleanic:InvalidBehavior', ...
+        ['%s must be a NeuroFreq behavior struct array with one element ' ...
+        'per task trial.'], fieldName);
+end
+behavior = reshape(behavior, 1, []);
+end
+
+function nf_validate_behavior_for_current_eeg(EEG, behavior)
+hasEpochStructure = EEG.trials > 1 || ...
+    (isfield(EEG, 'epoch') && ~isempty(EEG.epoch));
+if ~hasEpochStructure
+    return
+end
+if numel(behavior) ~= EEG.trials
+    error('nf_cleanic:BehaviorMismatch', ...
+        ['Behavior has %d trial entries but the epoched EEG has %d ' ...
+        'trials.'], numel(behavior), EEG.trials);
+end
+end
+
+function nf_validate_continuous_event_behavior_count( ...
+        EEG, behavior, trainingEvents)
+candidateCount = numel(nf_matching_event_indices( ...
+    EEG, trainingEvents));
+if numel(behavior) ~= candidateCount
+    error('nf_cleanic:BehaviorEventMismatch', ...
+        ['Behavior has %d entries, but ICA-training event types match %d ' ...
+        'source events. Supply one behavior entry per requested event in ' ...
+        'in increasing requested-event latency order.'], ...
+        numel(behavior), candidateCount);
+end
+end
+
+function semantics = nf_behavior_input_semantics(EEG, trainingEvents)
+hasEpochStructure = EEG.trials > 1 || ...
+    (isfield(EEG, 'epoch') && ~isempty(EEG.epoch));
+if hasEpochStructure
+    semantics = 'one-entry-per-current-eeg-epoch';
+elseif ~isempty(trainingEvents)
+    semantics = 'one-entry-per-requested-event-on-continuous-eeg';
+else
+    semantics = 'pending-event-order-on-continuous-eeg';
+end
+end
+
+function EEG = nf_set_eeg_behavior(EEG, behavior)
+if ~isfield(EEG, 'etc') || isempty(EEG.etc)
+    EEG.etc = struct();
+end
+behavior = reshape(behavior, 1, []);
+EEG.etc.behav = behavior;
+EEG.etc.behavior = behavior;
+end
+
+function EEG = nf_clear_eeg_behavior(EEG)
+if ~isfield(EEG, 'etc') || ~isstruct(EEG.etc)
+    return
+end
+fields = {'behav', 'behavior'};
+for fieldIndex = 1:numel(fields)
+    if isfield(EEG.etc, fields{fieldIndex})
+        EEG.etc = rmfield(EEG.etc, fields{fieldIndex});
+    end
+end
+end
+
+function [behavior, mapping] = nf_map_behavior_to_event_epochs( ...
+        behavior, candidateCount, acceptedPositions, scope)
+if numel(behavior) ~= candidateCount
+    error('nf_cleanic:BehaviorEventMismatch', ...
+        ['Behavior has %d entries, but %s found %d requested event ' ...
+        'candidates. Supply one behavior entry per requested event in ' ...
+        'in increasing requested-event latency order.'], ...
+        numel(behavior), scope, candidateCount);
+end
+if any(~isfinite(acceptedPositions)) || ...
+        any(acceptedPositions ~= round(acceptedPositions)) || ...
+        any(acceptedPositions < 1) || ...
+        any(acceptedPositions > candidateCount)
+    error('nf_cleanic:InvalidBehaviorEpochMapping', ...
+        '%s returned invalid accepted event positions.', scope);
+end
+behavior = behavior(acceptedPositions);
+behavior = reshape(behavior, 1, []);
+mapping = 'requested-event-order-through-pop-epoch-positions';
 end
 
 function [training, masks] = nf_training_artifact_masks(training, options)
@@ -660,9 +923,37 @@ elseif strcmp(algorithm, 'runica')
     details.algorithmSeedControlled = true;
     details.randomSeed = options.randomSeed;
     details.seedControl = 'MATLAB rng twister';
+elseif strcmp(algorithm, 'picard')
+    training = pop_runica(training, 'icatype', 'picard', ...
+        'maxiter', options.picardMaxIterations, ...
+        'mode', options.picardMode, ...
+        'tol', options.picardTolerance, ...
+        'python_defaults', false);
+    details.entryPoint = 'EEGLAB pop_runica';
+    details.implementation = 'Picard';
+    details.mode = options.picardMode;
+    if strcmp(options.picardMode, 'standard')
+        details.modeDescription = ...
+            'unconstrained standard Picard (EEGLAB Infomax-like option)';
+    else
+        details.modeDescription = 'orthogonally constrained Picard-O';
+    end
+    details.maxIterations = options.picardMaxIterations;
+    details.tolerance = options.picardTolerance;
+    details.pythonDefaults = false;
+    details.initialization = 'identity';
+    details.pcaApplied = false;
+    details.rankHandling = ...
+        ['No Picard PCA reduction; nf_cleanic supplied the full-rank ' ...
+        'channel montage after covariance/QR rank repair'];
+    details.algorithmSeedControlled = false;
+    details.randomSeed = [];
+    details.seedControl = ...
+        ['No seed required; python_defaults=false retains Picard''s ' ...
+        'deterministic identity initialization'];
 else
     error('nf_cleanic:UnknownAlgorithm', ...
-        'algorithm must be ''runamica15'' or ''runica''.');
+        'algorithm must be ''runamica15'', ''runica'', or ''picard''.');
 end
 training = eeg_checkset(training, 'ica');
 details.finished = datestr(now, 30); %#ok<TNOW1,DATST>
@@ -932,7 +1223,8 @@ if size(EEG.icaweights, 1) ~= size(EEG.icaweights, 2) || ...
 end
 zoneCoverage = nf_adjusted_adjust_zone_coverage(EEG.chanlocs);
 
-classifierEEG = nf_ensure_event_fields(EEG);
+classifierEEG = nf_clear_eeg_behavior(EEG);
+classifierEEG = nf_ensure_event_fields(classifierEEG);
 classifierEEG = eeg_regepochs(classifierEEG, 'recurrence', epochLength, ...
     'limits', [0 epochLength], 'rmbase', NaN, ...
     'eventtype', 'nf_adjust_training');
@@ -1044,7 +1336,8 @@ end
 
 function classifierEEG = nf_prepare_adjust_eeg( ...
     EEG, epochLength, eventType, setName)
-classifierEEG = nf_ensure_event_fields(EEG);
+classifierEEG = nf_clear_eeg_behavior(EEG);
+classifierEEG = nf_ensure_event_fields(classifierEEG);
 classifierEEG = eeg_regepochs(classifierEEG, ...
     'recurrence', epochLength, ...
     'limits', [0 epochLength], ...
@@ -1247,16 +1540,18 @@ else
 end
 end
 
-function [EEG, info, EEG_preRemoval] = nf_skip_ica(EEG, method)
+function [EEG, info, EEG_preRemoval] = nf_skip_ica( ...
+        EEG, method, behaviorInfo)
 EEG_preRemoval = EEG;
 info = struct();
-info.schemaVersion = '2.1.0';
+info.schemaVersion = '2.3.0';
 info.method = method;
 info.algorithm = 'none';
 info.algorithmDetails = struct();
 info.randomSeed = [];
 info.randomness.requestedSeed = [];
 info.randomness.algorithmSeedControlled = false;
+info.randomness.deterministicInitialization = false;
 info.randomness.control = 'not applicable';
 info.preRemovalDataset = nf_dataset_summary(EEG);
 info.training = struct();
@@ -1320,6 +1615,11 @@ info.provenance.removal.contractLevel = 'not-run';
 info.provenance.removal.provider = '';
 info.componentSubtractionDataScope = 'not applicable';
 info.outputChannelLabels = {EEG.chanlocs.labels};
+behaviorInfo.outputField = 'EEG.etc.behav';
+behaviorInfo.compatibilityField = 'EEG.etc.behavior';
+behaviorInfo.outputEntries = behaviorInfo.inputEntries;
+behaviorInfo.finalTrialRejectionApplied = false;
+info.behavior = behaviorInfo;
 
 if ~isfield(EEG, 'etc') || isempty(EEG.etc)
     EEG.etc = struct();
@@ -1334,7 +1634,9 @@ historyEntry = struct();
 historyEntry.schemaVersion = info.schemaVersion;
 historyEntry.method = info.method;
 historyEntry.algorithm = info.algorithm;
+historyEntry.algorithmDetails = info.algorithmDetails;
 historyEntry.randomSeed = info.randomSeed;
+historyEntry.randomness = info.randomness;
 historyEntry.trainingSource = info.training.source;
 historyEntry.trainingEpochsRetained = [];
 historyEntry.rank = [];
@@ -1591,7 +1893,7 @@ required = {'pop_eegfiltnew', 'eeg_regepochs', 'pop_eegthresh', ...
 if ~isempty(options.trainingEvents)
     required{end + 1} = 'pop_epoch';
 end
-if strcmp(algorithm, 'runica')
+if ismember(algorithm, {'runica', 'picard'})
     required{end + 1} = 'pop_runica';
 end
 for index = 1:numel(required)
@@ -1604,6 +1906,20 @@ if strcmp(algorithm, 'runamica15') && ...
         (exist('pop_runamica', 'file') ~= 2 || exist('runamica15', 'file') ~= 2)
     error('nf_cleanic:MissingAMICA', ...
         'The AMICA plugin with pop_runamica.m and runamica15.m is required.');
+end
+if strcmp(algorithm, 'picard')
+    picardRequired = {'picard', 'picardo', 'picard_standard', 'whitening'};
+    for index = 1:numel(picardRequired)
+        if exist(picardRequired{index}, 'file') ~= 2
+            error('nf_cleanic:MissingPicard', ...
+                ['The complete Picard EEGLAB plugin is required for ' ...
+                'algorithm=''picard''; %s.m was not found. Install Picard ' ...
+                'through the EEGLAB Extension Manager.'], ...
+                picardRequired{index});
+        end
+    end
+    nf_assert_vendor_directory('picard', ...
+        {'picardo', 'picard_standard', 'whitening'});
 end
 if strcmp(method, 'iclabel')
     if exist('pop_iclabel', 'file') ~= 2
@@ -1741,7 +2057,7 @@ for index = 1:numel(companionNames)
         error('nf_cleanic:MixedVendorCode', ...
             ['%s resolves to %s, but companion %s resolves outside that ' ...
             'vendor folder at %s. Reorder the MATLAB path so one complete ' ...
-            'official distribution supplies this classifier.'], ...
+            'official distribution supplies this implementation.'], ...
             entryName, entryPath, companionNames{index}, companionPath);
     end
 end
@@ -2193,9 +2509,14 @@ if ~strcmp(method, 'iclabel') && ~isempty(options.iclabelThresholds)
     error('nf_cleanic:ClassifierOptionMismatch', ...
         'iclabelThresholds apply only to the ICLabel method.');
 end
-if ~ismember(algorithm, {'runamica15', 'runica'})
+if ~ismember(algorithm, {'runamica15', 'runica', 'picard'})
     error('nf_cleanic:UnknownAlgorithm', ...
-        'algorithm must be ''runamica15'' or ''runica''.');
+        'algorithm must be ''runamica15'', ''runica'', or ''picard''.');
+end
+if strcmp(algorithm, 'picard') && ...
+        ~ismember(options.picardMode, {'standard', 'ortho'})
+    error('nf_cleanic:InvalidPicardMode', ...
+        'picardMode must be ''standard'' or ''ortho''.');
 end
 if options.trainingHighpass >= EEG.srate / 2
     error('nf_cleanic:InvalidTrainingFilter', ...

@@ -52,6 +52,9 @@ function [EEG, rejected, info] = nf_thresh(EEG, voltageThreshold, ...
 %
 % Explicit vendor detectors are strict contracts: the installed EEGLAB or
 % FASTER functions are called directly and missing dependencies are errors.
+% NeuroFreq behavior in EEG.etc.behav is validated and subset in exact
+% lockstep with retained trials. EEG.etc.behavior remains a synchronized
+% compatibility alias, and conflicting aliases are rejected.
 
 nf_validate_epoched_eeg(EEG, 1);
 
@@ -149,12 +152,8 @@ nf_validate_repair_limits(EEG, effectiveMaxBadChannels, ...
 
 originalTrials = EEG.trials;
 originalEpochIds = 1:originalTrials;
-behavior = [];
-hasBehavior = isfield(EEG, 'etc') && isfield(EEG.etc, 'behavior');
-if hasBehavior
-    nf_validate_trial_metadata(EEG.etc.behavior, originalTrials, ...
-        'EEG.etc.behavior');
-end
+[behavior, hasBehavior, behaviorSource] = ...
+    nf_resolve_eeg_behavior(EEG, originalTrials);
 if isfield(EEG, 'etc') && isfield(EEG.etc, 'nf_epoch_ids')
     nf_validate_trial_metadata(EEG.etc.nf_epoch_ids, originalTrials, ...
         'EEG.etc.nf_epoch_ids');
@@ -305,6 +304,14 @@ for trialIndex = 1:originalTrials
             trialIndex);
     end
     singleEpoch = pop_select(EEG, 'trial', trialIndex, 'sorttrial', 'off');
+    if hasBehavior
+        singleEpoch = nf_set_eeg_behavior( ...
+            singleEpoch, behavior(trialIndex));
+    end
+    if ~isfield(singleEpoch, 'etc') || isempty(singleEpoch.etc)
+        singleEpoch.etc = struct();
+    end
+    singleEpoch.etc.nf_epoch_ids = originalEpochIds(trialIndex);
     singleEpoch = eeg_interp(singleEpoch, badChannels, ...
         char(options.interpolationMethod));
     EEG.data(:, :, trialIndex) = singleEpoch.data;
@@ -337,8 +344,8 @@ end
 
 retainedIndices = find(~rejected);
 if hasBehavior
-    behavior = nf_subset_trial_metadata(EEG.etc.behavior, ...
-        retainedIndices, originalTrials, 'EEG.etc.behavior');
+    behavior = nf_subset_trial_metadata(behavior, ...
+        retainedIndices, originalTrials, behaviorSource);
 end
 retainedEpochIds = nf_subset_trial_metadata(originalEpochIds, ...
     retainedIndices, originalTrials, 'EEG.etc.nf_epoch_ids');
@@ -354,7 +361,7 @@ if ~isfield(EEG, 'etc') || isempty(EEG.etc)
     EEG.etc = struct();
 end
 if hasBehavior
-    EEG.etc.behavior = behavior;
+    EEG = nf_set_eeg_behavior(EEG, behavior);
 end
 EEG.etc.nf_epoch_ids = retainedEpochIds;
 
@@ -384,7 +391,7 @@ for trialIndex = 1:originalTrials
 end
 
 info = struct();
-info.schemaVersion = '3.0.0';
+info.schemaVersion = '3.1.0';
 info.units.voltage = 'microvolts';
 info.units.spectralPower = 'dB';
 info.criteria.voltageThreshold = voltageThreshold;
@@ -476,6 +483,11 @@ info.vendorFasterInterpolation.scope = ...
     ['Exact released FASTER local interpolation component inside the ' ...
     'NeuroFreq composition; not a claim of full FASTER pipeline order.'];
 info.icaDecompositionInvalidated = icaInvalidated;
+info.behavior.present = hasBehavior;
+info.behavior.inputField = behaviorSource;
+info.behavior.outputField = 'EEG.etc.behav';
+info.behavior.compatibilityField = 'EEG.etc.behavior';
+info.behavior.nRetained = numel(behavior);
 EEG.etc.nf_thresh = info;
 
 end
@@ -1917,7 +1929,7 @@ contract.functions = {['nf_thresh>nf_detect_' ...
 contract.paths = {mfilename('fullpath')};
 contract.sha256 = {nf_file_sha256(mfilename('fullpath'))};
 contract.codeIdentityVerified = ~isempty(contract.sha256{1});
-contract.version = 'nf_thresh schema 3.0.0';
+contract.version = 'nf_thresh schema 3.1.0';
 contract.definition = definition;
 end
 
@@ -2214,6 +2226,76 @@ if count ~= trials
         '%s has %d trial entries but EEG has %d trials.', ...
         fieldName, count, trials);
 end
+end
+
+function [behavior, present, source] = ...
+        nf_resolve_eeg_behavior(EEG, trials)
+behavior = struct([]);
+present = false;
+source = 'none';
+if ~isfield(EEG, 'etc') || ~isstruct(EEG.etc)
+    return
+end
+
+hasBehav = isfield(EEG.etc, 'behav') && ...
+    ~isempty(EEG.etc.behav);
+hasBehavior = isfield(EEG.etc, 'behavior') && ...
+    ~isempty(EEG.etc.behavior);
+if ~hasBehav && ~hasBehavior
+    return
+end
+
+behavValue = struct([]);
+behaviorValue = struct([]);
+if hasBehav
+    behavValue = nf_validate_behavior_metadata( ...
+        EEG.etc.behav, trials, 'EEG.etc.behav');
+end
+if hasBehavior
+    behaviorValue = nf_validate_behavior_metadata( ...
+        EEG.etc.behavior, trials, 'EEG.etc.behavior');
+end
+if hasBehav && hasBehavior && ...
+        ~isequaln(orderfields(behavValue), orderfields(behaviorValue))
+    error('nf_thresh:BehaviorFieldConflict', ...
+        ['EEG.etc.behav and EEG.etc.behavior contain different trial ' ...
+        'metadata.']);
+end
+if hasBehav
+    behavior = behavValue;
+    source = 'EEG.etc.behav';
+else
+    behavior = behaviorValue;
+    source = 'EEG.etc.behavior';
+end
+present = true;
+end
+
+function behavior = nf_validate_behavior_metadata( ...
+        behavior, trials, fieldName)
+if istable(behavior)
+    behavior = table2struct(behavior, 'ToScalar', false);
+end
+if ~isstruct(behavior) || (~isempty(behavior) && ~isvector(behavior))
+    error('nf_thresh:InvalidBehavior', ...
+        ['%s must be a NeuroFreq behavior struct array with one element ' ...
+        'per EEG trial.'], fieldName);
+end
+if numel(behavior) ~= trials
+    error('nf_thresh:MetadataMismatch', ...
+        '%s has %d trial entries but EEG has %d trials.', ...
+        fieldName, numel(behavior), trials);
+end
+behavior = reshape(behavior, 1, []);
+end
+
+function EEG = nf_set_eeg_behavior(EEG, behavior)
+if ~isfield(EEG, 'etc') || isempty(EEG.etc)
+    EEG.etc = struct();
+end
+behavior = reshape(behavior, 1, []);
+EEG.etc.behav = behavior;
+EEG.etc.behavior = behavior;
 end
 
 function value = nf_subset_trial_metadata(value, indices, trials, fieldName)

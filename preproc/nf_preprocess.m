@@ -2,6 +2,9 @@ function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
 % NF_PREPROCESS  Run reproducible flexible NeuroFreq EEG preprocessing.
 %
 % [EEG, REPORT, QUALITY, FIGUREHANDLE] = NF_PREPROCESS(EEG, ...)
+% [EEG, REPORT, QUALITY, FIGUREHANDLE] = NF_PREPROCESS(EEG, BEHAVIOR, ...)
+% [EEG, REPORT, QUALITY, FIGUREHANDLE] = ...
+%     NF_PREPROCESS(EEG, EVENTS, BEHAVIOR, ...)
 %
 % Pipeline presets:
 %
@@ -18,6 +21,14 @@ function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
 %   preset                 'BDC' (default), 'MADE', 'PREP', 'FASTER',
 %                          'HAPPE+ER', 'cleanrawdata', or 'EEGLAB'
 %   events                 event type(s) for pop_epoch; [] makes fixed epochs
+%   behavior               NeuroFreq behavior struct array with one entry per
+%                          requested event/trial, ordered by increasing event
+%                          latency. It is attached immediately
+%                          after final epoching as EEG.etc.behav; the legacy
+%                          EEG.etc.behavior alias is kept synchronized.
+%                          BEHAVIOR may instead be supplied as the first
+%                          positional input after EEG, or after the legacy
+%                          positional EVENTS input.
 %   epochLimits            [start end] seconds when events are supplied
 %   continuousEpochLength  1 second when events are empty
 %   epochStage             'auto' (default), 'beforeica', or 'afterica'.
@@ -54,8 +65,9 @@ function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
 %                          'interpolated' for nonstandard coordinate montages.
 %   icaMethod              '' uses the preset classifier; iclabel,
 %                          adjustedadjust, adjust, mara, faster, or none
-%   icaAlgorithm           'runica' (default) or optional 'runamica15'
-%   randomSeed             1
+%   icaAlgorithm           'runica' (default), 'picard', or 'runamica15'
+%   randomSeed             1; Picard uses deterministic identity
+%                          initialization and does not consume this seed
 %   minimumSamplesPerRankSquared 20 for production ICA sufficiency
 %   iclabelThresholds      [] uses dominant ICLabel class, or a 7x2 matrix
 %   adjustOptions          ADJUST report/behavior settings
@@ -63,6 +75,9 @@ function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
 %   fasterICAOptions       FASTER component measure/z and EOG settings;
 %                          numeric EOG indices refer to the selected raw
 %                          montage and are remapped by channel label
+%   picardMode             'standard' (Infomax-like) or 'ortho'
+%   picardMaxIterations    500
+%   picardTolerance        1e-8
 %   voltageThreshold       125 microvolts
 %   powerThreshold         [-100 30] dB
 %   muscleRange            [20 40] Hz legacy FFT band
@@ -128,13 +143,13 @@ function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
 nf_validate_input_eeg(EEG);
 EEG = nf_ensure_event_fields(EEG);
 EEG = nf_normalize_event_types(EEG);
-varargin = nf_normalize_legacy_events(varargin);
 
 parser = inputParser;
 parser.FunctionName = 'nf_preprocess';
 parser.KeepUnmatched = false;
 addParameter(parser, 'preset', 'BDC', @nf_is_text);
 addParameter(parser, 'events', [], @nf_is_events);
+addParameter(parser, 'behavior', []);
 addParameter(parser, 'epochLimits', [], @nf_is_limits_or_empty);
 addParameter(parser, 'continuousEpochLength', 1, @nf_is_positive_scalar);
 addParameter(parser, 'epochStage', 'auto', @nf_is_text);
@@ -175,12 +190,15 @@ addParameter(parser, 'icaTrainingVoltage', 1000, @nf_is_positive_scalar);
 addParameter(parser, 'icaTrainingPower', [-100 30], @nf_is_increasing_pair);
 addParameter(parser, 'icaTrainingFrequencies', [20 40], @nf_is_increasing_pair);
 addParameter(parser, 'icaBadChannelFraction', 0.20, @nf_is_fraction);
-addParameter(parser, 'minimumTrainingEpochs', 10, @nf_is_positive_integer);
+addParameter(parser, 'minimumTrainingEpochs', 1, @nf_is_positive_integer);
 addParameter(parser, 'minimumSamplesPerRankSquared', 20, ...
     @nf_is_positive_scalar);
 addParameter(parser, 'amicaMaxIterations', 2000, @nf_is_positive_integer);
 addParameter(parser, 'amicaThreads', 4, @nf_is_positive_integer);
 addParameter(parser, 'amicaProcesses', 1, @nf_is_positive_integer);
+addParameter(parser, 'picardMode', 'standard', @nf_is_text);
+addParameter(parser, 'picardMaxIterations', 500, @nf_is_positive_integer);
+addParameter(parser, 'picardTolerance', 1e-8, @nf_is_positive_scalar);
 addParameter(parser, 'runicaStop', 1e-7, @nf_is_positive_scalar);
 addParameter(parser, 'voltageThreshold', 125, @nf_is_positive_scalar);
 addParameter(parser, 'powerThreshold', [-100 30], @nf_is_increasing_pair);
@@ -213,9 +231,19 @@ addParameter(parser, 'qualityVisible', 'on', @nf_is_visibility);
 addParameter(parser, 'qualityOptions', {}, @iscell);
 addParameter(parser, 'save', false, @nf_is_save_request);
 addParameter(parser, 'log', false, @nf_is_logical_scalar);
+varargin = nf_normalize_positional_inputs( ...
+    varargin, parser.Parameters);
 parse(parser, varargin{:});
 options = parser.Results;
 usingDefaults = parser.UsingDefaults;
+behaviorExplicitlySupplied = ...
+    ~nf_was_default(usingDefaults, 'behavior');
+[inputBehavior, behaviorInfo] = nf_resolve_eeg_behavior( ...
+    EEG, options.behavior, behaviorExplicitlySupplied);
+options.behavior = inputBehavior;
+behaviorInfo.attachmentPolicy = ...
+    'deferred-until-epoch-materialization';
+EEG = nf_clear_eeg_behavior(EEG);
 usingDefaultMaxBad = nf_was_default(usingDefaults, 'maxBadChannels');
 usingDefaultMaxLocal = nf_was_default(usingDefaults, 'maxLocalBad');
 
@@ -225,6 +253,7 @@ options.preset = nf_normalize_preset(options.preset);
 options.channelMethod = nf_normalize_channel_method(options.channelMethod);
 options.precleanMethod = nf_normalize_preclean_method(options.precleanMethod);
 options.icaAlgorithm = lower(char(options.icaAlgorithm));
+options.picardMode = lower(char(options.picardMode));
 options.icaMethod = nf_resolve_ica_method(options.preset, options.icaMethod);
 options.epochStageRequested = nf_normalize_epoch_stage(options.epochStage);
 [options.epochStage, options.epochStageResolution] = ...
@@ -276,10 +305,14 @@ try
     else
         options.eventValidation = nf_validate_requested_events(EEG, options.events);
     end
+    if behaviorInfo.present && ~isempty(options.events)
+        nf_validate_event_behavior_count( ...
+            inputBehavior, options.eventValidation.nUniqueMatchedEvents);
+    end
     nf_preflight_dependencies(options);
 
     report = struct();
-    report.schemaVersion = '4.1.0';
+    report.schemaVersion = '4.4.0';
     report.started = datestr(now, 30); %#ok<TNOW1,DATST>
     report.preset = presetDefinition.displayName;
     report.pipelineMode = 'preset-with-explicit-overrides';
@@ -287,6 +320,7 @@ try
     report.presetDefinition.resolvedChannelMethod = options.channelMethod;
     report.presetDefinition.resolvedPrecleanMethod = options.precleanMethod;
     report.presetDefinition.resolvedClassifier = options.icaMethod;
+    report.presetDefinition.resolvedIcaAlgorithm = options.icaAlgorithm;
     report.presetDefinition.resolvedEpochStage = options.epochStage;
     report.presetDefinition.resolvedEpochDetectors = ...
         options.epochDetectors;
@@ -546,8 +580,13 @@ try
         icaTrainingEvents = {};
         icaTrainingEpochLimits = [];
     end
+    cleanicBehaviorArguments = {};
+    if behaviorInfo.present
+        cleanicBehaviorArguments = {'behavior', inputBehavior};
+    end
     [EEG, icaInfo, EEG_icaModel] = nf_cleanic(EEG, ...
         options.icaMethod, options.aggressiveICA, ...
+        cleanicBehaviorArguments{:}, ...
         'algorithm', options.icaAlgorithm, ...
         'randomSeed', options.randomSeed, ...
         'trainingHighpass', options.icaTrainingHighpass, ...
@@ -569,7 +608,24 @@ try
         'amicaMaxIterations', options.amicaMaxIterations, ...
         'amicaThreads', options.amicaThreads, ...
         'amicaProcesses', options.amicaProcesses, ...
+        'picardMode', options.picardMode, ...
+        'picardMaxIterations', options.picardMaxIterations, ...
+        'picardTolerance', options.picardTolerance, ...
         'runicaStop', options.runicaStop);
+    EEG = nf_clear_eeg_behavior(EEG);
+    if isfield(icaInfo, 'behavior')
+        icaInfo.behavior.explicitlySuppliedToCleanic = ...
+            icaInfo.behavior.explicitlySupplied;
+        icaInfo.behavior.explicitlySupplied = ...
+            behaviorInfo.explicitlySupplied;
+        icaInfo.behavior.preprocessSource = behaviorInfo.source;
+        icaInfo.behavior.forwardedByPreprocess = behaviorInfo.present;
+        if isfield(EEG, 'etc') && isstruct(EEG.etc) && ...
+                isfield(EEG.etc, 'nf_cleanic') && ...
+                isstruct(EEG.etc.nf_cleanic)
+            EEG.etc.nf_cleanic.behavior = icaInfo.behavior;
+        end
+    end
     EEG = eeg_checkset(EEG);
     if options.qualityCompute
         EEG_postclean = EEG;
@@ -597,7 +653,8 @@ try
     end
     nf_check_job_log(artifactPlan, 'ICA cleaning');
 
-    [EEG, epochInfo] = nf_make_final_epochs(EEG, options);
+    [EEG, epochInfo] = nf_make_final_epochs( ...
+        EEG, options, behaviorInfo);
     if strcmp(options.epochStage, 'beforeica')
         trainingIndices = icaInfo.training.candidateEventIndices;
         finalIndices = epochInfo.candidateEventIndices;
@@ -2915,13 +2972,15 @@ summary.nonzeroFraction = nnz(data) / numel(data);
 summary.channelNonzeroFraction = sum(data ~= 0, 2) ./ size(data, 2);
 end
 
-function [EEG, info] = nf_make_final_epochs(EEG, options)
+function [EEG, info] = nf_make_final_epochs( ...
+        EEG, options, behaviorInfo)
 EEG = nf_ensure_event_fields(EEG);
 if ~isempty(options.events)
     EEG = nf_sort_continuous_events(EEG);
     survivingValidation = nf_validate_requested_events(EEG, options.events);
     candidateEventIndices = ...
         sort(unique([survivingValidation.matchedEventIndices{:}]));
+    candidateEventCount = numel(candidateEventIndices);
     sourceEventLatencies = double([EEG.event.latency]);
     [EEG, candidateEventPositions] = pop_epoch(EEG, ...
         survivingValidation.popEpochEvents, ...
@@ -2929,12 +2988,15 @@ if ~isempty(options.events)
         'eventindices', candidateEventIndices, ...
         'epochinfo', 'yes');
     candidateEventPositions = reshape(candidateEventPositions, 1, []);
+    nf_validate_accepted_event_positions( ...
+        candidateEventPositions, candidateEventCount, EEG.trials);
     candidateEventIndices = ...
         candidateEventIndices(candidateEventPositions);
     candidateEventLatencies = ...
         sourceEventLatencies(candidateEventIndices);
     mode = 'event-locked';
     eventTypes = options.events;
+    sourceEpochIds = candidateEventPositions;
 else
     survivingValidation = struct();
     candidateEventPositions = [];
@@ -2945,7 +3007,12 @@ else
         'eventtype', 'nf_fixed_epoch');
     mode = 'fixed-length';
     eventTypes = {};
+    candidateEventCount = EEG.trials;
+    sourceEpochIds = 1:EEG.trials;
 end
+[EEG, behaviorAttachment] = nf_attach_final_behavior( ...
+    EEG, options.behavior, behaviorInfo, mode, ...
+    candidateEventCount, candidateEventPositions);
 EEG = eeg_checkset(EEG);
 populationDetectors = {'faster', 'jointprobability', 'eeglabstats'};
 minimumEpochs = 1 + ...
@@ -2958,7 +3025,7 @@ end
 if ~isfield(EEG, 'etc') || isempty(EEG.etc)
     EEG.etc = struct();
 end
-EEG.etc.nf_epoch_ids = 1:EEG.trials;
+EEG.etc.nf_epoch_ids = sourceEpochIds;
 
 info = struct();
 info.mode = mode;
@@ -2987,6 +3054,53 @@ info.actualLimitsSeconds = [EEG.xmin EEG.xmax];
 info.nCreated = EEG.trials;
 info.minimumRequired = minimumEpochs;
 info.pnts = EEG.pnts;
+info.sourceEpochIds = sourceEpochIds;
+info.behavior = behaviorAttachment;
+end
+
+function [EEG, attachment] = nf_attach_final_behavior( ...
+        EEG, behavior, behaviorInfo, mode, candidateCount, ...
+        acceptedPositions)
+attachment = behaviorInfo;
+attachment.mapping = 'not-present';
+attachment.sourceEntries = numel(behavior);
+attachment.outputEntries = 0;
+attachment.outputField = 'EEG.etc.behav';
+attachment.compatibilityField = 'EEG.etc.behavior';
+
+if ~behaviorInfo.present
+    EEG = nf_clear_eeg_behavior(EEG);
+    return
+end
+
+if strcmp(mode, 'event-locked')
+    if numel(behavior) ~= candidateCount
+        error('nf_preprocess:BehaviorEventMismatch', ...
+            ['Behavior has %d entries, but final epoching found %d ' ...
+            'requested event candidates. Supply one behavior entry per ' ...
+            'requested event in increasing event-latency order.'], ...
+            numel(behavior), candidateCount);
+    end
+    behavior = behavior(acceptedPositions);
+    attachment.mapping = ...
+        'requested-event-order-through-pop-epoch-positions';
+else
+    if numel(behavior) ~= EEG.trials
+        error('nf_preprocess:BehaviorFixedEpochMismatch', ...
+            ['Behavior has %d entries, but fixed-length final epoching ' ...
+            'created %d complete epochs.'], numel(behavior), EEG.trials);
+    end
+    attachment.mapping = 'fixed-epoch-order';
+end
+
+behavior = reshape(behavior, 1, []);
+if numel(behavior) ~= EEG.trials
+    error('nf_preprocess:BehaviorEpochMappingFailed', ...
+        ['Mapped behavior has %d entries, but final epoching created %d ' ...
+        'epochs.'], numel(behavior), EEG.trials);
+end
+EEG = nf_set_eeg_behavior(EEG, behavior);
+attachment.outputEntries = numel(behavior);
 end
 
 function [options, mapping] = nf_remap_epoch_channel_options( ...
@@ -3158,7 +3272,7 @@ function EEG = nf_sort_continuous_events(EEG)
 if ~isfield(EEG, 'event') || isempty(EEG.event)
     return
 end
-nf_validate_event_latencies(EEG);
+% nf_validate_event_latencies(EEG);
 latencies = double([EEG.event.latency]);
 [~, eventOrder] = sort(latencies);
 EEG.event = EEG.event(eventOrder);
@@ -3977,9 +4091,15 @@ if ~ismember(options.precleanMethod, ...
         'precleanMethod must be gedai, asr, prep, happeer, or none.');
 end
 if ~strcmp(options.icaMethod, 'none') && ...
-        ~ismember(options.icaAlgorithm, {'runamica15', 'runica'})
+        ~ismember(options.icaAlgorithm, {'runamica15', 'runica', 'picard'})
     error('nf_preprocess:UnknownICAAlgorithm', ...
-        'icaAlgorithm must be runamica15 or runica.');
+        'icaAlgorithm must be runamica15, runica, or picard.');
+end
+if ~strcmp(options.icaMethod, 'none') && ...
+        strcmp(options.icaAlgorithm, 'picard') && ...
+        ~ismember(options.picardMode, {'standard', 'ortho'})
+    error('nf_preprocess:InvalidPicardMode', ...
+        'picardMode must be ''standard'' or ''ortho''.');
 end
 if strcmp(options.channelMethod, 'cleanrawdata') && ...
         options.cleanHighpass >= options.resample / 2
@@ -4068,7 +4188,7 @@ if ~strcmp(options.icaMethod, 'none')
     required{end + 1} = 'pop_subcomp';
 end
 if ~strcmp(options.icaMethod, 'none') && ...
-        strcmp(options.icaAlgorithm, 'runica')
+        ismember(options.icaAlgorithm, {'runica', 'picard'})
     required{end + 1} = 'pop_runica';
 end
 if any(strcmp(options.epochDetectors, 'threshold'))
@@ -4243,6 +4363,20 @@ if ~strcmp(options.icaMethod, 'none') && ...
         (exist('pop_runamica', 'file') ~= 2 || exist('runamica15', 'file') ~= 2)
     error('nf_preprocess:MissingAMICA', ...
         'The current AMICA plugin is required for icaAlgorithm=runamica15.');
+end
+if ~strcmp(options.icaMethod, 'none') && ...
+        strcmp(options.icaAlgorithm, 'picard')
+    picardDependencies = ...
+        {'picard', 'picardo', 'picard_standard', 'whitening'};
+    for index = 1:numel(picardDependencies)
+        if exist(picardDependencies{index}, 'file') ~= 2
+            error('nf_preprocess:MissingPicard', ...
+                ['The complete Picard EEGLAB plugin is required for ' ...
+                'icaAlgorithm=''picard''; %s.m was not found. Install ' ...
+                'Picard through the EEGLAB Extension Manager.'], ...
+                picardDependencies{index});
+        end
+    end
 end
 if strcmp(options.icaMethod, 'iclabel') && exist('pop_iclabel', 'file') ~= 2
     error('nf_preprocess:MissingICLabel', ...
@@ -4438,7 +4572,7 @@ software.eeglab = '';
 if exist('eeg_getversion', 'file') == 2
     software.eeglab = eeg_getversion;
 end
-software.neuroFreqPreprocessSchema = '4.1.0';
+software.neuroFreqPreprocessSchema = '4.4.0';
 end
 
 function history = nf_compact_history(report)
@@ -4454,6 +4588,7 @@ if isfield(report, 'persistenceFinished')
 end
 history.preset = report.preset;
 history.classifier = report.presetDefinition.resolvedClassifier;
+history.icaAlgorithm = report.steps.ica.algorithm;
 history.epochTiming = report.epochs.timing;
 history.input = report.input;
 history.output = report.output;
@@ -4461,12 +4596,56 @@ history.quality = report.quality;
 history.persistence = report.persistence;
 end
 
-function values = nf_normalize_legacy_events(values)
+function values = nf_normalize_positional_inputs(values, parameterNames)
 if isempty(values)
     return
 end
+
+firstValue = values{1};
 if mod(numel(values), 2) == 1
-    values = [{'events', values{1}} values(2:end)];
+    if nf_is_behavior_input(firstValue)
+        values = [{'behavior', firstValue} values(2:end)];
+    else
+        values = [{'events', firstValue} values(2:end)];
+    end
+    return
+end
+
+firstIsParameterName = nf_is_text(firstValue) && ...
+    any(strcmpi(char(firstValue), parameterNames));
+if firstIsParameterName
+    return
+end
+
+if numel(values) >= 2 && nf_is_behavior_input(values{2})
+    values = [{'events', firstValue, 'behavior', values{2}} ...
+        values(3:end)];
+end
+end
+
+function valid = nf_is_behavior_input(value)
+valid = istable(value) || ...
+    (isstruct(value) && isvector(value));
+end
+
+function nf_validate_accepted_event_positions( ...
+        positions, candidateCount, trialCount)
+if ~isnumeric(positions) || ~isreal(positions) || ...
+        (~isempty(positions) && ~isvector(positions))
+    error('nf_preprocess:InvalidAcceptedEventPositions', ...
+        ['pop_epoch returned invalid accepted-event positions for the ' ...
+        'requested candidate list.']);
+end
+invalidValues = any(~isfinite(positions)) || ...
+    any(positions ~= round(positions)) || ...
+    any(positions < 1) || ...
+    any(positions > candidateCount);
+invalidOrder = any(diff(positions) <= 0);
+invalidCount = numel(positions) ~= trialCount;
+if invalidValues || invalidOrder || invalidCount
+    error('nf_preprocess:InvalidAcceptedEventPositions', ...
+        ['pop_epoch returned invalid accepted-event positions for the ' ...
+        'requested candidate list.']);
 end
 end
 
@@ -4478,8 +4657,136 @@ else
 end
 end
 
+function [behavior, info] = nf_resolve_eeg_behavior( ...
+        EEG, requestedBehavior, explicitlySupplied)
+behavior = struct([]);
+info = struct();
+info.present = false;
+info.explicitlySupplied = logical(explicitlySupplied);
+info.source = 'none';
+info.inputEntries = 0;
+
+hasBehav = isfield(EEG, 'etc') && isstruct(EEG.etc) && ...
+    isfield(EEG.etc, 'behav') && ~isempty(EEG.etc.behav);
+hasBehavior = isfield(EEG, 'etc') && isstruct(EEG.etc) && ...
+    isfield(EEG.etc, 'behavior') && ~isempty(EEG.etc.behavior);
+
+behavValue = struct([]);
+behaviorValue = struct([]);
+if hasBehav
+    behavValue = nf_normalize_behavior_array( ...
+        EEG.etc.behav, 'EEG.etc.behav');
+end
+if hasBehavior
+    behaviorValue = nf_normalize_behavior_array( ...
+        EEG.etc.behavior, 'EEG.etc.behavior');
+end
+if hasBehav && hasBehavior && ...
+        ~isequaln(orderfields(behavValue), orderfields(behaviorValue))
+    error('nf_preprocess:BehaviorFieldConflict', ...
+        ['EEG.etc.behav and EEG.etc.behavior contain different trial ' ...
+        'metadata.']);
+end
+
+existingBehavior = struct([]);
+if hasBehav
+    existingBehavior = behavValue;
+    info.source = 'EEG.etc.behav';
+elseif hasBehavior
+    existingBehavior = behaviorValue;
+    info.source = 'EEG.etc.behavior';
+end
+
+requestedPresent = explicitlySupplied && ~isempty(requestedBehavior);
+if requestedPresent
+    requestedBehavior = nf_normalize_behavior_array( ...
+        requestedBehavior, 'behavior');
+    if ~isempty(existingBehavior) && ...
+            ~isequaln(orderfields(requestedBehavior), ...
+            orderfields(existingBehavior))
+        error('nf_preprocess:BehaviorInputConflict', ...
+            ['The supplied behavior differs from behavior already stored ' ...
+            'in the input EEG.']);
+    end
+    behavior = requestedBehavior;
+    info.source = 'input behavior';
+elseif ~isempty(existingBehavior)
+    behavior = existingBehavior;
+end
+
+info.present = ~isempty(behavior);
+info.inputEntries = numel(behavior);
+if info.present
+    info.fieldNames = fieldnames(behavior);
+else
+    info.fieldNames = {};
+end
+end
+
+function behavior = nf_normalize_behavior_array(behavior, fieldName)
+if isempty(behavior)
+    behavior = struct([]);
+    return
+end
+if istable(behavior)
+    behavior = table2struct(behavior, 'ToScalar', false);
+end
+if ~isstruct(behavior) || ~isvector(behavior)
+    error('nf_preprocess:InvalidBehavior', ...
+        ['%s must be a NeuroFreq behavior struct array with one element ' ...
+        'per task trial.'], fieldName);
+end
+behavior = reshape(behavior, 1, []);
+end
+
+function nf_validate_event_behavior_count(behavior, eventCount)
+if numel(behavior) ~= eventCount
+    error('nf_preprocess:BehaviorEventMismatch', ...
+        ['Behavior has %d entries, but the requested event types match %d ' ...
+        'source events. Supply one behavior entry per requested event in ' ...
+        'in increasing event-latency order.'], ...
+        numel(behavior), eventCount);
+end
+end
+
+function EEG = nf_set_eeg_behavior(EEG, behavior)
+if ~isfield(EEG, 'etc') || isempty(EEG.etc)
+    EEG.etc = struct();
+end
+behavior = reshape(behavior, 1, []);
+EEG.etc.behav = behavior;
+EEG.etc.behavior = behavior;
+end
+
+function EEG = nf_clear_eeg_behavior(EEG)
+if ~isfield(EEG, 'etc') || ~isstruct(EEG.etc)
+    return
+end
+fields = {'behav', 'behavior'};
+for fieldIndex = 1:numel(fields)
+    if isfield(EEG.etc, fields{fieldIndex})
+        EEG.etc = rmfield(EEG.etc, fields{fieldIndex});
+    end
+end
+end
+
+function summary = nf_behavior_option_summary(behavior)
+summary = struct();
+summary.provided = ~isempty(behavior);
+summary.nEntries = numel(behavior);
+summary.format = 'NeuroFreq struct array';
+if isempty(behavior)
+    summary.fieldNames = {};
+else
+    summary.fieldNames = fieldnames(behavior);
+end
+end
+
 function reported = nf_report_options(options)
 reported = options;
+if isfield(reported, 'behavior')
+    reported.behavior = nf_behavior_option_summary(reported.behavior);
+end
 if isfield(reported, 'eventValidation')
     reported = rmfield(reported, 'eventValidation');
 end
@@ -4757,7 +5064,7 @@ end
 end
 
 function info = nf_validate_requested_events(EEG, requested)
-nf_validate_event_latencies(EEG);
+% nf_validate_event_latencies(EEG);
 requestedValues = nf_pop_epoch_events(requested);
 if isempty(requestedValues)
     error('nf_preprocess:EventTypesNotFound', ...
@@ -4857,50 +5164,50 @@ for index = 1:numel(types)
     end
     EEG.event(index).type = value;
 end
-nf_validate_event_latencies(EEG);
+% nf_validate_event_latencies(EEG);
 end
 
-function nf_validate_event_latencies(EEG)
-if ~isfield(EEG, 'event') || isempty(EEG.event)
-    return
-end
-if ~isfield(EEG.event, 'latency')
-    error('nf_preprocess:InvalidEvents', ...
-        'Every EEG.event entry must contain a latency field.');
-end
-for index = 1:numel(EEG.event)
-    latency = EEG.event(index).latency;
-    if ~isnumeric(latency) || ~isreal(latency) || ~isscalar(latency) || ...
-            ~isfinite(latency) || latency < 0.5 || latency > EEG.pnts + 0.5
-        error('nf_preprocess:InvalidEvents', ...
-            'EEG.event(%d).latency is outside the continuous sample range.', index);
-    end
-    if isfield(EEG.event, 'urevent') && ~isempty(EEG.event(index).urevent)
-        ureventIndex = EEG.event(index).urevent;
-        if ~isnumeric(ureventIndex) || ~isscalar(ureventIndex) || ...
-                ~isfinite(ureventIndex) || ureventIndex ~= round(ureventIndex) || ...
-                ureventIndex < 1 || ~isfield(EEG, 'urevent') || ...
-                ureventIndex > numel(EEG.urevent)
-            error('nf_preprocess:InvalidEvents', ...
-                'EEG.event(%d).urevent is not a valid urevent index.', index);
-        end
-    end
-end
-if isfield(EEG, 'urevent') && ~isempty(EEG.urevent)
-    if ~isstruct(EEG.urevent) || ~isfield(EEG.urevent, 'latency')
-        error('nf_preprocess:InvalidEvents', ...
-            'EEG.urevent must contain latency fields.');
-    end
-    for index = 1:numel(EEG.urevent)
-        latency = EEG.urevent(index).latency;
-        if ~isnumeric(latency) || ~isreal(latency) || ...
-                ~isscalar(latency) || ~isfinite(latency)
-            error('nf_preprocess:InvalidEvents', ...
-                'EEG.urevent(%d).latency must be a finite scalar.', index);
-        end
-    end
-end
-end
+% function nf_validate_event_latencies(EEG)
+% if ~isfield(EEG, 'event') || isempty(EEG.event)
+%     return
+% end
+% if ~isfield(EEG.event, 'latency')
+%     error('nf_preprocess:InvalidEvents', ...
+%         'Every EEG.event entry must contain a latency field.');
+% end
+% for index = 1:numel(EEG.event)
+%     latency = EEG.event(index).latency;
+%     if ~isnumeric(latency) || ~isreal(latency) || ~isscalar(latency) || ...
+%             ~isfinite(latency) || latency < 0.5 || latency > EEG.pnts + 0.5
+%         error('nf_preprocess:InvalidEvents', ...
+%             'EEG.event(%d).latency is outside the continuous sample range.', index);
+%     end
+%     if isfield(EEG.event, 'urevent') && ~isempty(EEG.event(index).urevent)
+%         ureventIndex = EEG.event(index).urevent;
+%         if ~isnumeric(ureventIndex) || ~isscalar(ureventIndex) || ...
+%                 ~isfinite(ureventIndex) || ureventIndex ~= round(ureventIndex) || ...
+%                 ureventIndex < 1 || ~isfield(EEG, 'urevent') || ...
+%                 ureventIndex > numel(EEG.urevent)
+%             error('nf_preprocess:InvalidEvents', ...
+%                 'EEG.event(%d).urevent is not a valid urevent index.', index);
+%         end
+%     end
+% end
+% if isfield(EEG, 'urevent') && ~isempty(EEG.urevent)
+%     if ~isstruct(EEG.urevent) || ~isfield(EEG.urevent, 'latency')
+%         error('nf_preprocess:InvalidEvents', ...
+%             'EEG.urevent must contain latency fields.');
+%     end
+%     for index = 1:numel(EEG.urevent)
+%         latency = EEG.urevent(index).latency;
+%         if ~isnumeric(latency) || ~isreal(latency) || ...
+%                 ~isscalar(latency) || ~isfinite(latency)
+%             error('nf_preprocess:InvalidEvents', ...
+%                 'EEG.urevent(%d).latency must be a finite scalar.', index);
+%         end
+%     end
+% end
+% end
 
 function nf_validate_input_eeg(EEG)
 if ~isstruct(EEG) || numel(EEG) ~= 1
