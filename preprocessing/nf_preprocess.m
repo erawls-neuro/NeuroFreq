@@ -1,7 +1,5 @@
 function [EEG, report, quality, figureHandle] = nf_preprocess(EEG, varargin)
 % NF_PREPROCESS  Run reproducible flexible NeuroFreq EEG preprocessing.
-% NF_HBN_MEMORY_FIX_20260823: quality-gated ICA model retention and early
-% release of channel-diagnostic working datasets.
 %
 % [EEG, REPORT, QUALITY, FIGUREHANDLE] = NF_PREPROCESS(EEG, ...)
 % [EEG, REPORT, QUALITY, FIGUREHANDLE] = NF_PREPROCESS(EEG, BEHAVIOR, ...)

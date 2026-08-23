@@ -1,7 +1,5 @@
 function [EEG, info, EEG_preRemoval] = nf_cleanic(EEG, method, aggressive, varargin)
 % NF_CLEANIC  Fit ICA and classify artifactual components.
-% NF_HBN_MEMORY_FIX_20260823: bounded ICA activation lifetime and corrected
-% MADE adjusted_ADJUST report-file call.
 %
 % [EEG, INFO, EEG_PREREMOVAL] = NF_CLEANIC(EEG, METHOD, AGGRESSIVE, ...)
 %
@@ -861,7 +859,7 @@ end
 
 function [rankValue, eigenvalues, tolerance] = nf_getrank(EEG)
 tmpdata = reshape( EEG.data, length(EEG.chanlocs), EEG.pnts*EEG.trials);
-tmpdata = double(tmpdata(:,1:min(3000, size(tmpdata,2))));
+tmpdata = double(tmpdata(:,:));
 tmpdata = tmpdata - repmat(mean(tmpdata,2), [1 size(tmpdata,2)]);
 tmprank = rank(tmpdata);
 if any(~isfinite(tmpdata(:)))
@@ -892,15 +890,13 @@ if any(~isfinite(data(:)))
     error('nf_cleanic:NonfiniteTrainingData', ...
         'ICA training data contain NaN or Inf values.');
 end
-
 if ~isnumeric(rankValue) || ~isscalar(rankValue) || ...
         ~isfinite(rankValue) || rankValue ~= round(rankValue) || ...
         rankValue < 2 || rankValue >= EEG.nbchan
     error('nf_cleanic:InvalidRepairRank', ...
         'Rank repair requires an integer rank from 2 through nbchan - 1.');
 end
-
-[~, ~, pivot] = qr(data', 'vector');
+[~, ~, pivot] = qr(data', 'econ', 'vector');
 independentIndices = sort(pivot(1:rankValue));
 dependentIndices = setdiff(1:EEG.nbchan, independentIndices, 'stable');
 end
