@@ -4,3 +4,5 @@
 */dependencies/FMIN*
 */dependencies/HAP*
 */dependencies/MADE*
+# Dependencies and machine-specific MATLAB paths maintained by nf_install.
+/dependencies/_nf_local/
