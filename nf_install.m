@@ -1,8 +1,9 @@
-function report = nf_install()
+function report = nf_install(varargin)
 % NF_INSTALL  Check this NeuroFreq installation and configure its dependencies.
 %
 %   nf_install
 %   report = nf_install
+%   report = nf_install('Native','off')  % use MATLAB implementations only
 %
 % Run from the NeuroFreq folder, or call nf_install with that folder on the
 % MATLAB path. This function uses its own location to identify the installation.
@@ -18,6 +19,10 @@ function report = nf_install()
 % The package list, EEGLAB logic and update transaction live in private/.
 % To add a dependency, start with private/nf_catalog.m.
 
+options = inputParser;
+addParameter(options,'Native','auto',@(s) ischar(s) || (isstring(s) && isscalar(s)));
+parse(options,varargin{:});
+nativeMode = validatestring(options.Results.Native,{'auto','off'});
 root = fileparts(mfilename('fullpath'));
 fprintf('\nNeuroFreq installer\n  %s\n\n', root);
 lock = nf_install_lock(root); %#ok<NASGU> % released on success, error or Ctrl+C
@@ -26,7 +31,7 @@ lock = nf_install_lock(root); %#ok<NASGU> % released on success, error or Ctrl+C
 [status, detail] = nf_check_repository(root);
 report = struct('root', root, 'repository', status, 'detail', detail, ...
     'eeglab', '', 'dependencies', {cell(0, 2)}, 'features', [], ...
-    'configured', false, 'pathSaved', false);
+    'configured', false, 'pathSaved', false, 'nativeMode',nativeMode,'native',{cell(0,3)});
 fprintf('%s\n', detail);
 if strcmp(status, 'updated')
     % MATLAB may still have this version of nf_install in memory. Finish with

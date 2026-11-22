@@ -86,26 +86,10 @@ for iPhase = 1:nPhaseChan
         
         rho_flat = hnf_clcorr_kernel(phase_long, pow_long, use_mex);
         
+        out_flat = rho_flat;
         if nperm > 0
-            mu = zeros(1, nVars);
-            m2 = zeros(1, nVars);
-            
-            for ip = 1:nperm
-                perm_idx = randperm(nTrial);
-                pow_perm = pow_long(perm_idx, :);
-                rho_perm = hnf_clcorr_kernel(phase_long, pow_perm, use_mex);
-                
-                % Update the surrogate mean and centered sum of squares.
-                delta = rho_perm - mu;
-                mu = mu + delta ./ ip;
-                m2 = m2 + delta .* (rho_perm - mu);
-            end
-            sd = sqrt(m2 ./ max(1, nperm - 1));
-            
-            sd(sd <= 8*eps(abs(mu))) = NaN;
-            out_flat = (rho_flat - mu) ./ sd;
-        else
-            out_flat = rho_flat;
+            out_flat = hnf_pac_permutation_z(phase_cf, pow_long, rho_flat, ...
+                nperm, 'erpac', 0, use_mex, true);
         end
         
         out_3d = reshape(out_flat, [nTimes, nHiF, nAmpChan]);   % [time x hiF x ampChan]

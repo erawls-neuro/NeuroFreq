@@ -126,6 +126,10 @@ maxTFCE = zeros(nPerm,1);
 % Calculate the actual T values of all data
 disp('calculating actual differences')
 % Calculate different T-values for independent and dependent groups
+% Keep MATLAB's randomization order. The native kernel reads the
+% selected observations without allocating two permuted group arrays.
+useNative = numel(aData) >= 1024 && isreal(aData) && ~issparse(aData) && ...
+    exist('hnf_mex_available','file') == 2 && hnf_mex_available('hnf_permuted_t_mex');
 T_Obs = (mean(Data{1})-mean(Data{2}))./sqrt(var(Data{1})/nA+var(Data{2})/nB);
 T_Obs = squeeze(T_Obs);
 %do TFCE transformation
@@ -136,9 +140,7 @@ prog=1;
 fprintf(1,'calculating permutations: %3d%%\n',prog);
 for i  = 1:nPerm           % Look into parfor for parallel computing
     r_perm      = randperm(nA+nB); % Consider using Shuffle mex here (50-85% faster)...
-    sD1 = aData(r_perm(1:nA),:,:,:);
-    sD2 = aData(r_perm(nA+1:end),:,:,:);
-    T_Perm = (mean(sD1)-mean(sD2))./sqrt(var(sD1)/nA+var(sD2)/nB);
+    T_Perm = hnf_permuted_t_map(aData, r_perm, useNative, nA);
     T_Perm = squeeze(T_Perm);
     % TFCE transformation...
     TFCE_Perm = hnf_tfce_transformation(T_Perm, ChN,E_H,flag_ft);

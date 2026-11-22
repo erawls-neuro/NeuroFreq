@@ -31,6 +31,10 @@ config.scopePaths = cellfun(@(p) nf_portable_path(p, root), paths, ...
 config.eeglabRoot = nf_portable_path(eeglabRoot, root);
 config.privateEEGLAB = privateEEGLAB;
 
+fprintf('\nOptional native NeuroFreq kernels\n');
+if ~isfield(report,'nativeMode'), report.nativeMode='auto'; end
+[config.native,report.native] = nf_native_build(root,report.nativeMode);
+
 % A failed write must leave the last usable configuration intact. A temporary
 % file in the same folder can be renamed over runtime.mat in one operation.
 staged = [tempname(cache) '.mat'];

@@ -15,9 +15,14 @@ if mlag > N
     error('mlag must be <= length(x).');
 end
 
-if exist('hnf_lacf2_mex', 'file') == 3
-    lacf = hnf_lacf2_mex(x, double(mlag));
-    return;
+if exist('hnf_lacf2_mex','file')==3 && ...
+        (isempty(which('hnf_mex_available')) || hnf_mex_available('hnf_lacf2_mex'))
+    try
+        lacf = hnf_lacf2_mex(x,double(mlag));
+        return
+    catch err
+        if isempty(which('hnf_mex_load_error')) || ~hnf_mex_load_error(err), rethrow(err); end
+    end
 end
 
 % MATLAB fallback: original Jeff O''Neill logic

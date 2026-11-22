@@ -65,6 +65,19 @@ function model = nf_cpm(coefficients, varargin)
 %       Projection NPL power is nonnegative; PL power and amplitude variances
 %       can still have negative finite-sample estimates.
 %
+% ExecutionEnvironment
+%       'auto' (default) follows the input. 'gpu' also accepts ordinary
+%       arrays, sends each block to the GPU, and returns ordinary maps.
+%       If no GPU is available, host input uses the CPU. A gpuArray input
+%       retains GPU maps unless 'cpu' is selected. Summary counts and
+%       estimator metadata are always available on the host.
+%
+% MaxBlockLocations
+%       Optional positive integer limiting independent coefficient locations
+%       processed together. A block retains every trial for each location.
+%       GPU execution always uses a memory-based cap. On the CPU the default
+%       evaluates the full array, as in previous versions.
+%
 % Verbosity
 %       'auto' (default), 'verbose', or 'silent'. Auto reports scientific
 %       validity warnings. Verbose also reports dimensions and completion.
@@ -108,25 +121,50 @@ local_report( ...
     nTrials, ...
     trialDimension);
 
-nDimensions = max(ndims(coefficients), trialDimension);
-dimensionOrder = [ ...
-    1:(trialDimension - 1), ...
-    (trialDimension + 1):nDimensions, ...
-    trialDimension];
-canonical = permute(coefficients, dimensionOrder);
-trialDimensionCanonical = ndims(canonical);
-canonicalSize = size(canonical);
-outputSize = canonicalSize(1:(end - 1));
+resident = isa(coefficients, 'gpuArray');
+[useGPU, device, unavailable] = hnf_gpu_execution(coefficients,options.ExecutionEnvironment);
+if ~isempty(unavailable)
+    local_issue_warning(options.Verbosity, 'nf_cpm:GPUUnavailable', ...
+        'GPU unavailable; evaluating CPM on the CPU. %s', unavailable);
+end
+if resident && ~useGPU
+    coefficients = gather(coefficients);
+    resident = false;
+end
+precision = local_precision(coefficients);
 
-if isempty(outputSize) == true
-    outputSize = [1, 1];
-elseif isscalar(outputSize) == true
-    outputSize = [outputSize, 1];
+inputSize = size(coefficients);
+outputSize = inputSize;
+outputSize(trialDimension) = [];
+if isscalar(outputSize), outputSize = [outputSize, 1]; end
+
+if useGPU || ~isempty(options.MaxBlockLocations)
+    model = local_tiled(coefficients, options, outputSize, nTrials, ...
+        precision, device, useGPU, resident);
+else
+    if any(isinf(coefficients(:)))
+        error('nf_cpm:InfiniteCoefficients','Infinite coefficients are not supported.');
+    end
+    % Place the full trial axis last for the original vectorized CPU kernel.
+    order = [1:trialDimension-1,trialDimension+1:ndims(coefficients),trialDimension];
+    model = local_kernel(permute(coefficients,order), options, ...
+        outputSize, nTrials, precision);
+end
+if useGPU, model.executionEnvironment = 'gpu';
+else, model.executionEnvironment = 'cpu'; end
+model.validity.summary = local_summary(model, nTrials, resident);
+local_warnings(model.validity.summary, options);
+local_report(options.Verbosity,'verbose','Completed CPM estimation.');
 end
 
+
+function model = local_kernel(canonical, options, outputSize, nTrials, precision)
+% Shared estimator for a whole array or an independent block of locations.
+% The trials at a location stay together, including missing coefficients.
+trialDimensionCanonical = ndims(canonical);
 valid = isfinite(real(canonical)) & isfinite(imag(canonical));
 validCount = sum(valid, trialDimensionCanonical);
-validCountLike = cast(validCount, 'like', real(canonical));
+validCountLike = cast(validCount, 'like', real(canonical(1)));
 sufficientTrials = validCount >= 2;
 working = canonical;
 working(valid == false) = 0;
@@ -151,7 +189,7 @@ positiveProjectionCount = sum( ...
 positiveProjectionCountLike = cast( ...
     positiveProjectionCount, ...
     'like', ...
-    real(canonical));
+    real(canonical(1)));
 positiveProjectionValues = imag(rotated);
 positiveProjectionValues(positiveProjection == false) = 0;
 positiveProjectionMean = local_stable_masked_mean( ...
@@ -159,7 +197,7 @@ positiveProjectionMean = local_stable_masked_mean( ...
     positiveProjectionCountLike, ...
     trialDimensionCanonical);
 nonPhaseLockedAmplitudeMean = ...
-    cast(pi ./ 2, 'like', real(canonical)) .* ...
+    cast(pi ./ 2, 'like', real(canonical(1))) .* ...
     positiveProjectionMean;
 nonPhaseLockedAmplitudeMean(positiveProjectionCount == 0) = NaN;
 nonPhaseLockedAmplitudeMean(phaseDefined == false) = NaN;
@@ -175,7 +213,7 @@ if strcmp(options.Estimator, 'original')
         validCountLike, ...
         trialDimensionCanonical);
     conditioningDenominator = cos(2 .* phaseForRotation);
-    singularityTolerance = 64 .* eps(cast(1, 'like', real(canonical)));
+    singularityTolerance = 64 .* eps(cast(1, precision));
     nonsingular = phaseDefined & ...
         abs(conditioningDenominator) > singularityTolerance;
     rawPhaseLockedSecondMoment = ...
@@ -270,7 +308,7 @@ if strcmp(options.Estimator, 'projection')
 end
 model.estimator.numericalEvaluation = ...
     'max_scaled_algebraically_equivalent_moments';
-model.trialDimension = trialDimension;
+model.trialDimension = options.TrialDimension;
 model.numberOfTrials = nTrials;
 model.outputSize = outputSize;
 
@@ -337,30 +375,157 @@ model.validity.phaseLockedAmplitudeVariance = local_reshape_output( ...
 model.validity.nonPhaseLockedAmplitudeVariance = local_reshape_output( ...
     nonPhaseLockedVarianceValid, outputSize);
 
-summary = struct();
-summary.insufficientTrialLocations = sum(sufficientTrials(:) == false);
-summary.incompleteTrialLocations = sum( ...
-    sufficientTrials(:) & validCount(:) < nTrials);
-summary.undefinedPhaseLocations = sum( ...
-    sufficientTrials(:) & phaseDefined(:) == false);
-summary.singularLocations = sum( ...
-    sufficientTrials(:) & ...
-    phaseDefined(:) & ...
-    nonsingular(:) == false);
-summary.undefinedNonPhaseLockedMeanLocations = ...
-    sum(positiveProjectionCount(:) == 0);
-summary.invalidPhaseLockedSecondMoments = ...
-    sum(estimable(:) & phaseLockedSecondMomentValid(:) == false);
-summary.invalidNonPhaseLockedSecondMoments = ...
-    sum(estimable(:) & nonPhaseLockedSecondMomentValid(:) == false);
-summary.invalidPhaseLockedAmplitudeVariances = ...
-    sum(phaseLockedSecondMomentValid(:) & ...
-    phaseLockedVarianceValid(:) == false);
-summary.invalidNonPhaseLockedAmplitudeVariances = ...
-    sum(nonPhaseLockedSecondMomentValid(:) & ...
-    nonPhaseLockedVarianceValid(:) == false);
-model.validity.summary = summary;
 
+end
+
+
+function model = local_tiled(coefficients, options, outputSize, nTrials, ...
+    precision, device, useGPU, resident)
+% The timing-critical array reductions take place on the device. A host
+% caller receives results in three bulk copies per block (floats, counts,
+% masks); a resident caller retains all scientific maps on the device.
+nLocations = prod(outputSize);
+blockSize = nLocations;
+if useGPU
+    % Budget for the input, rotated/normalized complex temporaries, masks,
+    % reductions and (for an internal trial axis) the linear-index matrix.
+    % Leave headroom for persistent result maps, CUDA and other operations.
+    bytes = 4 + 4*strcmp(precision,'double');
+    scratchPerLocation = 20*bytes*nTrials + 512;
+    freeBytes = double(device.AvailableMemory);
+    if resident
+        % The result retains 16 real maps, two double counts, seven masks
+        % and transient storage for population-wide validity summaries.
+        freeBytes = freeBytes - nLocations*(16*bytes + 2*8 + 7 + 8);
+    end
+    budget = min(192*1024^2, .20*freeBytes);
+    if budget < scratchPerLocation
+        error('nf_cpm:GPUBlockTooLarge', ...
+            'Insufficient free GPU memory for CPM output and one complete trial ensemble.');
+    end
+    blockSize = min(blockSize, floor(budget/scratchPerLocation));
+end
+if ~isempty(options.MaxBlockLocations)
+    blockSize = min(blockSize,options.MaxBlockLocations);
+end
+dim = options.TrialDimension;
+shape = size(coefficients);
+before = prod(shape(1:dim-1));
+after = prod(shape(dim+1:end));
+if after == 1, flat = reshape(coefficients,nLocations,nTrials); end
+hasInfinity = false;
+for first = 1:blockSize:nLocations
+    rows = first:min(nLocations,first+blockSize-1);
+    if after == 1
+        tile = flat(rows,:);
+    else
+        % Every row is one non-trial location in MATLAB's column order.
+        % Index only this block; a non-final trial axis needs no full permute.
+        base = 1 + mod(rows(:)-1,before) + floor((rows(:)-1)/before)*before*nTrials;
+        indices = bsxfun(@plus,base,before*(0:nTrials-1));
+        tile = reshape(coefficients(indices),numel(rows),nTrials);
+    end
+    if useGPU
+        % Sparse two-dimensional inputs can still represent an ensemble.
+        % MATLAB's device elementwise kernels work on this bounded dense tile.
+        if issparse(tile), tile = full(tile); end
+        if ~resident, tile = gpuArray(tile); end
+    end
+    % One scalar check at the end avoids synchronizing a resident input
+    % after each block. The kernel masks nonfinite values before reductions.
+    hasInfinity = hasInfinity | any(isinf(tile(:)));
+    block = local_kernel(tile,options,[numel(rows) 1],nTrials,precision);
+    if first == 1
+        model = block;
+        [sections,fields,kinds] = local_map_layout(block);
+    end
+    for k = 1:numel(kinds)
+        key = kinds{k};
+        columns = cell(1,numel(key));
+        for c = 1:numel(key)
+            i = key(c);
+            if isempty(sections{i}), columns{c} = block.(fields{i});
+            else, columns{c} = block.(sections{i}).(fields{i}); end
+        end
+        if useGPU && ~resident
+            packed = gather(cat(2,columns{:}));
+            for c = 1:numel(columns), columns{c} = packed(:,c); end
+        end
+        for c = 1:numel(key)
+            i = key(c);
+            section = sections{i};
+            field = fields{i};
+            if isempty(section)
+                if first == 1, model.(field) = zeros(outputSize,'like',columns{c}); end
+                model.(field)(rows) = columns{c};
+            else
+                if first == 1, model.(section).(field) = zeros(outputSize,'like',columns{c}); end
+                model.(section).(field)(rows) = columns{c};
+            end
+        end
+    end
+    clear block tile packed columns;
+end
+if useGPU, hasInfinity = gather(hasInfinity); end
+if hasInfinity
+    error('nf_cpm:InfiniteCoefficients','Infinite coefficients are not supported.');
+end
+% These are aliases in the published output. Share the assembled arrays.
+model.phaseLocked.powerMean = model.phaseLocked.amplitudeSecondMoment;
+model.nonPhaseLocked.powerMean = model.nonPhaseLocked.amplitudeSecondMoment;
+model.outputSize = outputSize;
+end
+
+
+function [sections,fields,kinds] = local_map_layout(block)
+% Discover map fields once, excluding scalar estimator metadata. Keep
+% counts double and masks logical, independently of coefficient precision.
+sections = {''};
+fields = {'leakageRatio'};
+types = {local_precision(block.leakageRatio)};
+for name = {'total','phaseLocked','nonPhaseLocked','raw','validity'}
+    section = name{1};
+    list = fieldnames(block.(section));
+    for j = 1:numel(list)
+        field = list{j};
+        if strcmp(field,'powerMean') && ~strcmp(section,'total'), continue; end
+        sections{end+1} = section; %#ok<AGROW>
+        fields{end+1} = field; %#ok<AGROW>
+        types{end+1} = local_precision(block.(section).(field)); %#ok<AGROW>
+    end
+end
+names = unique(types);
+kinds = cell(size(names));
+for j = 1:numel(names), kinds{j} = find(strcmp(types,names{j})); end
+end
+
+
+function type = local_precision(x)
+if isa(x,'gpuArray'), type = classUnderlying(x); else, type = class(x); end
+end
+
+
+function summary = local_summary(model, nTrials, resident)
+v = model.validity;
+counts = [sum(~v.sufficientTrials(:)), ...
+    sum(v.sufficientTrials(:) & v.validTrialCount(:)<nTrials), ...
+    sum(v.sufficientTrials(:) & ~v.phaseDefined(:)), ...
+    sum(v.phaseDefined(:) & ~v.nonsingular(:)), ...
+    sum(v.positiveProjectionCount(:)==0), ...
+    sum(v.nonsingular(:) & ~v.phaseLockedSecondMoment(:)), ...
+    sum(v.nonsingular(:) & ~v.nonPhaseLockedSecondMoment(:)), ...
+    sum(v.phaseLockedSecondMoment(:) & ~v.phaseLockedAmplitudeVariance(:)), ...
+    sum(v.nonPhaseLockedSecondMoment(:) & ~v.nonPhaseLockedAmplitudeVariance(:))];
+if resident, counts = gather(counts); end
+names = {'insufficientTrialLocations','incompleteTrialLocations', ...
+    'undefinedPhaseLocations','singularLocations','undefinedNonPhaseLockedMeanLocations', ...
+    'invalidPhaseLockedSecondMoments','invalidNonPhaseLockedSecondMoments', ...
+    'invalidPhaseLockedAmplitudeVariances','invalidNonPhaseLockedAmplitudeVariances'};
+summary = cell2struct(num2cell(counts),names,2);
+end
+
+
+function local_warnings(summary,options)
 invalidMomentCount = ...
     summary.invalidPhaseLockedSecondMoments + ...
     summary.invalidNonPhaseLockedSecondMoments + ...
@@ -413,10 +578,7 @@ if invalidMomentCount > 0
         invalidMomentCount);
 end
 
-local_report( ...
-    options.Verbosity, ...
-    'verbose', ...
-    'Completed CPM estimation.');
+
 
 end
 
@@ -440,9 +602,18 @@ addParameter(parser, 'TrialDimension', defaultTrialDimension, ...
     @local_valid_dimension);
 addParameter(parser, 'Estimator', 'original', @local_is_text_scalar);
 addParameter(parser, 'Verbosity', 'auto', @local_is_text_scalar);
+addParameter(parser, 'ExecutionEnvironment', 'auto', @local_is_text_scalar);
+addParameter(parser, 'MaxBlockLocations', [], ...
+    @(n) isempty(n) || local_valid_dimension(n));
 parse(parser, coefficients, varargin{:});
 
 options = struct();
+options.ExecutionEnvironment = lower(local_text_scalar( ...
+    parser.Results.ExecutionEnvironment, 'ExecutionEnvironment'));
+if ~any(strcmp(options.ExecutionEnvironment,{'auto','cpu','gpu'}))
+    error('nf_cpm:InvalidExecutionEnvironment','Use auto, cpu or gpu.');
+end
+options.MaxBlockLocations = double(parser.Results.MaxBlockLocations);
 options.TrialDimension = double(parser.Results.TrialDimension);
 options.Estimator = lower(local_text_scalar( ...
     parser.Results.Estimator, 'Estimator'));
@@ -471,11 +642,10 @@ end
 
 function valid = local_valid_coefficients(value)
 
-valid = isnumeric(value) && isfloat(value) && isempty(value) == false;
-
-if valid == true
-    valid = any(isinf(real(value(:)))) == false && ...
-        any(isinf(imag(value(:)))) == false;
+if isa(value,'gpuArray')
+    valid = any(strcmp(classUnderlying(value),{'single','double'})) && ~isempty(value);
+else
+    valid = isnumeric(value) && isfloat(value) && ~isempty(value);
 end
 
 end

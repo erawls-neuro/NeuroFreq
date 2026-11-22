@@ -73,7 +73,21 @@ if numel(axis)==1
     values = X;
 else
     if isAngle, X = unwrap(X,[],1); end
-    values = interp1(axis,X,query,'linear',NaN);
+    native = numel(X)>=2048 && isa(X,'double') && isreal(X) && ~issparse(X) && ...
+        exist('hnf_grid_interp_mex','file')==3 && ...
+        (~exist('hnf_mex_available','file') || hnf_mex_available('hnf_grid_interp_mex')) && ...
+        all(isfinite(axis)) && max(abs(axis)) <= realmax/2 && ...
+        all(diff(axis)>0) && all(isfinite(X(:))) && ...
+        max(abs(X(:))) <= (realmax/4)*min(1,min(diff(axis)));
+    if native
+        try
+            values = hnf_grid_interp_mex(axis,query,X);
+        catch err
+            if ~exist('hnf_mex_load_error','file') || ~hnf_mex_load_error(err), rethrow(err); end
+            native = false;
+        end
+    end
+    if ~native, values = interp1(axis,X,query,'linear',NaN); end
     if isAngle, values = angle(exp(1i*values)); end
 end
 out = ipermute(reshape(values,[numel(query),dims]),order);

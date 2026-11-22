@@ -4,6 +4,19 @@ function p = hnf_tfce_pvalues(observed, maxima)
 if isempty(maxima) || any(~isfinite(maxima(:)))
     error('NeuroFreq:InvalidNull', 'Permutation maxima must be nonempty and finite.');
 end
+% For larger maps, search one sorted null vector in native code. All
+% other input types and installations retain the MATLAB implementation.
+if numel(observed) >= 128 && isa(observed,'double') && isreal(observed) && ~issparse(observed) && ...
+        isa(maxima,'double') && isreal(maxima) && ~issparse(maxima) && ...
+        exist('hnf_mex_available','file') == 2 && hnf_mex_available('hnf_tfce_tail_mex')
+    try
+        p = hnf_tfce_tail_mex(observed,maxima);
+        return
+    catch failure
+        if ~hnf_mex_load_error(failure), rethrow(failure); end
+        warning('NeuroFreq:NativeTailLoad','%s Using MATLAB for TFCE tail counts.',failure.message);
+    end
+end
 % Sorting the two vectors once avoids a permutations-by-voxels array.
 [levels, order] = sort(abs(observed(:)));
 null = sort(maxima(:));

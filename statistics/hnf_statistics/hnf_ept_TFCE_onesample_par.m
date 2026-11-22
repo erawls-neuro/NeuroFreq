@@ -124,6 +124,15 @@ maxTFCE = zeros(nPerm,1);
 disp('calculating actual differences')
 % Calculate T-values
 D    = Data{1}-Data{2};
+% MATLAB draws every sign. The optional kernel fuses signed sample
+% reads and the two passes for t, avoiding a full copy at every draw.
+useNative = numel(D) >= 1024 && isreal(D) && ~issparse(D) && ...
+    exist('hnf_mex_available','file') == 2 && hnf_mex_available('hnf_permuted_t_mex');
+% Workers have independent MATLAB search paths and persistent state.
+% Send the approved filename; a worker with a different or missing MEX
+% computes the very same random assignment using the MATLAB formula.
+workerMex = '';
+if useNative, workerMex = which('hnf_permuted_t_mex'); end
 T_Obs = squeeze(mean(D,1)./(std(D,0,1)./sqrt(nA)));
 % check for zero T-values (will crash TFCE)
 % TFCE transformation...
@@ -134,8 +143,7 @@ disp('calculating permutations...');
 parfor i   = 1:nPerm      
     % One independent sign per observation, shared by every spatial sample.
     SignSwitch = 2 * (rand(nA,1) >= 0.5) - 1;
-    nData = SignSwitch.*D;
-    T_Perm = mean(nData,1)./(std(nData,0,1)./sqrt(size(nData,1)));
+    T_Perm = hnf_permuted_t_map(D, SignSwitch, workerMex);
     T_Perm = squeeze(T_Perm);
     % TFCE transformation...
     TFCE_Perm = hnf_tfce_transformation(T_Perm,ChN,E_H,flag_ft);

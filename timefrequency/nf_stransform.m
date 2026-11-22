@@ -132,6 +132,40 @@ idx2 = idx2_cache;
 % base constant for Gaussian exponent
 baseConst = -factor * 2 * pi^2;
 halfN = fix(n / 2);
+% The native window packer makes one contiguous time column per frequency,
+% allowing a batch of independent inverse FFTs. Reuse Gaussian weights for
+% equal-length epochs with the same factor, capped at 4 MiB per work block.
+if isa(factor,'double') && exist('hnf_stockwell_window_mex','file')==3 && ...
+        exist('hnf_mex_available','file')==2 && hnf_mex_available('hnf_stockwell_window_mex')
+    persistent cachedWeights cachedFactor
+    blockSize = max(1,floor((4*1024^2)/(8*n)));
+    if halfN <= blockSize
+        if ~isequal(size(cachedWeights),[n halfN]) || ~isequal(cachedFactor,factor)
+            scales = baseConst./((1:halfN).^2);
+            cachedWeights = exp(idx1(:)*scales) + exp(idx2(:)*scales);
+            cachedFactor = factor;
+        end
+    end
+    nativeSucceeded = true;
+    for first = 1:blockSize:halfN
+        bins = first:min(halfN,first+blockSize-1);
+        if halfN <= blockSize
+            weights = cachedWeights;
+        else
+            scales = baseConst./(bins.^2);
+            weights = exp(idx1(:)*scales) + exp(idx2(:)*scales);
+        end
+        try
+            block = hnf_stockwell_window_mex(vector_fft,weights,double(first));
+        catch err
+            if ~hnf_mex_load_error(err), rethrow(err); end
+            nativeSucceeded = false;
+            break
+        end
+        stockTF(bins+1,:) = ifft(block,[],1).';
+    end
+    if nativeSucceeded, return, end
+end
 for banana = 1:halfN
     % scale for this frequency bin
     scale = baseConst / (banana^2);

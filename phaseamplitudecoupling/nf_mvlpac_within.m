@@ -105,42 +105,10 @@ for f1 = 1:loF
         obsMVL = reshape(mvl_3d, [nChan, nTrial]);                    % [nChan x nTrial]
         
         if nperm > 0
-            
-            permutedPAC = zeros(nperm, nChan, nTrial);
-            
-            for ip = 1:nperm
-                
-                % circular time-shift surrogates for power, all chan×trial at once
-                % first dimension = time; trailing dims = chan x trial
-                power_perm = hnf_surr_timeshift_vec(power_samples, [], use_mex);    % [time x chan x trial]
-                
-                % MVL for this permutation
-                mvl_perm_3d = hnf_mvl_kernel(phase_samples, power_perm, use_mex);   % [1 x nChan x nTrial]
-                permutedPAC(ip, :, :) = reshape(mvl_perm_3d, [nChan, nTrial]);
-                
-            end
-            
-            % Null distribution stats
-            mu_null = reshape(mean(permutedPAC, 1), [nChan, nTrial]);        % [nChan x nTrial]
-            sd_null = reshape(std(permutedPAC, 0, 1), [nChan, nTrial]);      % [nChan x nTrial]
-            
-            % Guard against zero std
-            zero_sd = (sd_null <= 8*eps(abs(mu_null)));
-            sd_null(zero_sd) = NaN;
-            
-            % zMVL
-            zMVL = (obsMVL - mu_null) ./ sd_null;           % [nChan x nTrial]
-            
-            % Assign to output: chan x loF x hiF x trial
-            PAC(:, f1, f2, :) = reshape(zMVL, [nChan, 1, 1, nTrial]);
-            
-        else
-            
-            % Raw MVL
-            PAC(:, f1, f2, :) = reshape(obsMVL, [nChan, 1, 1, nTrial]);
-            
+            obsMVL = hnf_pac_permutation_z(phase_samples, power_samples, obsMVL, ...
+                nperm, 'mvl', 0, use_mex, false);
         end
-        
+        PAC(:, f1, f2, :) = reshape(obsMVL, [nChan, 1, 1, nTrial]);
     end
     
     % Update progress bar
