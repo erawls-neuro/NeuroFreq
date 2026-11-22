@@ -1,6 +1,8 @@
 function aperiodicParams = hnf_robust_ap_fit(freqs, powerSpectrum, aperiodicMode, aperiodicGuess, frequencyCache)
 % HNF_ROBUST_AP_FIT Fit the aperiodic component while suppressing positive peaks.
 
+freqs = double(freqs(:).');
+powerSpectrum = double(powerSpectrum(:).');
 if nargin < 4 || isempty(aperiodicGuess)
     aperiodicGuess = -(powerSpectrum(end) - powerSpectrum(1)) ./ ...
         log10(freqs(end) ./ freqs(1));
@@ -31,6 +33,11 @@ percentileMask = flatSpectrum <= percentileThreshold;
 fitFreqs = freqs(percentileMask);
 fitSpectrum = powerSpectrum(percentileMask);
 
+if nnz(percentileMask) < numel(initialParams)
+    aperiodicParams = initialParams;
+    return
+end
+
 switch aperiodicMode
     case 'fixed'
         fitLog10Freqs = frequencyCache.log10Freqs(percentileMask);
@@ -39,7 +46,7 @@ switch aperiodicMode
 
         if fullRank == false
             searchOptions = specparam_ap_search_options_local();
-            aperiodicParams = fminsearch(@error_expo_nk_function, ...
+            aperiodicParams = fminsearch(@hnf_error_expo_nk_function, ...
                 initialParams, searchOptions, fitFreqs, fitSpectrum, ...
                 fitLog10Freqs);
         end
@@ -47,7 +54,7 @@ switch aperiodicMode
     case 'knee'
         searchOptions = specparam_ap_search_options_local();
         fitLogFreqs = frequencyCache.logFreqs(percentileMask);
-        aperiodicParams = fminsearch(@error_expo_function, initialParams, ...
+        aperiodicParams = fminsearch(@hnf_error_expo_function, initialParams, ...
             searchOptions, fitFreqs, fitSpectrum, fitLogFreqs);
 end
 

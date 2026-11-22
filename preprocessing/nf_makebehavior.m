@@ -58,7 +58,12 @@ elseif ischar(tab) == 1 || isstring(tab) == 1
     filepath = char(tab);
 
     if exist(filepath, 'file') == 2
-        behavior = readtable(filepath);
+        [~,~,extension] = fileparts(filepath);
+        if strcmpi(extension,'.tsv')
+            behavior = readtable(filepath,'FileType','text','Delimiter',sprintf('\t'));
+        else
+            behavior = readtable(filepath);
+        end
     else
         error('File not found: %s', filepath);
     end
@@ -126,127 +131,30 @@ end
 % =====================================================================
 function out = local_make_lagged_column(x, lag, nTrials)
 
-% Ensure column vector for indexing operations
-if isrow(x)
-    x = x.';
-end
-
-% Handle table columns that are cell arrays, strings, categoricals, etc.
-% Requirement: pad with NaN. We'll produce a numeric column when possible,
-% otherwise a cell column padded with {NaN}.
-if isnumeric(x) == 1 || islogical(x) == 1
-    out = nan(nTrials, 1);
-
-    if lag < 0
-        k = abs(lag);
-        if nTrials > k
-            out((k + 1):end) = double(x(1:(end - k)));
-        end
-    else
-        k = lag;
-        if nTrials > k
-            out(1:(end - k)) = double(x((k + 1):end));
-        end
-    end
-
-elseif iscell(x) == 1
-    out = cell(nTrials, 1);
-
-    for i = 1:nTrials
-        out{i, 1} = NaN;
-    end
-
-    if lag < 0
-        k = abs(lag);
-        if nTrials > k
-            out((k + 1):end) = x(1:(end - k));
-        end
-    else
-        k = lag;
-        if nTrials > k
-            out(1:(end - k)) = x((k + 1):end);
-        end
-    end
-
-elseif isstring(x) == 1
-
-    % Strings cannot be NaN-padded naturally; if user wants lags for string columns,
-    % we convert to cellstr-like via cell and pad with NaN (cell).
-    outCell = cell(nTrials, 1);
-
-    for i = 1:nTrials
-        outCell{i, 1} = NaN;
-    end
-
-    if lag < 0
-        k = abs(lag);
-        if nTrials > k
-            outCell((k + 1):end) = cellstr(x(1:(end - k)));
-        end
-    else
-        k = lag;
-        if nTrials > k
-            outCell(1:(end - k)) = cellstr(x((k + 1):end));
-        end
-    end
-
-    out = outCell;
-
-elseif iscategorical(x) == 1
-    out = cell(nTrials, 1);
-
-    for i = 1:nTrials
-        out{i, 1} = NaN;
-    end
-
-    if lag < 0
-        k = abs(lag);
-        if nTrials > k
-            out((k + 1):end) = cellstr(x(1:(end - k)));
-        end
-    else
-        k = lag;
-        if nTrials > k
-            out(1:(end - k)) = cellstr(x((k + 1):end));
-        end
-    end
-
+% Shift the trial dimension. A table variable may store several values
+% per trial, all of which must travel together. Padding uses numeric NaN
+% or cells containing NaN for nonnumeric types.
+dims = size(x);
+if isnumeric(x) || islogical(x)
+    out = nan(dims);
+    values = double(x);
+elseif ischar(x)
+    values = cellstr(x);
+    out = repmat({NaN},nTrials,1);
 else
-    % Fallback: store as cell with NaN padding
-    out = cell(nTrials, 1);
-
-    for i = 1:nTrials
-        out{i, 1} = NaN;
-    end
-
-    if lag < 0
-        k = abs(lag);
-        if nTrials > k
-            for i = (k + 1):nTrials
-                out{i, 1} = x(i - k);
-            end
-        end
+    if iscell(x)
+        values = x;
+    elseif isstring(x) || iscategorical(x)
+        values = reshape(cellstr(x(:)),dims);
     else
-        k = lag;
-        if nTrials > k
-            for i = 1:(nTrials - k)
-                out{i, 1} = x(i + k);
-            end
-        end
+        values = num2cell(x);
     end
+    out = repmat({NaN},dims);
 end
-
+target = max(1,1-lag):min(nTrials,nTrials-lag);
+subs = repmat({':'},1,ndims(values));
+source = subs;
+subs{1} = target;
+source{1} = target+lag;
+out(subs{:}) = values(source{:});
 end
-
-
-
-
-
-
-
-
-
-
-
-
-

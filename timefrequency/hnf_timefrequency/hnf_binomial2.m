@@ -20,12 +20,13 @@ function [tfd, t, f] = hnf_binomial2(x, fs, nfreq, wlen)
 %    f    vector of frequency values (optional)
 %
 % If no output arguments are specified, then the binomial distribution is 
-% displayed using ptfd(tfd, t, f).
+% displayed as a time-frequency image.
 
 % Copyright (C) -- see DiscreteTFDs/Copyright
 
 % specify defaults
-x = x(:);
+validateattributes(x, {'numeric'}, {'vector','nonempty','nonsparse'});
+x = double(x(:));
 N = length(x);
 
 narginchk(1, 4);
@@ -45,6 +46,10 @@ end
 if (wlen > 2*N)
   error('wlen must be less than or equal to twice the length of the signal!');
 end
+validateattributes(fs, {'numeric'}, {'scalar','real','finite','positive'});
+validateattributes(nfreq, {'numeric'}, {'scalar','real','integer','positive'});
+validateattributes(wlen, {'numeric'}, {'scalar','real','integer','positive'});
+if mod(wlen,2) ~= 0, error('NeuroFreq:RIDLagWindow','Use an even lag window.'); end
 w = wlen/2;
 
 % make the binomial kernel
@@ -60,28 +65,27 @@ end
 %%%%%%%%%%%%%%%%%%%%%%
 
 % make the acf for positive tau
-acf = lacf2(x, w);
+acf = hnf_lacf2(x, w);
 
 % convolve with the kernel
-acf2 = fft(acf.');
+acf2 = fft(acf.', [], 1);
 ker = [ker zeros(w,N-w)];
-ker2 = fft(ker.');
-gacf = ifft(acf2.*ker2);
+ker2 = fft(ker.', [], 1);
+gacf = ifft(acf2.*ker2, [], 1);
 gacf = gacf.';
 
 % make the gacf for negative lags
 gacf = [gacf ; zeros(nfreq-wlen+1,N) ; conj(flipud(gacf(2:w,:)))];
 
 %compute the tfd
-tfd = real(fft(gacf));
-tfd = tfdshift(tfd)/nfreq;
+tfd = real(fft(gacf, [], 1));
+tfd = hnf_tfdshift(tfd)/nfreq;
 
 t = 1/fs * (0:N-1);
-f = -fs/2:fs/nfreq:fs/2;
-f = f(1:nfreq);
+f = (-floor(nfreq/2):ceil(nfreq/2)-1) * (fs/nfreq);
 
 if (nargout == 0)
-  ptfd(tfd, t, f);
+  imagesc(t, f, tfd); axis xy; xlabel('Time (s)'); ylabel('Frequency (Hz)');
   clear tfd
 end
 

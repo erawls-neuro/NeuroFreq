@@ -1,158 +1,62 @@
 #include "mex.h"
+#include <math.h>
 
-/*
- * hnf_lacf2_mex(x, mlag)
- *
- * x    : vector (real or complex), length N
- * mlag : maximum lag (scalar, <= N). If omitted or empty, defaults to N.
- *
- * Output:
- *   lacf : mlag x N matrix
- *          lacf(tau, t) = conj(x(t)) * x(t + tau - 1), tau = 1..mtau
- *          (zeros for tau > mtau), exactly as in the original MATLAB code.
- */
-
-void mexFunction(int nlhs, mxArray *plhs[],
-                 int nrhs, const mxArray *prhs[])
+/* Positive-lag local autocorrelation for a dense real or complex EEG trace.
+ * Build using mex hnf_lacf2_mex.c (legacy and interleaved APIs supported).
+ * The MATLAB fallback in hnf_lacf2.m uses the identical lag convention. */
+void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
-    /* argument checks */
-    if (nrhs < 1 || nrhs > 2)
-    {
-        mexErrMsgIdAndTxt("hnf_lacf2_mex:nrhs",
-                          "Usage: lacf = hnf_lacf2_mex(x, mlag)");
+    if (nrhs < 1 || nrhs > 2 || nlhs > 1)
+        mexErrMsgIdAndTxt("hnf_lacf2_mex:usage", "Use L = hnf_lacf2_mex(x, mlag).");
+
+    const mxArray *x = prhs[0];
+    if (!mxIsDouble(x) || mxIsSparse(x) || mxIsEmpty(x) ||
+        mxGetNumberOfDimensions(x) != 2 || (mxGetM(x) != 1 && mxGetN(x) != 1))
+        mexErrMsgIdAndTxt("hnf_lacf2_mex:x", "x must be a nonempty dense double vector.");
+
+    const mwSize n = mxGetNumberOfElements(x);
+    mwSize lags = n;
+    if (nrhs == 2 && !mxIsEmpty(prhs[1])) {
+        const mxArray *arg = prhs[1];
+        if (!mxIsDouble(arg) || mxIsComplex(arg) || mxGetNumberOfElements(arg) != 1)
+            mexErrMsgIdAndTxt("hnf_lacf2_mex:mlag", "Use a real scalar mlag.");
+        const double count = mxGetScalar(arg);
+        if (!mxIsFinite(count) || count < 1 || count > (double)n || count != floor(count))
+            mexErrMsgIdAndTxt("hnf_lacf2_mex:mlag", "mlag must be an integer in [1, length(x)].");
+        lags = (mwSize)count;
     }
+    /* Avoid overflow of the element count before requesting the matrix. */
+    if ((size_t)lags > ((size_t)-1) / sizeof(double) / (size_t)n / (mxIsComplex(x) ? 2 : 1))
+        mexErrMsgIdAndTxt("hnf_lacf2_mex:size", "The requested output exceeds the addressable array size.");
+    mxArray *out = mxCreateDoubleMatrix(lags, n, mxIsComplex(x) ? mxCOMPLEX : mxREAL);
 
-    if (nlhs > 1)
-    {
-        mexErrMsgIdAndTxt("hnf_lacf2_mex:nlhs",
-                          "One output argument expected.");
-    }
+#if MX_HAS_INTERLEAVED_COMPLEX
+    const mxComplexDouble *z = mxIsComplex(x) ? mxGetComplexDoubles(x) : NULL;
+    mxComplexDouble *result = mxIsComplex(x) ? mxGetComplexDoubles(out) : NULL;
+    const double *realX = mxIsComplex(x) ? NULL : mxGetDoubles(x);
+    double *realOut = mxIsComplex(x) ? NULL : mxGetDoubles(out);
+#else
+    const double *realX = mxGetPr(x), *imagX = mxGetPi(x);
+    double *realOut = mxGetPr(out), *imagOut = mxGetPi(out);
+#endif
 
-    const mxArray *x_in = prhs[0];
-
-    if (!mxIsDouble(x_in))
-    {
-        mexErrMsgIdAndTxt("hnf_lacf2_mex:type",
-                          "Input x must be double.");
-    }
-
-    /* flatten x (MATLAB already stores as linear memory) */
-    mwSize N = mxGetNumberOfElements(x_in);
-
-    if (N == 0)
-    {
-        mexErrMsgIdAndTxt("hnf_lacf2_mex:empty",
-                          "Input x must be non-empty.");
-    }
-
-    mwSize mlag;
-
-    if (nrhs >= 2 && !mxIsEmpty(prhs[1]))
-    {
-        if (!mxIsDouble(prhs[1]) || mxIsComplex(prhs[1]) ||
-            mxGetNumberOfElements(prhs[1]) != 1)
-        {
-            mexErrMsgIdAndTxt("hnf_lacf2_mex:mlag",
-                              "mlag must be a real double scalar.");
-        }
-
-        double mlag_d = mxGetScalar(prhs[1]);
-
-        if (mlag_d < 1)
-        {
-            mexErrMsgIdAndTxt("hnf_lacf2_mex:mlag",
-                              "mlag must be >= 1.");
-        }
-
-        mlag = (mwSize)mlag_d;
-    }
-    else
-    {
-        mlag = N;
-    }
-
-    if (mlag > N)
-    {
-        mexErrMsgIdAndTxt("hnf_lacf2_mex:mlag",
-                          "mlag must be <= length(x).");
-    }
-
-    /* detect real vs complex input */
-    bool xIsComplex = mxIsComplex(x_in);
-
-    const double *xpr = mxGetPr(x_in);
-    const double *xpi = mxGetPi(x_in);
-
-    /* allocate output: mlag x N, real or complex depending on x */
-    mxArray *lacf_out;
-
-    if (xIsComplex)
-    {
-        lacf_out = mxCreateDoubleMatrix(mlag, N, mxCOMPLEX);
-    }
-    else
-    {
-        lacf_out = mxCreateDoubleMatrix(mlag, N, mxREAL);
-    }
-
-    double *lpr = mxGetPr(lacf_out);
-    double *lpi = mxGetPi(lacf_out);
-
-    /* core loop: for t = 1:N
-     *              mtau = min(mlag, N - t + 1)
-     *              lacf(1:mtau, t) = conj(x(t)) * x(t:t+mtau-1)
-     *
-     * In zero-based indexing:
-     *   t_idx = t - 1, tau_idx = tau - 1
-     *   mtau = min(mlag, N - t_idx)
-     */
-
-    for (mwSize t_idx = 0; t_idx < N; ++t_idx)
-    {
-        mwSize mtau = mlag;
-
-        if (N - t_idx < mtau)
-        {
-            mtau = N - t_idx;
-        }
-
-        if (xIsComplex)
-        {
-            double a = xpr[t_idx];
-            double b = xpi[t_idx];
-
-            for (mwSize tau_idx = 0; tau_idx < mtau; ++tau_idx)
-            {
-                mwSize x2_idx = t_idx + tau_idx;
-
-                double c = xpr[x2_idx];
-                double d = xpi[x2_idx];
-
-                double real_part = a * c + b * d;
-                double imag_part = a * d - b * c;
-
-                mwSize out_idx = tau_idx + t_idx * mlag;
-
-                lpr[out_idx] = real_part;
-                lpi[out_idx] = imag_part;
-            }
-        }
-        else
-        {
-            double a = xpr[t_idx];
-
-            for (mwSize tau_idx = 0; tau_idx < mtau; ++tau_idx)
-            {
-                mwSize x2_idx = t_idx + tau_idx;
-
-                double c = xpr[x2_idx];
-
-                mwSize out_idx = tau_idx + t_idx * mlag;
-
-                lpr[out_idx] = a * c;
+    for (mwSize t = 0; t < n; ++t) {
+        const mwSize count = lags < n-t ? lags : n-t;
+        for (mwSize lag = 0; lag < count; ++lag) {
+            const mwSize next = t+lag, i = t*lags+lag;
+            if (mxIsComplex(x)) {
+#if MX_HAS_INTERLEAVED_COMPLEX
+                result[i].real = z[t].real*z[next].real + z[t].imag*z[next].imag;
+                result[i].imag = z[t].real*z[next].imag - z[t].imag*z[next].real;
+#else
+                realOut[i] = realX[t]*realX[next] + imagX[t]*imagX[next];
+                imagOut[i] = realX[t]*imagX[next] - imagX[t]*realX[next];
+#endif
+            } else {
+                realOut[i] = realX[t]*realX[next];
             }
         }
     }
-
-    plhs[0] = lacf_out;
+    if (nlhs) plhs[0] = out;
+    else mxDestroyArray(out);
 }

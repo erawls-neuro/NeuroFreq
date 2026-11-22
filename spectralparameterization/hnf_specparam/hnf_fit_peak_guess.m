@@ -1,8 +1,11 @@
-function peakParams = hnf_fit_peak_guess( ...
-    guess, freqs, flatSpec, ~, ...
-    widthLimits, useOptimizationToolbox)
+function [peakParams, usedBounds] = hnf_fit_peak_guess( ...
+    guess, freqs, flatSpec, guessWeight, ...
+    widthLimits, useOptimizationToolbox, peakType)
 % HNF_FIT_PEAK_GUESS Jointly optimize a set of candidate spectral peaks.
 
+if nargin < 7, peakType = 'gaussian'; end
+if isempty(guessWeight), guessWeight = 'weak'; end
+usedBounds = false;
 if isempty(guess)
     peakParams = zeros(0, 3);
     return
@@ -10,7 +13,6 @@ end
 
 if useOptimizationToolbox == 1
     canUseFmincon = specparam_has_fmincon_local();
-    constrainedOptions = specparam_constrained_options_local();
     fallbackOptions = specparam_requested_fallback_options_local();
 
     if canUseFmincon == true
@@ -22,48 +24,37 @@ if useOptimizationToolbox == 1
             ones(size(guess(:, 3))) .* widthLimits(2)];
 
         try
-            parameterVector = fmincon(@hnf_error_model_constr, guess(:), ...
+            constrainedOptions = specparam_constrained_options_local();
+            objective = @(params) hnf_error_model_constr(params, freqs, flatSpec, peakType);
+            parameterVector = fmincon(objective, guess(:), ...
                 [], [], [], [], lowerBounds(:), upperBounds(:), [], ...
-                constrainedOptions, freqs, flatSpec);
+                constrainedOptions);
+            usedBounds = true;
             peakParams = reshape(parameterVector, [], 3);
         catch
             peakParams = fminsearch(@hnf_error_model, guess, ...
-                fallbackOptions, freqs, flatSpec, guess, 'weak');
+                fallbackOptions, freqs, flatSpec, guess, guessWeight, peakType);
         end
     else
         peakParams = fminsearch(@hnf_error_model, guess, fallbackOptions, ...
-            freqs, flatSpec, guess, 'weak');
+            freqs, flatSpec, guess, guessWeight, peakType);
     end
 else
     unconstrainedOptions = specparam_unconstrained_options_local();
     peakParams = fminsearch(@hnf_error_model, guess, unconstrainedOptions, ...
-        freqs, flatSpec, guess, 'weak');
+        freqs, flatSpec, guess, guessWeight, peakType);
 end
 
 peakParams = reshape(peakParams, [], 3);
+% Both densities depend on scale squared, so a scale always denotes a magnitude.
+peakParams(:,3) = abs(peakParams(:,3));
 
 end
 
 function available = specparam_has_fmincon_local()
 
-persistent cachedAvailability
-
-if isempty(cachedAvailability)
-    cachedAvailability = exist('fmincon', 'file') == 2;
-
-    if cachedAvailability == true
-        if exist('license', 'builtin') == 5 || exist('license', 'file') == 2
-            try
-                cachedAvailability = license('test', 'Optimization_Toolbox');
-            catch
-                cachedAvailability = true;
-            end
-        end
-    end
-end
-
-available = cachedAvailability;
-
+% Paths and toolbox licenses may change between calls in one session.
+available = exist('fmincon', 'file') == 2 && license('test','Optimization_Toolbox');
 end
 
 function options = specparam_constrained_options_local()

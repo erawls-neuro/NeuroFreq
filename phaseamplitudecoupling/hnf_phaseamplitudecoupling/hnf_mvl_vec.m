@@ -57,13 +57,17 @@ phas_mat = reshape(phas_d, [nSamples, nVars]);
 pow_mat  = reshape(pow_d,  [nSamples, nVars]);
 
 % Complex weighted vectors
-z = pow_mat .* exp(1i .* phas_mat);
+% Scale each series before summing, so a representable mean of large
+% amplitudes does not overflow. Magnitude is homogeneous in the weights.
+scale = max(abs(pow_mat),[],1);
+scale(scale == 0) = 1;
+z = bsxfun(@rdivide,pow_mat,scale) .* exp(1i .* phas_mat);
 
 % Average across samples (first dimension)
 z_mean = mean(z, 1);                  % [1 x nVars]
 
 % MVL is magnitude of the mean vector
-mvl_vec = abs(z_mean);                % [1 x nVars]
+mvl_vec = scale .* abs(z_mean);                % [1 x nVars]
 
 % Reshape back to original trailing dimensions
 out_sz    = sz;

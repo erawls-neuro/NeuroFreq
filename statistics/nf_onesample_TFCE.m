@@ -1,4 +1,8 @@
-function tfce = nf_onesample_TFCE(dataX,h0,chanlocs,faxis,taxis,nperm,par)
+function tfce = nf_onesample_TFCE(dataX,h0,chanlocs,faxis,taxis,nperm,par,varargin)
+% Simple permutation tests assume independent, exchangeable observations.
+% Pooled repeated trials across participants require a subject-aware design.
+% Sign flips require independent differences symmetric about h0.
+
 %
 % GENERAL
 % -------
@@ -27,11 +31,9 @@ function tfce = nf_onesample_TFCE(dataX,h0,chanlocs,faxis,taxis,nperm,par)
 % directly to nf_plottfce for plotting.
 %
 
-if nargin < 8
-    varargin = {};
-end
 
 if isstruct(dataX) == 1
+    hnf_stats_check_observations(dataX);
     if nargin < 7 || isempty(par) == 1
         par = 0;
     end
@@ -97,22 +99,22 @@ if nargin < 6 || isempty(nperm) == 1
     nperm = 1000;
 end
 
-if nargin < 5 || isempty(h0) == 1
+if nargin < 2 || isempty(h0) == 1
     h0 = 0;
     disp('[nf_onsesample_TFCE]: no null hypothesis supplied; assuming 0.');
 end
 
-if nargin < 4 || isempty(taxis) == 1
+if nargin < 5 || isempty(taxis) == 1
     taxis = [];
     disp('[nf_onsesample_TFCE]: no time axis supplied - assuming data have no time dimension.');
 end
 
-if nargin < 3 || isempty(faxis) == 1
+if nargin < 4 || isempty(faxis) == 1
     faxis = [];
     disp('[nf_onsesample_TFCE]: no frequency axis supplied - assuming data have no frequency dimension.');
 end
 
-if nargin < 2 || isempty(chanlocs) == 1
+if nargin < 3 || isempty(chanlocs) == 1
     chanlocs = [];
     disp('[nf_onsesample_TFCE]: no channel locations supplied - assuming single-channel data.');
 end
@@ -124,15 +126,15 @@ end
 
 if ~isempty(chanlocs)
     if par == 0
-        tfc = ept_TFCE_onesample(dataX, zeros(size(dataX)) + h0, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_onesample(dataX, h0, chanlocs, 'nperm', nperm);
     else
-        tfc = ept_TFCE_onesample_par(dataX, zeros(size(dataX)) + h0, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_onesample_par(dataX, h0, chanlocs, 'nperm', nperm);
     end
 else
     if par == 0
-        tfc = ept_TFCE_onesample(dataX, zeros(size(dataX)) + h0, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_onesample(dataX, h0, [], 'nperm', nperm, 'flag_ft', 1);
     else
-        tfc = ept_TFCE_onesample_par(dataX, zeros(size(dataX)) + h0, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_onesample_par(dataX, h0, [], 'nperm', nperm, 'flag_ft', 1);
     end
 end
 

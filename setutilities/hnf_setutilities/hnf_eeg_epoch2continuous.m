@@ -29,18 +29,25 @@ function EEG = hnf_eeg_epoch2continuous(EEG)
 % Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 if nargin < 1
-    help eeg_epoch2continuous;
+    help hnf_eeg_epoch2continuous;
     return;
 end
 
 EEG.data = reshape(EEG.data, size(EEG.data,1), size(EEG.data,2)*size(EEG.data,3));
 
-% for index = 1:EEG.trials-1
-%     EEG.event(end+1).type     = 'boundary';
-%     EEG.event(end  ).latency  = index*EEG.pnts-0.5;
-%     EEG.event(end  ).duration = NaN;
-% end;
-
+% Joins fall halfway between the preceding last sample and next first
+% sample. Mark them so filters cannot bridge discontinuous trials.
+for k = 1:EEG.trials-1
+    EEG.event(end+1).type = eeg_boundarytype(EEG);
+    EEG.event(end).latency = k*EEG.pnts+0.5;
+    EEG.event(end).duration = NaN;
+end
+if ~isempty(EEG.event)
+    [~,order] = sort([EEG.event.latency]);
+    EEG.event = EEG.event(order);
+end
+EEG.epoch = [];
+if ~isempty(EEG.icaact), EEG.icaact = reshape(EEG.icaact,size(EEG.icaact,1),[]); end
 EEG.pnts   = size(EEG.data,2);
 EEG.trials = 1;
 if ~isempty(EEG.event) && isfield(EEG.event, 'epoch')

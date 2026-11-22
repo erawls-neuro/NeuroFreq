@@ -1,78 +1,77 @@
-function [EEG,sLats] = nf_correctlatencies( EEG, targetEvent, shiftEvent, expectedCount )
-% NF_CORRECTLATENCIES  Correct event-code latencies using a second event set.
-%
-% [EEG, LATENCIES] = nf_correctlatencies(EEG, 'stim', 'photodiode', 400);
-%
-% Corrects EEG TTL trigger latency using another set of event codes
-% The other event codes are expected to come from an event marking device,
-% such as Cortech Solutions "Triggy", Cedrus "StimTracker", Black Box
-% Toolkit M2/M3, or some other comparable device.
-%
-% Name/value inputs:
-%   targetEvent           a target event code to be corrected
-%   shiftEvent            the event code marking the empirical onset
-%                             (photodiode or other)
-%                             OR a scalar indicating a standard sample shift 
-%                             (only used when shiftEvent is missing)
-%   expectedCount         expected number of events
-%
+function [EEG,sLats] = nf_correctlatencies(EEG, targetEvent, shiftEvent, expectedCount)
+% NF_CORRECTLATENCIES  Align TTL events to their measured physical onsets.
+%   [EEG, delayMs] = nf_correctlatencies(EEG,'stim','photodiode',400);
+%   [EEG, delayMs] = nf_correctlatencies(EEG,'stim',4,400);
+% A numeric shift is a fixed number of samples. Returned delays are in ms.
+% Otherwise pair each target with the first matching onset in the following
+% 100 ms, stopping at the next target, EEGLAB boundary or epoch boundary.
+% Retain exact zero delays. Missing measurements use the median observed
+% delay. EEGLAB permits fractional-sample latencies after resampling.
 
-% check for what type of event correction - static or empirical
-if isnumeric(shiftEvent) & isscalar(shiftEvent)
-    disp(['[nf_correctlatencies]: correcting events using a standard delay; assuming ' ...
-        'triggy/cedrus/bbtk/etc was disconnected/not available.']);
-    % preallocate latencies vector
-    sLats = zeros(1,expectedCount) + shiftEvent; 
-else % almost all of this is only needed for empirical events
-    photo_count = sum(strcmp({EEG.event.type},shiftEvent));
-    if photo_count==0
-        error('no shift events detected in dataset; assuming triggy was disconnected.');
-    end
-    % epoch EEG around stimuli closely (0-100 ms)
-    sEEG = pop_epoch(EEG, targetEvent, [0,.1]);
-    % preallocate latencies vector
-    sLats = zeros(1,expectedCount);
-    % loop thru every epoch
-    for k = 1:length(sEEG.epoch)
-        % take the difference in latencies between the target and shift event,
-        % in samples, for every event
-        lt = cell2mat(sEEG.epoch(k).eventlatency(find(strcmp(sEEG.epoch(k).eventtype,shiftEvent))));
-        % if this value exists - add it to the vector
-        if ~isempty(lt)
-            sLats(k) = lt;
+types = {EEG.event.type};
+sample = [EEG.event.latency];
+targets = find(eventMatches(types,targetEvent));
+if numel(targets) ~= expectedCount || isempty(targets)
+    error('nf_correctlatencies:TargetCount', ...
+        'Expected %d target events and found %d.', expectedCount, numel(targets));
+end
+if isnumeric(shiftEvent) && isscalar(shiftEvent)
+    sLats = repmat(double(shiftEvent) * 1000 / EEG.srate, 1, numel(targets));
+else
+    markers = find(eventMatches(types,shiftEvent));
+    bounds = sample(strcmp(types,'boundary'));
+    sLats = nan(1,numel(targets));
+    [~,order] = sort(sample(targets));
+    for n = 1:numel(order)
+        k = order(n);
+        target = targets(k);
+        t = sample(target);
+        stop = t + EEG.srate / 10;
+        if n < numel(order), stop = min(stop,sample(targets(order(n+1)))); end
+        nextBoundary = bounds(bounds >= t);
+        if ~isempty(nextBoundary), stop = min(stop,min(nextBoundary)); end
+        candidates = markers(sample(markers) >= t & sample(markers) < stop);
+        if isfield(EEG.event,'epoch') && ~isempty(EEG.event(target).epoch)
+            sameEpoch = arrayfun(@(i) isequal(EEG.event(i).epoch,EEG.event(target).epoch),candidates);
+            candidates = candidates(sameEpoch);
+        end
+        if ~isempty(candidates)
+            sLats(k) = (min(sample(candidates))-t) * 1000 / EEG.srate;
         end
     end
-    % now, in case we missed an event during recording, we need to get
-    % median
-    sLat_tmp = sLats; % make a copy in preparation for calculating the median
-    missed = sum(sLat_tmp(sLat_tmp == 0));
-    % provide info on missed codes - if any
-    if missed>0
-        disp(['[nf_correctlatencies]: ' num2str(missed) ' external event ' ...
-            'signals were missed during recording - substituting the median.']);
+    missed = isnan(sLats);
+    if all(missed)
+        error('nf_correctlatencies:NoMeasurements','No target had a matching physical onset within 100 ms.');
+    end
+    if any(missed)
+        fprintf('[nf_correctlatencies] Substituting the observed median for %d missing onsets.\n',nnz(missed));
+        sLats(missed) = median(sLats(~missed));
+    end
+end
+newSample = sample(targets) + sLats*EEG.srate/1000;
+if any(newSample < 1 | newSample > EEG.pnts*EEG.trials)
+    error('nf_correctlatencies:OutsideRecording', ...
+        'A corrected onset falls outside the recording. Check the fixed or imputed delay.');
+end
+for k = 1:numel(targets)
+    EEG.event(targets(k)).latency = newSample(k);
+end
+EEG = eeg_checkset(EEG,'eventconsistency');
+fprintf('[nf_correctlatencies] Corrected %d events; median shift %.3g ms.\n',numel(targets),median(sLats));
+end
+
+function mask = eventMatches(types, wanted)
+% EEGLAB accepts text labels, numeric codes, and cell arrays of labels.
+if ~iscell(wanted)
+    if isstring(wanted), wanted = cellstr(wanted); else, wanted = {wanted}; end
+end
+mask = false(size(types));
+for k = 1:numel(wanted)
+    label = wanted{k};
+    if ischar(label) || isstring(label)
+        mask = mask | strcmp(types,label);
     else
-        disp('[nf_correctlatencies]: no missed event signals!');
-    end
-    % get rid of missed photodiodes before calculating median
-    sLat_tmp(sLat_tmp == 0) = [];
-    % fill in median if we missed a photodiode somewhere (unlikely)
-    sLats(sLats==0) = median(sLat_tmp);
-end
-
-% now we loop again - but this time we rewrite the latency of the
-% events to correct for the photodiode
-sDone = 0;
-for k = 1:length(EEG.event)
-    if strcmp(EEG.event(k).type,targetEvent)
-        sDone = sDone + 1;
-        EEG.event(k).latency = EEG.event(k).latency + ... % original event latency
-            round((sLats(sDone)/(1000/EEG.srate))); % shift by a rounded number of samples according to shift
+        mask = mask | cellfun(@(v) isequal(v,label),types);
     end
 end
-EEG = eeg_checkset(EEG, 'event');
-
-% fin!!!
-disp(['[nf_correctlatencies]: ' num2str(sDone) ' events successfully corrected for an ' ...
-    'average latency shift of ' num2str(median(sLats)) ' ms.']);
-
 end

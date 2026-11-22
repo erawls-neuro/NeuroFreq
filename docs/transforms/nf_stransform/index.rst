@@ -6,11 +6,11 @@ The S-transform or Stockwell transform  combines the advantages of both STFT and
 
 .. code-block:: matlab
    
-  TF = nf_stransform( data, Fs, plt );
+  TF = nf_stransform( data, Fs, factor, verbose );
 
-Where data is a 1/2/3D tensor of dimensions channels X time X trials, Fs is the sampling rate of the data in Hz, and plt is 0 or 1 indicating whether or not the user would like a summary plot to be produced following transformation.
+Where data is a 1/2/3D tensor of dimensions channels X time X trials, Fs is the sampling rate of the data in Hz, factor scales the frequency-dependent Gaussian window, and verbose is 0 or 1 indicating whether to print progress during transformation.
 
-Defaults are: plt = 0. Data and Fs are required.
+The Gaussian scale factor defaults to 1 and verbose defaults to 0. Data and Fs are required.
 
 When S-transform is run on the demo synthetic data using
 

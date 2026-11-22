@@ -59,13 +59,13 @@ void mexFunction(int nlhs, mxArray *plhs[],
     phas_mx = prhs[0];
     pow_mx  = prhs[1];
 
-    if (!mxIsDouble(phas_mx) || mxIsComplex(phas_mx))
+    if (!mxIsDouble(phas_mx) || mxIsComplex(phas_mx) || mxIsSparse(phas_mx))
     {
         mexErrMsgIdAndTxt("hnf_mvl_mex:phasType",
                           "phas must be real double.");
     }
 
-    if (!mxIsDouble(pow_mx) || mxIsComplex(pow_mx))
+    if (!mxIsDouble(pow_mx) || mxIsComplex(pow_mx) || mxIsSparse(pow_mx))
     {
         mexErrMsgIdAndTxt("hnf_mvl_mex:powType",
                           "pow must be real double.");
@@ -155,12 +155,16 @@ void mexFunction(int nlhs, mxArray *plhs[],
         double sumRe = 0.0;
         double sumIm = 0.0;
 
+        double scale = 0;
+        for (s = 0; s < nSamples; ++s)
+            if (fabs(pow[base+s]) > scale) scale = fabs(pow[base+s]);
+        if (scale == 0) scale = 1;
         for (s = 0; s < nSamples; ++s)
         {
             mwSize idx = base + s;
 
             double phi    = phas[idx];
-            double ampl   = pow[idx];
+            double ampl   = pow[idx] / scale;
             double cphi   = cos(phi);
             double sphi   = sin(phi);
 
@@ -172,7 +176,7 @@ void mexFunction(int nlhs, mxArray *plhs[],
         {
             double meanRe = sumRe / (double)nSamples;
             double meanIm = sumIm / (double)nSamples;
-            double mag    = sqrt(meanRe * meanRe + meanIm * meanIm);
+            double mag    = scale * hypot(meanRe, meanIm);
 
             mvl_out[v] = mag;
         }

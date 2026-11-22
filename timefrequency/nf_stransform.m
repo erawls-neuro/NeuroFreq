@@ -44,6 +44,8 @@ if nargin < 2 || isempty(Fs) || isempty(data)
     error('nf_stransform:InputsRequired',...
         'at least a signal and sampling rate are required inputs');
 end
+data = hnf_tf_input(data, Fs);
+validateattributes(factor, {'numeric'}, {'scalar','real','positive','finite'});
 nChan  = size(data, 1);
 nTimes = size(data, 2);
 if ndims(data) == 3
@@ -52,13 +54,13 @@ else
     nTrls = 1;
 end
 
-% frequency vector from original implementation
-fout = 0:floor(Fs / 2) / fix(size(data, 2) / 2):floor(Fs / 2);
+% Positive DFT frequencies; odd-length epochs have no Nyquist bin.
+fout = (0:floor(nTimes/2))*(Fs/nTimes);
 
 stransPow  = zeros(nChan, numel(fout), nTimes, nTrls);
 stransPhas = zeros(nChan, numel(fout), nTimes, nTrls);
 
-disp('[nf_stransform]: beginning stockwell transform');
+if verbose, disp('[nf_stransform]: beginning stockwell transform'); end
 
 for i = 1:nChan
     
@@ -76,18 +78,21 @@ for i = 1:nChan
     
 end
 
-tfRes.power   = squeeze(reshape(stransPow,  nChan, numel(fout), nTimes, nTrls));
-tfRes.phase   = squeeze(reshape(stransPhas, nChan, numel(fout), nTimes, nTrls));
+tfRes.power   = hnf_tf_output(stransPow);
+tfRes.phase   = hnf_tf_output(stransPhas);
 tfRes.freqs   = fout;
-tfRes.times   = 0:1 / Fs:((1 / Fs) * nTimes) - (1 / Fs);
+tfRes.times   = (0:nTimes-1)/Fs;
 tfRes.nsensor = nChan;
 tfRes.ntrls   = nTrls;
 tfRes.Fs      = Fs;
 tfRes.factor  = factor;
 tfRes.method  = 'stransform';
+% Stockwell phase is referenced to a carrier starting at epoch sample 1.
+tfRes.phaseReference = 'epoch-start-carrier';
+tfRes.phaseReferenceSeconds = tfRes.times;
 tfRes.scale   = 'linear';
 
-disp('[nf_stransform]: stockwell transform complete');
+if verbose, disp('[nf_stransform]: stockwell transform complete'); end
 
 end
 
@@ -104,9 +109,7 @@ function stockTF = stransf_optimized(data, factor)
 %   stockTF: matrix of size (fix(n/2)+1) x n
 %            row 1    : DC (mean)
 %            rows 2.. : positive-frequency S-transform slices
-if ~iscolumn(data)
-    data = data(:);
-end
+data = data(:).';
 n = length(data);
 % FFT and wrap to length 2n as in original code
 vector_fft = fft(data);
@@ -140,9 +143,3 @@ for banana = 1:halfN
     stockTF(banana + 1, :) = ifft(fftSlice .* gauss);
 end
 end
-
-
-
-
-
-

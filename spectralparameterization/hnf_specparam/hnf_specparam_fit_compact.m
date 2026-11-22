@@ -51,9 +51,12 @@ end
 if isfield(options, 'ag') && ~isempty(options.ag)
     aperiodicGuess = options.ag;
 else
-    aperiodicGuess = workSpec(end) - workSpec(1) ./ ...
+    aperiodicGuess = (workSpec(1) - workSpec(end)) ./ ...
         log10(workFreqs(end) ./ workFreqs(1));
 end
+
+peakType = 'gaussian';
+if isfield(options,'peakType'), peakType = options.peakType; end
 
 if options.maxPeaks == 0 && strcmp(options.aPeriodicMode, 'fixed')
     peakParms = zeros(0, 3);
@@ -82,11 +85,11 @@ initialApFit = hnf_gen_aperiodic(workFreqs, initialApParms, ...
     options.aPeriodicMode, frequencyCache);
 initialPeriodicData = workSpec - initialApFit;
 
-[peakParms, ~] = hnf_fit_peaks(workFreqs, initialPeriodicData, ...
+[peakParms, ~, usedBounds] = hnf_fit_peaks(workFreqs, initialPeriodicData, ...
     options.maxPeaks, options.peakThreshold, options.minPeakHeight, ...
-    options.peakWidthLims ./ 2, [], options.optim);
+    options.peakWidthLims ./ 2, [], options.optim, peakType);
 
-if options.threshAfter == 1 && options.optim == 0 && ~isempty(peakParms)
+if options.threshAfter == 1 && ~usedBounds && ~isempty(peakParms)
     keepPeak = peakParms(:, 2) >= options.minPeakHeight;
     keepPeak = keepPeak & peakParms(:, 3) >= options.peakWidthLims(1) ./ 2;
     keepPeak = keepPeak & peakParms(:, 3) <= options.peakWidthLims(2) ./ 2;
@@ -95,14 +98,12 @@ if options.threshAfter == 1 && options.optim == 0 && ~isempty(peakParms)
 end
 
 if ~isempty(peakParms)
-    lowerEdgeDistance = peakParms(:, 1) - workFreqs(1);
-    upperEdgeDistance = workFreqs(end) - peakParms(:, 1);
-    keepPeak = lowerEdgeDistance >= frequencyCache.frequencyResolution;
-    keepPeak = keepPeak & upperEdgeDistance >= frequencyCache.frequencyResolution;
+    % One measured frequency bin on either side, including nonuniform grids.
+    keepPeak = peakParms(:,1) >= workFreqs(2) & peakParms(:,1) <= workFreqs(end-1);
     peakParms = peakParms(keepPeak, :);
 end
 
-periodicFit = hnf_specparam_peak_model(workFreqs, peakParms);
+periodicFit = hnf_specparam_peak_model(workFreqs, peakParms, peakType);
 apData = workSpec - periodicFit;
 
 apParms = hnf_simple_ap_fit(workFreqs, apData, options.aPeriodicMode, ...

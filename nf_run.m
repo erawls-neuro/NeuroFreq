@@ -20,7 +20,7 @@ if isstring(target) && isscalar(target)
 end
 named = ischar(target) && isrow(target);
 if named
-    if ~isvarname(target) || ~strncmp(target, 'nf_', 3) || ...
+    if ~isvarname(target) || (~strncmp(target, 'nf_', 3) && ~strcmp(target, 'nfADJUST')) || ...
             any(strcmp(target, {'nf_install', 'nf_run'}))
         error('NeuroFreq:InvalidTarget', 'Expected a public nf_ function name.');
     end
@@ -74,8 +74,9 @@ if ~isempty(eeglabRoot) && ~nf_same_file(which('eeglab'), fullfile(eeglabRoot, '
 end
 if named
     resolved = which(target);
-    if isempty(resolved) || ~any(cellfun(@(d) nf_same_file(resolved, ...
-            fullfile(d, [target '.m'])), sourceDirs))
+    [~,name,ext] = fileparts(resolved);
+    if isempty(resolved) || ~strcmp(name,target) || ~ismember(ext,{'.m','.mlapp'}) || ...
+            ~any(cellfun(@(d) nf_same_file(fileparts(resolved),d),sourceDirs))
         error('NeuroFreq:UnknownFunction', ...
             'Could not resolve %s to an NF source file in %s. MATLAB found "%s".', ...
             target, root, resolved);

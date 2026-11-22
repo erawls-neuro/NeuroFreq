@@ -1,6 +1,8 @@
 function aperiodicParams = hnf_simple_ap_fit(freqs, powerSpectrum, aperiodicMode, aperiodicGuess, frequencyCache)
 % SIMPLE_AP_FIT Fit the aperiodic component of a log10 power spectrum.
 
+freqs = double(freqs(:).');
+powerSpectrum = double(powerSpectrum(:).');
 if nargin < 4 || isempty(aperiodicGuess)
     aperiodicGuess = -(powerSpectrum(end) - powerSpectrum(1)) ./ ...
         log10(freqs(end) ./ freqs(1));
@@ -18,7 +20,7 @@ switch aperiodicMode
         if fullRank == false
             searchOptions = specparam_ap_search_options_local();
             guessVector = [powerSpectrum(1) aperiodicGuess];
-            aperiodicParams = fminsearch(@error_expo_nk_function, ...
+            aperiodicParams = fminsearch(@hnf_error_expo_nk_function, ...
                 guessVector, searchOptions, freqs, powerSpectrum, ...
                 frequencyCache.log10Freqs);
         end
@@ -26,7 +28,7 @@ switch aperiodicMode
     case 'knee'
         searchOptions = specparam_ap_search_options_local();
         guessVector = [powerSpectrum(1) 0 aperiodicGuess];
-        aperiodicParams = fminsearch(@error_expo_function, guessVector, ...
+        aperiodicParams = fminsearch(@hnf_error_expo_function, guessVector, ...
             searchOptions, freqs, powerSpectrum, frequencyCache.logFreqs);
 end
 

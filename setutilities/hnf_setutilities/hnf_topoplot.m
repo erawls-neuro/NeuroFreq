@@ -396,7 +396,7 @@ if nargs > 2
                 if size(Value,2)~=3
                     error('Colormap must be a n x 3 matrix')
                 end
-                colormap(Value)
+                requestedColormap = Value;
             case 'plotdisk'
                 PLOTDISK = lower(Value);
                 if ~strcmp(PLOTDISK,'on') && ~strcmp(PLOTDISK,'off')
@@ -621,16 +621,16 @@ if strcmpi(whitebk, 'on')
     BACKCOLOR = [ 1 1 1 ];
 end
 
-if isempty(find(strcmp(varargin,'colormap')))
-    if exist('DEFAULT_COLORMAP','var')
-        cmap = colormap(DEFAULT_COLORMAP);
-    else
-        cmap = parula;
-    end
+% Numeric-only requests must never open or close the caller's figure.
+if strcmpi(noplot,'on')
+    cmap = [];
+elseif exist('requestedColormap','var')
+    cmap = colormap(requestedColormap);
+elseif exist('DEFAULT_COLORMAP','var')
+    cmap = colormap(DEFAULT_COLORMAP);
 else
-    cmap = colormap;
+    cmap = parula;
 end
-if strcmp(noplot,'on'), close(gcf); end
 cmaplen = size(cmap,1);
 
 if strcmp(STYLE,'blank')    % else if Values holds numbers of channels to mark

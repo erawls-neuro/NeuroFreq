@@ -1,6 +1,7 @@
-function model = hnf_specparam_peak_model(freqs, peakParams)
+function model = hnf_specparam_peak_model(freqs, peakParams, peakType)
 % HNF_SPECPARAM_PEAK_MODEL Evaluate all fitted peaks in one vectorized pass.
 
+if nargin < 3, peakType = 'gaussian'; end
 freqRow = double(freqs(:).');
 
 if isempty(peakParams)
@@ -21,7 +22,11 @@ widths = peakParams(:, 3);
 distance = bsxfun(@minus, freqRow, centers);
 scaledDistance = bsxfun(@rdivide, distance, widths);
 
-basis = exp(-0.5 .* scaledDistance .* scaledDistance);
+if strcmp(peakType,'cauchy')
+    basis = 1 ./ (1 + scaledDistance.^2);
+else
+    basis = exp(-0.5 .* scaledDistance .* scaledDistance);
+end
 
 weightedBasis = bsxfun(@times, basis, heights);
 model = sum(weightedBasis, 1);

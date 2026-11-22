@@ -1668,7 +1668,7 @@ end
 function [data, actualTimes] = nf_selected_data(EEG, channelIndices, ...
     times)
 sampleTimes = EEG.xmin + (0:EEG.pnts - 1) / EEG.srate;
-indices = find(sampleTimes >= times(1) - eps && ...
+indices = find(sampleTimes >= times(1) - eps & ...
     sampleTimes <= times(2) + eps);
 if numel(indices) < 2
     error('nf_thresh:EmptyDetectorRange', ...
@@ -1926,8 +1926,9 @@ contract.contractLevel = 'native';
 contract.strict = true;
 contract.functions = {['nf_thresh>nf_detect_' ...
     nf_detector_field(detector)]};
-contract.paths = {mfilename('fullpath')};
-contract.sha256 = {nf_file_sha256(mfilename('fullpath'))};
+sourceFile = [mfilename('fullpath') '.m'];
+contract.paths = {sourceFile};
+contract.sha256 = {nf_file_sha256(sourceFile)};
 contract.codeIdentityVerified = ~isempty(contract.sha256{1});
 contract.version = 'nf_thresh schema 3.1.0';
 contract.definition = definition;
@@ -2359,7 +2360,7 @@ end
 if hasCartesian
     EEG.chanlocs = convertlocs(EEG.chanlocs, 'cart2all');
 elseif hasTopographic
-    EEG.chanlocs = convertlocs(EEG.chanlocs, 'topo2all');
+    EEG.chanlocs = hnf_topo2all(EEG.chanlocs);
 else
     error('nf_thresh:MissingChannelCoordinates', ...
         ['Every interpolated channel needs finite nonzero X/Y/Z or finite ' ...

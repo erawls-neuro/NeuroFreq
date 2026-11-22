@@ -1,29 +1,34 @@
-function TFCE_Obs = hnf_tfce_transformation(T_Obs,ChN,E_H,flag_ft)
-%
-% Transforms a 1/2/3D tensor of rscores to TFCE via enhancing clusters of
-% tests. Should only be called internally from the ept_TFCE functions.
-%
-
-% check for non-zero T-values (will crash TFCE)
-if max(abs(T_Obs(:))) < 0.00001
-    error('T-values were all 0')
+function enhanced = hnf_tfce_transformation(stat, ChN, E_H, flag_ft)
+% EPT expects channel x sample or channel x frequency x time maps.
+% On a regular frequency-time grid, adjacent frequency bins (including
+% the bin itself) replace the electrode-neighbour rows. This counts each
+% bin once and applies the requested [extent height] in either geometry.
+if ~isreal(stat) || any(~isfinite(stat(:)))
+    error('NeuroFreq:UndefinedTFCE', ...
+        'TFCE requires finite real statistics. Inspect constant features, inputs and model fits.');
 end
-% TFCE transformation...
-if ismatrix(T_Obs)
-    if ~flag_ft
-        TFCE_Obs = ept_mex_TFCE2D(T_Obs, ChN, E_H);
-    else
-        % if data is not in channel neighbourhood
-        % artificially create 3rd dimension
-        T_Obs = repmat(T_Obs, [1, 1, 2]);
-        deltaT = max(abs(T_Obs(:)))/50;
-        TFCE_Obs = ept_mex_TFCE(T_Obs, deltaT);
-        % remove extra dimension
-        T_Obs = T_Obs(:, :, 1);
-        TFCE_Obs = TFCE_Obs(:, :, 1);
+if ~any(stat(:)), enhanced = zeros(size(stat)); return; end
+if ~isreal(E_H) || numel(E_H) ~= 2 || any(~isfinite(E_H)) || any(E_H < 0)
+    error('NeuroFreq:InvalidTFCEExponents', 'Supply two finite nonnegative TFCE exponents.');
+end
+if flag_ft || isequal(ChN, 1)
+    if ~ismatrix(stat)
+        error('NeuroFreq:MissingChanlocs', 'A channel-frequency-time volume requires channel locations.');
     end
+    row = (1:size(stat,1))';
+    ChN = [row, max(1,row-1), min(row(end),row+1)];
+elseif isvector(stat) && size(ChN,1) == numel(stat)
+    stat = stat(:); % Channels only, one sample per electrode.
 end
-if ndims(T_Obs) == 3
-    TFCE_Obs = ept_mex_TFCE3D(T_Obs, ChN, E_H);
+if size(ChN,1) ~= size(stat,1) || any(~isfinite(ChN(:))) || ...
+        any(ChN(:) < 0 | ChN(:) > size(stat,1) | fix(ChN(:)) ~= ChN(:))
+    error('NeuroFreq:NeighbourMismatch', 'The neighbour matrix must describe every channel in the statistic.');
+end
+if ismatrix(stat)
+    enhanced = ept_mex_TFCE2D(full(double(stat)), full(double(ChN)), full(double(E_H)));
+elseif ndims(stat) == 3
+    enhanced = ept_mex_TFCE3D(full(double(stat)), full(double(ChN)), full(double(E_H)));
+else
+    error('NeuroFreq:InvalidTFCEMap', 'Expected a channel, frequency or time map with at most three axes.');
 end
 end

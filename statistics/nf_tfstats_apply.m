@@ -91,6 +91,7 @@ if ischar(metric) == 0
     error('nf_tfstats_apply:BadArgs', 'metric must be a string.');
 end
 
+tfIn = hnf_stats_layout(tfIn);
 scale = local_detect_scale(tfIn);
 
 out = struct();
@@ -163,6 +164,11 @@ for iG = 1:numel(groups)
 
         end
 
+        if strcmpi(scale,'singletrial') && ndims(X) <= 4 && isfield(tfIn,'freqs') && isfield(tfIn,'times')
+            chanlocs = [];
+            if isfield(tfIn,'chanlocs'), chanlocs = tfIn.chanlocs; end
+            X = hnf_stats_trial_grid(X,tfIn,chanlocs,tfIn.freqs,tfIn.times);
+        end
         [sliceCount, sliceLabels] = local_slice_info(tfIn, X, scale, labelMode);
 
         useSlices = 1:sliceCount;
@@ -182,7 +188,7 @@ for iG = 1:numel(groups)
         res.path = outPath;
         res.scale_in = scale;
 
-        res.slice_labels = sliceLabels;
+        res.slice_labels = sliceLabels(useSlices);
         res.slice_index = useSlices(:);
         res.tfce = cell(numel(useSlices), 1);
 
@@ -190,7 +196,17 @@ for iG = 1:numel(groups)
 
             sIdx = useSlices(iS);
 
-            Xslice = local_get_slice(X, scale, sIdx, sliceCount);
+            % A subject-first aggregate may have one condition/predictor;
+            % MATLAB suppresses its trailing singleton fifth dimension.
+            if isfield(tfIn,'nf_stats_subject_first') || ...
+                    (strcmpi(scale,'stat') && isfield(tfIn,'nsubjects'))
+                Xslice = X(:,:,:,:,sIdx);
+            else
+                Xslice = local_get_slice(X, scale, sIdx, sliceCount);
+                if strcmpi(scale,'avg') && ndims(X) <= 4
+                    Xslice = reshape(Xslice,1,size(X,1),size(X,2),size(X,3));
+                end
+            end
             Xobs = local_obs_first(Xslice, scale);
 
             res.tfce{iS} = runner(Xobs);
@@ -219,7 +235,8 @@ if isfield(tf, 'scale') == 1
     end
 end
 
-if isempty(scale) == 1
+if ~any(strcmpi(scale,{'singletrial','avg','stat'}))
+    scale = '';
     if isfield(tf, 'aggtype') == 1
         if ischar(tf.aggtype) == 1
             scale = tf.aggtype;
@@ -230,8 +247,10 @@ end
 if isempty(scale) == 1
     if isfield(tf, 'trial_subjectindex') == 1
         scale = 'singletrial';
-    elseif isfield(tf, 'conds') == 1
+    elseif isfield(tf, 'conds') && ~isempty(tf.conds)
         scale = 'avg';
+    elseif isfield(tf,'ntrial') || isfield(tf,'ntrls') || isfield(tf,'ntrials')
+        scale = 'singletrial';
     elseif isfield(tf, 'stat') == 1
         scale = 'stat';
     else
@@ -278,6 +297,16 @@ if isfield(tf, gtoken) == 1
         candidates(k).name = gtoken;
         candidates(k).value = tf.(gtoken);
         return
+    elseif isstruct(tf.(gtoken)) && ~strcmpi(local_detect_scale(tf),'stat')
+        members = fieldnames(tf.(gtoken));
+        for j = 1:numel(members)
+            sub = members{j};
+            if isnumeric(tf.(gtoken).(sub))
+                k = k + 1;
+                candidates(k).name = sub;
+                candidates(k).value = tf.(gtoken).(sub);
+            end
+        end
     else
         k = k + 1;
         candidates(k).name = gtoken;
@@ -337,7 +366,7 @@ for i = 1:numel(fns)
             isMatch = true;
         end
 
-        if strncmpi(fn, 'ph_', 3) == 1
+        if strncmpi(fn, 'ph_', 3) || strncmpi(fn,'itpc',4) || strncmpi(fn,'wpli',4)
             isMatch = true;
         end
     else
@@ -413,6 +442,12 @@ if isnumeric(X) == 0
 end
 
 nd = ndims(X);
+if isfield(tf,'nf_stats_subject_first') || (strcmpi(scale,'stat') && isfield(tf,'nsubjects'))
+    sliceCount = size(X,5);
+    if strcmpi(scale,'avg'), sliceLabels = local_cond_labels(tf,sliceCount,labelMode);
+    else, sliceLabels = local_stat_labels(tf,sliceCount,labelMode); end
+    return
+end
 
 if strcmpi(scale, 'singletrial') == 1
 

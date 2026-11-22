@@ -32,17 +32,12 @@ function EEG = nf_icaclean2eeglab(inpath,montage,saveset)
 %if no ecnt provided, use gui
 if nargin<1 || isempty(inpath)
     disp('[nf_icaclean2eeglab]: select input filepath:');
-    inpath=uigetdir('*.mat','Select Directory:');
-    inecnt=dir([inpath '/*/*ecnt_af.mat']);
-    if isempty(inecnt) %no files
-        inecnt=dir([inpath '/*/*ecnt_af.mat']); %is it multiple files?
-    end   
-    if isempty(inecnt) %still no files
-        error('nf_icaclean2eeglab:NoInput', ...
-            'no input ecnt_af files found. try a different directory');
-    else %got some
-        disp(['[nf_icaclean2eeglab]: converting ' num2str(length(inecnt)) ' files to EEGLAB format']);
-    end
+    inpath = uigetdir(pwd, 'Select ICAClean directory');
+    if isequal(inpath, 0), EEG = []; return; end
+end
+inecnt = [dir(fullfile(inpath,'*ecnt_af.mat')); dir(fullfile(inpath,'*','*ecnt_af.mat'))];
+if isempty(inecnt)
+    error('nf_icaclean2eeglab:NoInput','No ecnt_af files found in %s or its subject folders.',inpath);
 end
 %default saveset=0
 if nargin<3 || isempty(saveset)
@@ -52,12 +47,13 @@ end
 %channel lookup if not supplied
 if nargin<2 || isempty(montage)
     disp('[nf_icaclean2eeglab]: no montage supplied - provide channel locations file');
-    montage = pop_readlocs();
-elseif exist('montage','var')
-    disp('[nf_icaclean2eeglab]: using variable in memory');
-elseif isstring(montage)
-    disp('[nf_icaclean2eeglab]: montage supplied as filename - importing');
-    montage = readlocs(montage);
+    [file, folder] = uigetfile('*.*','Select channel locations');
+    if isequal(file,0), EEG = []; return; end
+    montage = readlocs(fullfile(folder,file));
+elseif ischar(montage) || (isstring(montage) && isscalar(montage))
+    montage = readlocs(char(montage));
+elseif isstruct(montage)
+    disp('[nf_icaclean2eeglab]: using supplied channel locations');
 else
     error('nf_icaclean2eeglab:NoMontage',...
         'montage not found - please provide a valid montage file');
@@ -84,26 +80,29 @@ for i=1:length(inecnt)
 
     %get data and events
     data = ecnt.data(ecnt.eegElecs,:);
-    montage = montage(ecnt.eegElecs);
-    event = ecnt.event;
+    subjectMontage = montage(ecnt.eegElecs);
+    event = reshape(ecnt.event,1,[]);
     srate = ecnt.samplerate;
 
     %get sizes
-    nChans = numel(ecnt.eegElecs);
+    nChans = size(data,1);
     nTrials = numel(ecnt.ntbins);
     nTimes = ecnt.ntbins(1);
 
-    %concatenate (last channel is events)
-    importDat = [data;event];
-
-    %reshape to 3D
-    importDat = reshape(importDat,[nChans+1 nTimes nTrials]);
-
-    %import
-    EEG = pop_importdata('dataformat','matlab','nbchan',nChans+1,'data',...
-        importDat,'srate',srate);
-    EEG = pop_chanevent(EEG,size(importDat,1),'edge','leading','edgelen',0);
-    EEG.chanlocs = montage;
+    % Leading edges are measured separately within each epoch. ICAClean
+    % stores the actual trigger code at the first active sample. Preserve
+    % that code, including a trigger on the first sample of an epoch.
+    data = reshape(data,[nChans nTimes nTrials]);
+    EEG = pop_importdata('dataformat','matlab','nbchan',nChans,'data', ...
+        data,'srate',srate);
+    triggers = reshape(event,nTimes,nTrials);
+    rises = abs(triggers) > [zeros(1,nTrials); abs(triggers(1:end-1,:))];
+    onset = find(rises);
+    EEG.event = struct('type',num2cell(triggers(onset)), ...
+        'latency',num2cell(onset),'epoch',num2cell(ceil(onset/nTimes)));
+    EEG = eeg_checkset(EEG,'makeur');
+    EEG = eeg_checkset(EEG,'eventconsistency');
+    EEG.chanlocs = subjectMontage;
 
     %add sweep to .etc field and finalize
     EEG.etc.behavior = ecnt.sweep;
@@ -112,7 +111,7 @@ for i=1:length(inecnt)
     %save optional
     if saveset==1
         [~,b]=fileparts(inecnt(i).name);
-        pop_saveset(EEG, [inpath filesep b '_eeglab.set']);
+        EEG = pop_saveset(EEG, 'filename', [b '_eeglab.set'], 'filepath', inecnt(i).folder);
     end
 
     disp('[nf_icaclean2eeglab]: dataset conversion complete');

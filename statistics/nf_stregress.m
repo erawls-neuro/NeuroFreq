@@ -1,4 +1,7 @@
 function reg_out = nf_stregress(TF, regs, varargin)
+% Simple permutation tests assume independent, exchangeable observations.
+% Pooled repeated trials across participants require a subject-aware design.
+
 % NF_STREGRESS    Single-trial regression/correlation on NeuroFreq TF sets
 %
 % DESIGN
@@ -36,8 +39,12 @@ parse(p, TF, regs, varargin{:});
 
 opt = p.Results;
 
+hnf_stats_check_observations(TF);
 method = lower(char(opt.method));
-nPerm = round(opt.permutations);
+nPerm = opt.permutations;
+if ~isfinite(nPerm) || nPerm ~= fix(nPerm) || (nPerm == 1 && ~strcmp(method,'tfce'))
+    error('nf_stregress:BadPerm','Use zero or at least two permutations for a null standard deviation.');
+end
 
 if strcmpi(method, 'tfce') == 1
     if nPerm < 1
@@ -46,6 +53,8 @@ if strcmpi(method, 'tfce') == 1
 end
 
 if isempty(opt.perm_seed) == 0
+    priorRng = rng;
+    restoreRng = onCleanup(@() rng(priorRng)); %#ok<NASGU>
     rng(opt.perm_seed);
 end
 
@@ -554,15 +563,24 @@ if isempty(progress_cb) == 0
     progress_cb('TFCE: running nf_glm_TFCE...');
 end
 
-tfce = nf_glm_TFCE(dataX, reg_used, chanlocs, freqs, times, nPerm, tfce_par);
-
+% Fit an intercept unless the supplied design already contains one.
+hasIntercept = any(all(reg_used == 1,1));
+if hasIntercept, X = reg_used; keep = 1:size(X,2);
+else, X = [ones(R,1) reg_used]; keep = 2:size(X,2); end
+tfce = nf_glm_TFCE(dataX,X,chanlocs,freqs,times,nPerm,tfce_par);
+% Public single-trial fields are C x F x T x predictor across all methods.
+for name = {'beta','p_vals','tstat','z_vals'}
+    map = tfce.(name{1});
+    tfce.(name{1}) = permute(map(keep,:,:,:),[2 3 4 1]);
+end
+tfce.fixedNames = tfce.fixedNames(keep);
 if isfield(tfce, 'z_vals') == 1
     zmap = tfce.z_vals;
 else
     zmap = nf_tfce_p_to_z_local(tfce.p_vals, tfce.tstat, nPerm);
 end
 
-df = R - (size(reg_used, 2) + 1);
+df = tfce.df;
 
 res = struct();
 res.corrcoef = zmap;
@@ -572,6 +590,7 @@ res.df = df;
 
 res.type = 'glm_chXfsXts';
 res.method = 'tfce';
+res.score_type = 'signed z from spatially adjusted permutation p';
 
 res.beta = tfce.beta;
 res.tfce_tstat = tfce.tstat;
@@ -625,7 +644,8 @@ if strcmpi(method, 'robust') == 1
 
     XZ0 = nf_zscore_mat_local(reg_used);
 
-    pool = gcp('nocreate');
+    pool = [];
+    if exist('gcp','file'), pool = gcp('nocreate'); end
 
     if isempty(pool) == 1
         usePar = 0;
@@ -635,16 +655,7 @@ if strcmpi(method, 'robust') == 1
 
     if usePar == 1
 
-        if isa(pool, 'parallel.ThreadPool') == 0
-            try
-                spmd
-                    warning('off','all');
-                    dbclear if error
-                    dbclear if warning
-                end
-            catch
-            end
-        end
+
 
         parfor p = 1:P
 
@@ -667,8 +678,6 @@ if strcmpi(method, 'robust') == 1
 
     else
 
-        warning off;
-
         for p = 1:P
 
             y = Y2(:, p);
@@ -687,8 +696,6 @@ if strcmpi(method, 'robust') == 1
             end
 
         end
-
-        warning on;
 
     end
 
@@ -714,7 +721,8 @@ if nPerm > 0
             end
         end
 
-        pool = gcp('nocreate');
+        pool = [];
+    if exist('gcp','file'), pool = gcp('nocreate'); end
 
         if isempty(pool) == 1
             usePar = 0;
@@ -724,16 +732,7 @@ if nPerm > 0
 
         if usePar == 1
 
-            if isa(pool, 'parallel.ThreadPool') == 0
-                try
-                    spmd
-                        warning('off','all');
-                        dbclear if error
-                        dbclear if warning
-                    end
-                catch
-                end
-            end
+
 
             parfor p = 1:P
 
@@ -790,18 +789,16 @@ if nPerm > 0
                 if nOk > 1
                     sd = sqrt(M2 ./ (nOk - 1));
                 else
-                    sd = zeros(1, Kreg);
+                    sd = nan(1, Kreg);
                 end
 
-                sd(sd == 0) = eps;
+                sd(sd == 0) = NaN;
 
                 zObs(p, :) = (obsNow - mu) ./ sd;
 
             end
 
         else
-
-            warning('off','all');
 
             for p = 1:P
 
@@ -858,16 +855,14 @@ if nPerm > 0
                 if nOk > 1
                     sd = sqrt(M2 ./ (nOk - 1));
                 else
-                    sd = zeros(1, Kreg);
+                    sd = nan(1, Kreg);
                 end
 
-                sd(sd == 0) = eps;
+                sd(sd == 0) = NaN;
 
                 zObs(p, :) = (obsNow - mu) ./ sd;
 
             end
-
-            warning('on','all');
 
         end
 
@@ -935,7 +930,7 @@ if nPerm > 0
                 sd = zeros(size(M2));
             end
 
-            sd(sd == 0) = eps;
+            sd(sd == 0) = NaN;
 
             zObs(idx, :) = (obsBlock - mu) ./ sd;
 
@@ -945,7 +940,7 @@ if nPerm > 0
 
     obs = zObs;
 
-    pVals = 2 .* (1 - normcdf(abs(obs)));
+    pVals = erfc(abs(obs)./sqrt(2));
     tVals = obs;
 
 else
@@ -987,6 +982,11 @@ res.p_vals = p_out;
 res.df = df;
 res.type = type;
 res.method = method;
+if nPerm > 0
+    res.score_type = 'permutation-standardized effect; two-sided normal-approximation p';
+else
+    res.score_type = 'observed effect';
+end
 
 end
 
@@ -1075,14 +1075,14 @@ for k = 1:Kreg
                 sd = zeros(1, F * T);
             end
 
-            sd(sd == 0) = eps;
+            sd(sd == 0) = NaN;
 
             zVec = (obsVec - mu) ./ sd;
             zVec = zVec(:).';
 
             outVec = zVec;
 
-            pVec = 2 .* (1 - normcdf(abs(zVec)));
+            pVec = erfc(abs(zVec)./sqrt(2));
             pVec = pVec(:).';
 
             pVals(ch, :, :, k) = reshape(pVec, [F T]);
@@ -1119,6 +1119,11 @@ else
 end
 
 res.method = 'phase_cohen';
+if nPerm > 0
+    res.score_type = 'permutation-standardized rank-weighted phase magnitude; two-sided normal-approximation p';
+else
+    res.score_type = 'observed rank-weighted phase magnitude';
+end
 
 end
 

@@ -1104,7 +1104,7 @@ end
 end
 
 function valid = nf_is_reference_label(label)
-normalized = lower(regexprep(strtrim(char(label)), '[^a-z0-9]', ''));
+normalized = regexprep(lower(strtrim(char(label))), '[^a-z0-9]', '');
 valid = ismember(normalized, {'ref', 'reference', 'onlineref', ...
     'onlinereference', 'recordingref', 'recordingreference'});
 end
@@ -1233,7 +1233,7 @@ end
 if hasCartesian
     EEG.chanlocs = convertlocs(EEG.chanlocs, 'cart2all');
 elseif hasTopographic
-    EEG.chanlocs = convertlocs(EEG.chanlocs, 'topo2all');
+    EEG.chanlocs = hnf_topo2all(EEG.chanlocs);
 else
     error('nf_badchans:MissingChannelCoordinates', ...
         ['Every analyzed channel needs finite nonzero X/Y/Z or finite ' ...

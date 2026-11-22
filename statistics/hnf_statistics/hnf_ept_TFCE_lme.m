@@ -38,6 +38,9 @@ if exist('fitlme', 'file') ~= 2
 end
 
 subID = subID(:);
+if ~isreal(data1) || ~isreal(data2) || any(~isfinite(data1(:))) || any(~isfinite(data2(:))) || any(~isfinite(subID))
+    error('NeuroFreq:InvalidLME','Supply finite real measurements, predictors and subject identifiers.');
+end
 
 if size(data1, 1) ~= numel(subID)
     error('hnf_ept_TFCE_lme:ObsMismatch', 'data1 must be observations-first and match length(subID).');
@@ -96,13 +99,16 @@ if isempty(varargin) == 0
 end
 
 % Chanloc logic
-if isempty(chanlocs) == 1
+if nargin < 4 || isempty(chanlocs)
     flag_ft = 1;
 end
 
 % Calculate channel neighbours if needed
+if ~isscalar(nPerm) || ~isfinite(nPerm) || nPerm < 1 || fix(nPerm) ~= nPerm
+    error('NeuroFreq:InvalidPermutations','nperm must be a positive integer.');
+end
 if flag_ft == 0 && isempty(ChN) == 1
-    ChN = ept_ChN2(chanlocs);
+    if numel(chanlocs) == 1, ChN = 1; else, ChN = ept_ChN2(chanlocs); end
 end
 
 DataX = double(data1);
@@ -135,7 +141,7 @@ T_Obs = reshape(T_Obs, [size(T_Obs, 1), siTail]);
 TFCE_Obs = zeros(size(T_Obs));
 
 for p = 1:size(T_Obs, 1)
-    TFCE_Obs(p, :, :, :) = tfce_transformation(squeeze(T_Obs(p, :, :, :)), ChN, E_H, flag_ft);
+    TFCE_Obs(p, :, :, :) = hnf_tfce_transformation(squeeze(T_Obs(p, :, :, :)), ChN, E_H, flag_ft);
 end
 
 % Permutation loop: store max abs TFCE per regressor
@@ -161,7 +167,7 @@ for iPerm = 1:nPerm
     T_Perm = reshape(T_Perm, [size(T_Perm, 1), siTail]);
 
     for p = 1:size(T_Perm, 1)
-        TFCE_Perm = tfce_transformation(squeeze(T_Perm(p, :, :, :)), ChN, E_H, flag_ft);
+        TFCE_Perm = hnf_tfce_transformation(squeeze(T_Perm(p, :, :, :)), ChN, E_H, flag_ft);
         maxTFCE(iPerm, p) = max(abs(TFCE_Perm(:)));
     end
 
@@ -177,23 +183,13 @@ P_Values = zeros(size(TFCE_Obs));
 
 for p = 1:size(TFCE_Obs, 1)
 
-    dist = maxTFCE(:, p);
-    dist = dist(:);
-
-    distSorted = sort(dist);
-
-    absObsVec = abs(TFCE_Obs(p, :));
-    absObsVec = absObsVec(:);
-
-    edges = [-inf; distSorted];
-
-    [~, bin] = histc(absObsVec, edges); %#ok
-
-    nLessEq = bin - 1;
-
-    pVec = (nPerm - nLessEq + 1) ./ (nPerm + 1);
-
-    P_Values(p, :) = reshape(pVec, [1 size(TFCE_Obs, 2) * size(TFCE_Obs, 3) * size(TFCE_Obs, 4)]);
+    if permInfo.randomizable(p)
+        P_Values(p,:) = hnf_tfce_pvalues(TFCE_Obs(p,:), maxTFCE(:,p));
+    else
+        P_Values(p,:) = NaN;
+        warning('NeuroFreq:FixedPermutationColumn', ...
+            'No allowed subject reassignment changes %s; its randomization p-value is undefined.',fixedNames{p});
+    end
 
 end
 
@@ -206,6 +202,7 @@ Results.TFCE_Obs = TFCE_Obs;
 Results.maxTFCE = sort(maxTFCE, 1);
 Results.P_Values = P_Values;
 Results.fixedNames = fixedNames;
+Results.nullHypothesis = 'Joint null of all randomized fixed effects; one spatial family per coefficient.';
 Results.type = local_infer_type_from_shape(flag_ft, siTail);
 
 end
@@ -287,56 +284,54 @@ end
 
 permInfo = struct();
 permInfo.betweenSub = betweenSub;
+permInfo.randomizable = true(size(betweenSub));
+% Mixed designs exchange whole trial profiles within equal-size blocks.
+% If a between-subject column is constant in each such block, no allowed
+% randomization tests that effect (for example, all trial counts unique).
+if any(betweenSub) && ~all(betweenSub)
+    [~,first,block] = unique(subID);
+    counts = accumarray(block,1);
+    for j = find(betweenSub)
+        movable = false;
+        for count = unique(counts(:))'
+            values = Regs2(first(counts==count),j);
+            movable = movable || any(values ~= values(1));
+        end
+        permInfo.randomizable(j) = movable;
+    end
+end
 
 end
 
 function RegsP = local_permute_design_subjectaware(Regs, subID, permInfo)
 
+% Preserve design rows, including computed interactions. All between-subject
+% values move together. In a mixed design, move whole predictor profiles
+% between subjects with equal trial counts, then shuffle trial rows jointly.
+% Interpretation requires exchangeability at each level actually randomized.
+ids = unique(subID);
+blocks = arrayfun(@(id) find(subID == id), ids, 'UniformOutput', false);
+counts = cellfun(@numel,blocks);
+between = permInfo.betweenSub;
 RegsP = Regs;
-
-uSubs = unique(subID);
-nSub = numel(uSubs);
-
-betweenSub = permInfo.betweenSub;
-
-for j = 1:size(Regs, 2)
-
-    col = Regs(:, j);
-
-    if all(abs(col - col(1)) < 1e-12)
-        continue
+if all(between)
+    source = randperm(numel(ids));
+    for s = 1:numel(ids)
+        RegsP(blocks{s},:) = repmat(Regs(blocks{source(s)}(1),:), counts(s),1);
     end
-
-    if betweenSub(j) == 1
-
-        subjVals = zeros(nSub, 1);
-
-        for s = 1:nSub
-            sid = uSubs(s);
-            idx = find(subID == sid);
-            subjVals(s) = col(idx(1));
+else
+    source = 1:numel(ids);
+    if any(between)
+        for count = unique(counts(:))'
+            group = find(counts == count);
+            source(group) = group(randperm(numel(group)));
         end
-
-        subjVals = subjVals(randperm(nSub));
-
-        for s = 1:nSub
-            sid = uSubs(s);
-            idx = subID == sid;
-            RegsP(idx, j) = subjVals(s);
-        end
-
-    else
-
-        for s = 1:nSub
-            sid = uSubs(s);
-            idx = find(subID == sid);
-            RegsP(idx, j) = col(idx(randperm(numel(idx))));
-        end
-
     end
-
+    for s = 1:numel(ids)
+        donor = blocks{source(s)};
+        RegsP(blocks{s},:) = Regs(donor(randperm(numel(donor))),:);
+    end
 end
-
 end
 
 function [B, T] = local_lme_stats_mass(Dmat, Regs, subID, fixedNames, randomSlopes, fitMethod, uncorrelated, par)
@@ -376,68 +371,22 @@ nFix = size(Regs, 2);
 bVec = nan(nFix, 1);
 tVec = nan(nFix, 1);
 
-tbl = table();
-tbl.y = y;
-tbl.subID = categorical(subID);
-
-for j = 1:nFix
-    tbl.(fixedNames{j}) = Regs(:, j);
-end
-
-fixedStr = 'y ~ 1';
-
-for j = 1:nFix
-    fixedStr = [fixedStr ' + ' fixedNames{j}]; %#ok
-end
-
-randVars = {};
-
-if isempty(randomSlopes) == 0
-    for k = 1:numel(randomSlopes)
-        idx = randomSlopes(k);
-        if idx >= 1 && idx <= nFix
-            randVars{end + 1, 1} = fixedNames{idx}; %#ok<AGROW>
-        end
-    end
-end
-
-if isempty(randVars) == 1
-
-    if uncorrelated == 1
-        randStr = ' + (1||subID)';
-    else
-        randStr = ' + (1|subID)';
-    end
-
-else
-
-    slopeStr = randVars{1};
-
-    for k = 2:numel(randVars)
-        slopeStr = [slopeStr ' + ' randVars{k}]; %#ok
-    end
-
-    if uncorrelated == 1
-        randStr = [' + (1 + ' slopeStr '||subID)'];
-    else
-        randStr = [' + (1 + ' slopeStr '|subID)'];
-    end
-
-end
-
-formula = [fixedStr randStr];
-
-try
-    lme = fitlme(tbl, formula, 'FitMethod', fitMethod);
-catch
-    return
-end
+% Internal formula names keep arbitrary table labels (including 'y') from
+% replacing the response, the group identifier, or MATLAB formula syntax.
+tbl = table(y,categorical(subID),'VariableNames',{'response','groupID'});
+terms = arrayfun(@(j) sprintf('predictor%d',j),1:nFix,'UniformOutput',false);
+for j = 1:nFix, tbl.(terms{j}) = Regs(:,j); end
+random = [{'1'}, terms(randomSlopes)];
+formula = ['response ~ 1 + ' strjoin(terms,' + ') ' + (' strjoin(random,' + ') '|groupID)'];
+pattern = 'FullCholesky';
+if uncorrelated, pattern = 'Diagonal'; end
+lme = fitlme(tbl,formula,'FitMethod',fitMethod,'CovariancePattern',pattern);
 
 coefTbl = lme.Coefficients;
 
 for j = 1:nFix
 
-    rowName = fixedNames{j};
+    rowName = terms{j};
 
     hit = find(strcmp(coefTbl.Name, rowName), 1);
 

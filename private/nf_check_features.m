@@ -27,8 +27,6 @@ products = {
         'Alternative MARA fitter when lsqcurvefit is unavailable'
     'Parallel Computing Toolbox', 'Distrib_Computing_Toolbox', {'gpuDeviceCount','parpool'}, ...
         'Parallel estimation and GEDAI v1.7 (including its CPU mode)'
-    'Mapping Toolbox', 'MAP_Toolbox', {'wrapToPi'}, ...
-        'Phase wrapping in nf_resample'
     };
 rows = cell(size(products,1),3);
 for i = 1:size(products,1)
@@ -48,12 +46,12 @@ end
 % sources on every platform, and flag the specific MEX files MATLAB cannot
 % load on this architecture. The installer does not invoke a compiler.
 if ~isempty(which('ept_ChN2'))
-    names = {'ept_mex_TFCE','ept_mex_TFCE2D','ept_mex_TFCE3D'};
+    names = {'ept_mex_TFCE2D','ept_mex_TFCE3D'};
     missing = names(cellfun(@(n) exist(n,'file') ~= 3, names));
     if isempty(missing)
-        status = ['Found the three .' mexext ' binaries.'];
+        status = ['Found both .' mexext ' binaries.'];
     else
-        status = sprintf('Missing .%s: %s. Compile the matching .c files in TFCE/Dependencies with mex.', ...
+        status = sprintf('Missing .%s: %s. For the pinned vendor C sources, use mex -compatibleArrayDims where supported, or build sources updated to use mwSize dimensions.', ...
             mexext,strjoin(missing,', '));
     end
     rows(end+1,:) = {'EPT-TFCE native binaries',status,'TFCE cluster enhancement'};

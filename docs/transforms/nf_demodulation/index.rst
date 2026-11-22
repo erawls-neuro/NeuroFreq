@@ -6,11 +6,11 @@ Complex Demodulation calculates time-frequency representations by first multiply
 
 .. code-block:: matlab
    
-  TF = nf_demodulation( data, Fs, freqs, lowpassF, order, plt );    
+  TF = nf_demodulation( data, Fs, freqs, lowpassF, order, verbose );
 
-Where data is a 1/2/3D tensor of dimensions channels X time X trials, Fs is the sampling rate of the data in Hz, freqs is a vector of center frequencies for the sine waves, lowpassF is the frequency of the low-pass filter in Hz, order is the order of the low-pass filter, and plt is 0 or 1 indicating whether or not the user would like a summary plot to be produced following transformation.
+Where data is a 1/2/3D tensor of dimensions channels X time X trials, Fs is the sampling rate of the data in Hz, freqs is a vector of center frequencies for the sine waves, lowpassF is the frequency of the low-pass filter in Hz, order is the order of the low-pass filter, and verbose is 0 or 1 indicating whether to print progress during transformation.
 
-Defaults are: freqs = 1:1:Fs/2 Hz, lowpassF = 2 Hz, order = 3, plt = 0. Data and Fs are required.
+Defaults are: freqs = 1:1:Fs/2 Hz, lowpassF = 2 Hz, order = 3, verbose = 0. Data and Fs are required.
 
 When demodulation is run on the demo synthetic data using
 

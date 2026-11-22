@@ -5,10 +5,7 @@ decomposition methods in EEG/neurophysiology research. These functions
 include several linear TF decompositions, and a few quadratic TF
 distributions. 
 
-Several functions use MATLAB built-in functions for TF transformations. 
-These include:
-1) nf_stft (stft.m, spectrogram.m, depending on matlab version)
-2) nf_cwt (cwt.m)
+nf_cwt uses the MATLAB Wavelet Toolbox cwt function.
 
 Several functions use code from GPL software releases, specifically the 
 Discrete Time-Frequency Toolbox released by Jeff O'Neill and the 
@@ -28,7 +25,15 @@ Many functions use matlab built-in functions other than direct TF
 calculations.
 
 All functions accept input of dimensions 
-sensorsXtime OR sensorsXtimeXtrials.
+sensorsXtime OR sensorsXtimeXtrials. Each trial is transformed independently.
+For multiple sensors, output arrays are sensors x frequencies x times x trials.
+With one sensor, output arrays are frequencies x times x trials.
+
+Phase-bearing outputs record their convention in phaseReference.
+For frame-start-carrier (STFT) or epoch-start-carrier (Stockwell), add
+2*pi*frequency*phaseReferenceSeconds to the coefficient phase to express it
+at the reported sample. The offset is in seconds, regardless of EEG event
+time zero. Rihaczek phase is the angle of a bilinear distribution.
 
 ——————————----------------------------------------------------------------
 Linear Decompositions: This toolbox provides several linear TF methods.
@@ -36,15 +41,14 @@ These methods decompose neural data into frequency band-specific power
 using linear operations.
 
 1) nf_stft:
-Short-time Fourier transform using matlab built-in functions. If version
-is later than R2019a, uses 'stft' for calculation. If version is earlier
-than R2019a, uses 'spectrogram' for calculation. Returns power and phase 
-estimates. 
+Short-time Fourier transform using symmetric Hamming windows and frame-wise
+FFTs. Reports squared peak amplitude, including single-gain DC and Nyquist
+bins for real input. Phase is referenced to the start of each frame. Output
+times are frame centers and Fs is the sampling rate of the frame sequence.
 
 2) nf_filterhilbert: 
-Uses a combination of matlab 'butterworth' and 'envelope' functions to 
-filter data into specified frequency bands and return the Hilbert envelope 
-at those bands. Returns power and phase estimates.
+Uses forward-backward Butterworth filtering in second-order sections
+and a Hilbert transform to obtain the analytic signal in each band. Returns power and phase estimates.
 
 3) nf_demodulation:
 Complex demodulation. Multiplies the data with a series of complex 
@@ -54,8 +58,8 @@ demodulated frequency. Returns power and phase estimates.
 4) nf_dcwt:
 Custom Morlet wavelets described in Cohen (2014). Allows adaptive changes 
 in Wavelet time-frequency spread by changing cycle number. Wavelets are 
-power-normalized in the frequency domain by dividing the wavelet FFT power 
-by its max. Returns power and phase estimates.
+power-normalized in the frequency domain by dividing the wavelet FFT
+by its maximum magnitude. Returns power and phase estimates.
 
 5) nf_cwt:
 Uses matlab built-in function 'cwt' to compute the continuous wavelet 

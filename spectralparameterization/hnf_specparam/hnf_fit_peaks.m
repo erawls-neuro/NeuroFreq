@@ -1,9 +1,19 @@
-function [modelParams, peakFunction] = hnf_fit_peaks( ...
+function [modelParams, peakFunction, usedBounds] = hnf_fit_peaks( ...
     freqs, flatIter, maxNPeaks, peakThreshold, minPeakHeight, ...
-    widthLimits, guessWeight, useOptimizationToolbox)
+    widthLimits, guessWeight, useOptimizationToolbox, peakType)
 % HNF_FIT_PEAKS Detect candidate peaks and jointly optimize their parameters.
 
-peakFunction = @gaussian;
+if nargin < 9, peakType = 'gaussian'; end
+if strcmp(peakType,'cauchy')
+    peakFunction = @hnf_cauchy;
+    halfHeightToScale = 1;             % Lorentzian HWHM
+else
+    peakFunction = @hnf_gaussian;
+    halfHeightToScale = sqrt(2*log(2)); % Gaussian HWHM = SD * sqrt(2*log(2))
+end
+usedBounds = false;
+freqs = freqs(:).';
+flatIter = flatIter(:).';
     
 if maxNPeaks == 0
     modelParams = zeros(0, 3);
@@ -12,7 +22,7 @@ end
 
 guessParams = zeros(maxNPeaks, 3);
 flatSpec = flatIter;
-frequencyStep = freqs(2) - freqs(1);
+
 
 for guessIndex = 1:maxNPeaks
     maxHeight = max(flatIter);
@@ -39,15 +49,27 @@ for guessIndex = 1:maxNPeaks
     end
 
     halfHeight = 0.5 .* maxHeight;
-    leftIndex = sum(flatIter(1:maxIndex) <= halfHeight);
-
-    rightIndex = numel(flatIter) - ...
-        sum(flatIter(maxIndex:end) <= halfHeight) + 1;
-
-    shortSide = min(abs([leftIndex rightIndex] - maxIndex));
-    fullWidthHalfMaximum = shortSide .* 2 .* frequencyStep;
-
-    guessWidth = fullWidthHalfMaximum ./ (2 .* sqrt(2 .* log(2)));
+    % Use the nearest crossing on each side. Distant peaks need not
+    % lie below this peak's half-height. Measure distances in Hz so the
+    % same calculation works on log-spaced and linearly spaced grids.
+    left = find(flatIter(1:maxIndex) <= halfHeight, 1, 'last');
+    right = find(flatIter(maxIndex:end) <= halfHeight, 1, 'first') + maxIndex - 1;
+    sides = [];
+    if ~isempty(left)
+        cross = freqs(left) + (halfHeight-flatIter(left)) * ...
+            (freqs(left+1)-freqs(left)) / (flatIter(left+1)-flatIter(left));
+        sides(end+1) = guessFrequency - cross;
+    end
+    if ~isempty(right)
+        cross = freqs(right-1) + (halfHeight-flatIter(right-1)) * ...
+            (freqs(right)-freqs(right-1)) / (flatIter(right)-flatIter(right-1));
+        sides(end+1) = cross - guessFrequency;
+    end
+    if isempty(sides)
+        guessWidth = widthLimits(2);
+    else
+        guessWidth = min(sides) / halfHeightToScale;
+    end
 
     if guessWidth < widthLimits(1) %#ok
         guessWidth = widthLimits(1);
@@ -59,7 +81,7 @@ for guessIndex = 1:maxNPeaks
 
     guessParams(guessIndex, :) = [guessFrequency guessHeight guessWidth];
 
-    candidatePeak = hnf_gaussian(freqs, guessFrequency, guessHeight, guessWidth);
+    candidatePeak = peakFunction(freqs, guessFrequency, guessHeight, guessWidth);
 
     flatIter = flatIter - candidatePeak;
 end
@@ -69,8 +91,8 @@ guessParams = guessParams(guessParams(:, 1) ~= 0, :);
 if isempty(guessParams)
     modelParams = zeros(0, 3);
 else
-    modelParams = hnf_fit_peak_guess(guessParams, freqs, flatSpec, ...
-        guessWeight, widthLimits, useOptimizationToolbox);
+    [modelParams, usedBounds] = hnf_fit_peak_guess(guessParams, freqs, flatSpec, ...
+        guessWeight, widthLimits, useOptimizationToolbox, peakType);
 end
 
 end

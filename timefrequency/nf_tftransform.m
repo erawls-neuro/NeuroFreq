@@ -27,13 +27,13 @@ function [tfRes, p] = nf_tftransform(EEG, varargin)
 
 % parse input
 p = inputParser;
-validNumVector = @(x) isnumeric(x) && isvector(x);
-validMonotonicVector = @(x) isnumeric(x) && isvector(x) && sum(x < 0) == 0 ...
-    && sum(diff(x) < 0) == 0;
+validNumVector = @(x) isnumeric(x) && isreal(x) && isvector(x) && all(isfinite(x));
+validMonotonicVector = @(x) isempty(x) || (validNumVector(x) && ...
+    all(x >= 0) && all(diff(x) >= 0));
 validScalar = @(x) isscalar(x);
 
 %set legal methods
-expectedMethods = {'stft' ...
+expectedMethods = {'wavelet','stft' ...
                    'filterhilbert' ...
                    'demodulation' ...
                    'dcwt' ...
@@ -61,15 +61,16 @@ defaultVerbose = [];
 
 %INPUTS
 addRequired(p, 'EEG');
-addParameter(p, 'method', defaultMethod, @(x) any(validatestring(x, expectedMethods)));
+addParameter(p, 'method', defaultMethod, @(x) any(strcmpi(x, expectedMethods)));
 addParameter(p, 'freqs', defaultFreqs, validMonotonicVector);
-addParameter(p, 'times', defaultTimes, validNumVector);
+addParameter(p, 'times', defaultTimes, @(x) validNumVector(x) && all(diff(x) >= 0));
 addParameter(p, 'window', defaultWindow, validScalar);
 addParameter(p, 'overlap', defaultOverlap, validScalar);
 addParameter(p, 'fBandwidth', defaultBandWidth);
 addParameter(p, 'order', defaultOrder, validScalar);
 addParameter(p, 'lowpassF', defaultlowpassF, validScalar);
 addParameter(p, 'cycles', defaultCycles);
+addParameter(p, 'factor', [], validScalar);
 addParameter(p, 'fRes', defaultfRes, validScalar);
 addParameter(p, 'maxLags', defaultMaxLag);
 addParameter(p, 'cwkernel', defaultCWKernel);
@@ -96,10 +97,13 @@ reqT = p.Results.times;
 verbose = p.Results.verbose;
 Fs = EEG.srate;
 data = EEG.data;
+if size(data,1) ~= EEG.nbchan || size(data,2) ~= numel(EEG.times)
+    error('nf_tftransform:Dimensions','EEG data must be sensors x time x trials, with matching metadata.');
+end
 times = EEG.times / 1000;
 
 % GREETINGS 
-disp(['[nf_tftransform]: beginning time-frequency transformation using ' method]);
+if verbose, disp(['[nf_tftransform]: beginning time-frequency transformation using ' char(method)]); end
 
 % OPTIONS
 method = lower(method);
@@ -131,7 +135,7 @@ switch method
     case 'cwt'
         tfRes = nf_cwt(data, Fs, verbose);
     case 'stransform'
-        tfRes = nf_stransform(data, Fs, verbose);
+        tfRes = nf_stransform(data, Fs, p.Results.factor, verbose);
     case 'ridbinomial'
         tfRes = nf_ridbinomial(data, Fs, ...
                 fRes, ...
@@ -158,8 +162,12 @@ tfRes.times = times;
 if isempty(freqs)
     freqs = tfRes.freqs;
 end
-fIndices = find((tfRes.freqs >= freqs(1)) + (tfRes.freqs <= freqs(end)) == 2);
-tIndices = find((tfRes.times >= reqT(1)) + (tfRes.times <= reqT(end)) == 2);
+fIndices = find(tfRes.freqs >= freqs(1) & tfRes.freqs <= freqs(end));
+tIndices = find(tfRes.times >= reqT(1) & tfRes.times <= reqT(end));
+
+if isempty(tIndices) || isempty(fIndices)
+    error('nf_tftransform:EmptySelection','No time/frequency bins fall in the requested range.');
+end
 
 if EEG.nbchan > 1
     tfRes.power = tfRes.power(:, fIndices, tIndices, :);
@@ -174,18 +182,29 @@ else
 end
 tfRes.freqs = tfRes.freqs(fIndices);
 tfRes.times = tfRes.times(tIndices);
+if isfield(tfRes,'phaseReference') && strcmp(tfRes.phaseReference,'epoch-start-carrier')
+    tfRes.phaseReferenceSeconds = tfRes.phaseReferenceSeconds(tIndices);
+end
+% Sampling frequency and timestamps describe the output grid. Preserve the
+% input sampling grid as well when the STFT uses a stride greater than one.
+tfRes.inputFs = Fs;
 
 %get channel info
 tfRes.chanlocs = EEG.chanlocs;
 
 %get events
-if ~isempty(EEG.event)
+if isfield(EEG,'event') && ~isempty(EEG.event)
     tfRes.event = EEG.event;
 end
-if ~isempty(EEG.epoch)
+if isfield(EEG,'epoch') && ~isempty(EEG.epoch)
     tfRes.epoch = EEG.epoch;
 end
-if isfield(EEG.etc, 'behavior')
+if isfield(tfRes,'event') || isfield(tfRes,'epoch')
+    % EEGLAB latencies count input samples across epochs. Cropping or
+    % striding changes both the sample index and the length of every epoch.
+    tfRes = hnf_event_grid(tfRes,EEG.times/1000,tfRes.times,1:size(data,3),[]);
+end
+if isfield(EEG, 'etc') && isfield(EEG.etc, 'behavior')
     tfRes.behavior = EEG.etc.behavior;
 end
 
@@ -195,7 +214,7 @@ if ~isfield(tfRes, 'nsensor')
 end
 
 if ~isfield(tfRes, 'ntrls')
-    tfRes.ntrls = size(tfRes.power, ndims(tfRes.power));
+    tfRes.ntrls = size(data,3);
 end
 
 if ~isfield(tfRes, 'Fs')
@@ -206,20 +225,6 @@ if ~isfield(tfRes, 'scale') || isempty(tfRes.scale)
     tfRes.scale = 'linear';
 end
 
-disp(['[nf_tftransform]: time-frequency transformation using ' method ' complete']);
+if verbose, disp(['[nf_tftransform]: time-frequency transformation using ' char(method) ' complete']); end
 
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-

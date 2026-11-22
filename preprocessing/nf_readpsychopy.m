@@ -13,6 +13,7 @@ function [trials, info] = nf_readpsychopy(inputData, varargin)
 %   'TrialVariable'      Exact loop-index variable or loop prefix. For
 %                        example, 'trials.thisN' or 'trials'. Default:
 %                        infer the dominant non-practice loop.
+%                        thisTrialN is used when thisN was not exported.
 %   'TrialRows'          Explicit raw-table row indices or a logical mask.
 %                        This bypasses loop inference. Default: [].
 %   'ExcludeRows'        Raw-table rows to omit after detection. Default: [].
@@ -115,7 +116,7 @@ trialPresence = nf_presence_matrix(trials);
 emptyVariableMask = ~any(trialPresence, 1);
 emptyVariables = trials.Properties.VariableNames(emptyVariableMask);
 if options.DropEmptyVariables
-    trials(:, emptyVariableMask) = [];
+    trials = trials(:, trials.Properties.VariableNames(~emptyVariableMask));
 end
 
 indexDiagnostics = nf_index_diagnostics(raw, detection.selectedVariable, ...
@@ -148,6 +149,17 @@ info.metadataPropagated = logical(options.PropagateMetadata);
 info.emptyVariables = emptyVariables;
 info.emptyVariablesDropped = logical(options.DropEmptyVariables);
 info.index = indexDiagnostics;
+% Report raw rows with an explicit pre-start sentinel or malformed counter.
+% A blank counter outside the loop is routine and is not a malformed value.
+info.index.preStartSourceRows = [];
+info.index.invalidCounterSourceRows = [];
+if nf_is_trial_counter(nf_normalize_name(detection.selectedVariable))
+    name = detection.selectedVariable;
+    v = nf_numeric_vector(raw.(name));
+    logged = nf_value_present(raw.(name));
+    info.index.preStartSourceRows = find(logged & v==-1);
+    info.index.invalidCounterSourceRows = find(logged & v~=-1 & ~nf_valid_counter_values(raw.(name)));
+end
 info.warnings = warnings;
 
 if options.Verbose
@@ -219,12 +231,17 @@ if ~any(strcmp(extension, supported))
         'and LOG files are not rectangular trial tables.'], extension);
 end
 
+fileOptions = {};
+if strcmp(extension,'.tsv')
+    % MATLAB does not infer a delimited text file from this extension.
+    fileOptions = {'FileType','text','Delimiter',sprintf('\t')};
+end
 try
-    importOptions = detectImportOptions(fileName, ...
+    importOptions = detectImportOptions(fileName, fileOptions{:}, ...
         'VariableNamingRule', 'preserve');
 catch firstError
     try
-        importOptions = detectImportOptions(fileName);
+        importOptions = detectImportOptions(fileName,fileOptions{:});
     catch
         rethrow(firstError)
     end
@@ -257,7 +274,7 @@ function present = nf_value_present(value)
 rowCount = size(value, 1);
 if isnumeric(value) || islogical(value)
     missing = ismissing(value);
-    present = any(~missing, 2);
+    present = any(reshape(~missing,rowCount,[]),2);
     return
 end
 if isstring(value)
@@ -285,7 +302,7 @@ end
 
 try
     missing = ismissing(value);
-    present = any(~missing, 2);
+    present = any(reshape(~missing,rowCount,[]),2);
 catch
     present = true(rowCount, 1);
 end
@@ -301,7 +318,8 @@ if ischar(value)
     return
 end
 if isstring(value)
-    present = any(~ismissing(value) & strlength(strtrim(value)) > 0);
+    validText = ~ismissing(value) & strlength(strtrim(value)) > 0;
+    present = any(validText(:));
     return
 end
 if isnumeric(value) || islogical(value)
@@ -362,19 +380,25 @@ if ~isempty(options.TrialVariable)
     variableIndex = nf_resolve_trial_variable(names, normalizedNames, ...
         char(options.TrialVariable));
     mask = presence(:, variableIndex);
+    if nf_is_trial_counter(normalizedNames{variableIndex})
+        mask = nf_valid_counter_values(raw.(names{variableIndex}));
+    end
     if sum(mask) < options.MinimumTrials
         error('nf_readpsychopy:TooFewTrials', ...
             'TrialVariable "%s" identifies only %d rows.', ...
             names{variableIndex}, sum(mask));
     end
-    detection = nf_explicit_variable_detection(raw, presence, ...
-        variableIndex);
+    detection = nf_explicit_variable_detection(raw, mask, variableIndex);
     return
 end
 
 candidates = nf_loop_candidates(raw, presence, normalizedNames, ...
     options.MinimumTrials);
 if isempty(candidates)
+    if any(cellfun(@nf_is_trial_counter,normalizedNames))
+        error('nf_readpsychopy:NoValidTrialCounter', ...
+            'Logged trial counters contain too few valid presentations. Inspect them or specify TrialRows.');
+    end
     [mask, detection] = nf_fallback_detection(raw, presence, ...
         normalizedNames, options);
     return
@@ -389,6 +413,30 @@ end
 hasNonPractice = any(eligible & ~[groups.isPractice]);
 if hasNonPractice
     eligible = eligible & ~[groups.isPractice];
+end
+% A block/run counter can persist through instruction and break rows as
+% well as every trial. A nested trial counter advancing under the same
+% block identifies the presentations, even when its mask has fewer rows.
+for parent = find(eligible)
+    parentCandidate = candidates(groups(parent).representative);
+    if isempty(regexp(parentCandidate.loop,'(^|[.])(blocks?|runs?|sessions?)([.]|$)','once'))
+        continue
+    end
+    for child = find(eligible)
+        childCandidate = candidates(groups(child).representative);
+        inside = groups(child).mask;
+        if child==parent || groups(child).rowCount>=groups(parent).rowCount || ...
+                any(inside & ~groups(parent).mask) || ...
+                isempty(regexp(childCandidate.loop,'trials?([.]|$)','once'))
+            continue
+        end
+        parentValues = nf_numeric_vector(raw.(parentCandidate.variable));
+        childValues = nf_numeric_vector(raw.(childCandidate.variable));
+        if any(diff(parentValues(inside))==0 & diff(childValues(inside))==1)
+            eligible(parent) = false;
+            break
+        end
+    end
 end
 eligibleIndices = find(eligible);
 eligibleScores = [groups(eligibleIndices).score];
@@ -449,6 +497,9 @@ end
 
 loopVariable = [normalizedQuery '.thisn'];
 prefixMatch = find(strcmp(normalizedNames, loopVariable));
+if isempty(prefixMatch)
+    prefixMatch = find(strcmp(normalizedNames,[normalizedQuery '.thistrialn']));
+end
 if isscalar(prefixMatch)
     variableIndex = prefixMatch;
     return
@@ -469,7 +520,7 @@ error('nf_readpsychopy:AmbiguousTrialVariable', ...
     'TrialVariable "%s" does not resolve to exactly one variable.', query);
 end
 
-function detection = nf_explicit_variable_detection(raw, presence, ...
+function detection = nf_explicit_variable_detection(raw, mask, ...
         variableIndex)
 names = raw.Properties.VariableNames;
 normalizedName = nf_normalize_name(names{variableIndex});
@@ -482,7 +533,7 @@ detection.selectedLoop = loopName;
 detection.candidates = struct([]);
 detection.fallback = false;
 detection.scoreRatio = 0;
-detection.rowCount = sum(presence(:, variableIndex));
+detection.rowCount = nnz(mask);
 end
 
 function candidates = nf_loop_candidates(raw, presence, normalizedNames, ...
@@ -496,11 +547,19 @@ candidates = struct('variableIndex', {}, 'variable', {}, 'loop', {}, ...
 
 for variableIndex = 1:numel(names)
     normalizedName = normalizedNames{variableIndex};
-    if isempty(regexp(normalizedName, '(^|[.])thisn$', 'once'))
+    if ~nf_is_trial_counter(normalizedName)
         continue
     end
-
-    mask = presence(:, variableIndex);
+    % A repetition-local thisTrialN resets legally. Prefer the cumulative
+    % thisN when both were exported by this handler.
+    if endsWith(normalizedName,'thistrialn')
+        totalCounter = regexprep(normalizedName,'thistrialn$','thisn');
+        sibling = find(strcmp(normalizedNames,totalCounter),1);
+        if ~isempty(sibling) && nnz(nf_valid_counter_values(raw.(names{sibling})))>=minimumTrials
+            continue
+        end
+    end
+    mask = nf_valid_counter_values(raw.(names{variableIndex}));
     rowCount = sum(mask);
     if rowCount < minimumTrials
         continue
@@ -563,8 +622,21 @@ for variableIndex = 1:numel(names)
 end
 end
 
+function tf = nf_is_trial_counter(name)
+% thisN counts completed loop advances and thisTrialN advances within each
+% repetition. thisIndex identifies a randomized condition, not a row index.
+tf = ~isempty(regexp(name,'(^|[.])this(n|trialn)$','once'));
+end
+
+function mask = nf_valid_counter_values(column)
+% TrialHandler initializes thisN and thisTrialN to -1 before the first
+% presentation. Blank, sentinel, fractional and infinite values declare no trial.
+v = nf_numeric_vector(column);
+mask = isfinite(v) & v>=0 & v==fix(v);
+end
+
 function loopName = nf_loop_prefix(normalizedName)
-loopName = regexprep(normalizedName, '(^|[.])thisn$', '');
+loopName = regexprep(normalizedName,'(^|[.])this(n|trialn|repn|index)$','');
 if endsWith(loopName, '.')
     loopName = loopName(1:end - 1);
 end
@@ -1098,7 +1170,7 @@ function warnings = nf_build_warnings(detection, flagged, indexDiagnostics)
 warnings = {};
 if detection.fallback
     warnings{end + 1} = ...
-        ['No PsychoPy thisN loop variable was available; rows were ' ...
+        ['No PsychoPy trial counter was available; rows were ' ...
         'selected from the dominant shared nonmissing-data pattern.'];
 end
 if ~isempty(flagged.sourceRows)
@@ -1115,7 +1187,11 @@ if ~isempty(flagged.sourceRows)
             numel(flagged.retainedSourceRows));
     end
 end
-if ~isempty(indexDiagnostics.resetSourceRows)
+if ~isempty(indexDiagnostics.resetSourceRows) && ...
+        endsWith(nf_normalize_name(detection.selectedVariable),'thistrialn')
+    warnings{end+1} = sprintf(['The within-repetition counter thisTrialN restarts at %d source rows; ' ...
+        'this is expected between repetitions.'],numel(indexDiagnostics.resetSourceRows));
+elseif ~isempty(indexDiagnostics.resetSourceRows)
     warnings{end + 1} = sprintf( ...
         ['The selected trial index resets at %d source rows. All declared ' ...
         'rows were retained as possible appended runs.'], ...

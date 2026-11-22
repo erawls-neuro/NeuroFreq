@@ -70,7 +70,7 @@ function [NF, report] = nf_concat(files, varargin)
 %           Behavior fields to offset. Default is {'trial','prevtrial','nexttrial'}.
 %
 %       offsetEventEpoch
-%           Offset event.epoch by cumulative retained trials. Default is true.
+%           Offset event.epoch and flat sample latency into concatenated runs. Default true.
 %
 %       offsetEpochEvent
 %           Offset epoch.event by cumulative event count. Default is true.
@@ -167,6 +167,18 @@ sources = cell(1, nInput);
 for inputIndex = 1:nInput
     [TF{inputIndex}, sources{inputIndex}] = load_nf_input(inputItems{inputIndex}, opts, inputIndex);
     validate_nf_core(TF{inputIndex}, sources{inputIndex});
+    if opts.timeDim==3 && opts.trialDim==4 && isfield(TF{inputIndex},'ntrls')
+        tf = TF{inputIndex};
+        if isfield(tf,'nsensor'), count=tf.nsensor; elseif isfield(tf,'chanlocs'), count=numel(tf.chanlocs); else, count=[]; end
+        names = fieldnames(tf);
+        for i=1:numel(names)
+            name = names{i};
+            if ~isempty(count) && isnumeric(tf.(name)) && ~isempty(regexpi(name,'^(power|phase|itpc|wpli|complex)($|_)','once'))
+                tf.(name) = hnf_tf_grid(tf.(name),count,numel(tf.freqs),numel(tf.times),tf.ntrls,name);
+            end
+        end
+        TF{inputIndex} = tf;
+    end
 end
 
 timeInfo = choose_time_policy(TF, opts, sources);
@@ -244,8 +256,28 @@ if any_field_present(TFkept, 'epoch')
     NF.epoch = merge_epoch_fields(TFkept, eventCountsByRun, opts);
 end
 
-if any_field_present(TFkept, 'behavior')
+if any(cellfun(@(x) isfield(x,'behavior') && ~isempty(x.behavior),TFkept))
     NF.behavior = merge_behavior_fields(TFkept, nTrialsByRun, keptInputIndices, opts);
+end
+
+% Retain trial labels with their rows across runs, including rejected runs.
+fields = {'trlvec','trial_subjectindex','trial_fileindex','trial_subid','trial_condindex','trial_condlabel','trialinfo'};
+for i=1:numel(fields)
+    key = fields{i};
+    if ~any_field_present(TFkept,key), continue; end
+    pieces = cell(nKept,1);
+    for r=1:nKept
+        if ~isfield(TFkept{r},key)
+            error('nf_concat:MissingTrialRows','%s missing from %s.',key,keptSources{r});
+        end
+        val = TFkept{r}.(key);
+        if isvector(val) && ~istable(val), val=val(:); end
+        if size(val,1)~=nTrialsByRun(r)
+            error('nf_concat:TrialRows','%s needs one row per trial in %s.',key,keptSources{r});
+        end
+        pieces{r}=val;
+    end
+    NF.(key)=vertcat(pieces{:});
 end
 
 report = make_merge_report(sources, keptSources, keptInputIndices, keptRunLabels, timeInfo, dataFields, nTrialsByRun, eventCountsByRun, opts);
@@ -692,7 +724,7 @@ for fieldIndex = 1:numel(fieldNames)
         continue;
     end
 
-    if is_candidate_data_field(TF, fieldName, opts, false)
+    if is_candidate_data_field(TF, fieldName, opts, ~isempty(regexpi(fieldName,'^(power|phase|itpc|wpli|complex)($|_)','once')))
         dataFields{end + 1} = fieldName; %#ok<AGROW>
     end
 end
@@ -1013,6 +1045,13 @@ for fieldIndex = 1:numel(dataFields)
     TF.(fieldName) = subset_along_dimension(TF.(fieldName), opts.timeDim, timeIndices);
 end
 
+if numel(timeIndices) ~= numel(TF.times)
+    nTr = size(TF.(dataFields{1}),opts.trialDim);
+    TF = hnf_event_grid(TF,TF.times,timesOut,1:nTr,timeIndices);
+    if isfield(TF,'phaseReference') && strcmp(TF.phaseReference,'epoch-start-carrier')
+        TF.phaseReferenceSeconds = TF.phaseReferenceSeconds(timeIndices);
+    end
+end
 TF.times = cast_vector_like(timesOut, TF.times);
 
 end
@@ -1237,7 +1276,7 @@ end
 
 function check_scalar_metadata_compatibility(TFlist, opts, sources)
 
-fieldsToCheck = {'Fs', 'window', 'overlap', 'method', 'scale'};
+fieldsToCheck = {'Fs','window','overlap','method','scale','phaseReference','phaseReferenceSeconds'};
 template = TFlist{1};
 
 for fieldIndex = 1:numel(fieldsToCheck)
@@ -1388,6 +1427,7 @@ for inputIndex = 1:numel(TFlist)
 
     if opts.offsetEventEpoch
         part = offset_struct_field(part, 'epoch', cumulativeTrials);
+        part = offset_struct_field(part, 'latency', cumulativeTrials*numel(TFlist{inputIndex}.times));
     end
 
     parts{inputIndex} = part;
@@ -1436,6 +1476,9 @@ for keptIndex = 1:numel(TFlist)
         part = struct([]);
     end
 
+    if numel(part) ~= nTrialsByRun(keptIndex)
+        error('nf_concat:BehaviorRows','Supply one behavior row per trial in every run or omit behavior throughout.');
+    end
     part = reshape_struct_row(part);
     offsetAmount = get_behavior_trial_offset(cumulativeTrials, keptInputIndices(keptIndex), opts);
 

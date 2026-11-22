@@ -7,9 +7,9 @@ function TF = nf_tfspecparam(TF, varargin)
 % for use with TF structures output by nf_tftransform.m. Computes a
 % time-resolved spectral parameterization using specparam.m.
 %
-% If specparam fails (errors) for ANY time slice within a given trial,
-% that entire trial is removed from ALL trial-resolved data fields after
-% parameterization completes (including TF.behavior if present).
+% A nonfinite spectrum at any sensor or time removes the affected trial
+% or condition across the output. Errors in the solver or configuration
+% interrupt the calculation. An entirely invalid dataset raises an error.
 %
 % Accepts TF transforms calculated using any method. Automatically detects
 % if power values are on a linear scale and converts to log scale.
@@ -27,7 +27,7 @@ function TF = nf_tfspecparam(TF, varargin)
 %     TF.specparam.pk_n        : C×T×R    (#peaks detected)
 %     TF.specparam.pk_f        : C×K×T×R  (Hz)        K = maxPeaks
 %     TF.specparam.pk_aLog10   : C×K×T×R  (log10 power height)
-%     TF.specparam.pk_sd       : C×K×T×R  (Hz)
+%     TF.specparam.pk_sd       : C×K×T×R  (Hz; Gaussian SD or Cauchy HWHM)
 %
 % INPUT
 % -----
@@ -46,13 +46,15 @@ function TF = nf_tfspecparam(TF, varargin)
 %   'peakType'      : 'gaussian'|'cauchy' (default 'gaussian')
 %   'threshAfter'   : re-threshold when no optim (default 1)
 %   'optim'         : use Optimization Toolbox if available (default 1)
-%   'FoD'           : 'fit' returns model fit; 'data' returns modeled data (default 'fit')
+%   'FoD'           : 'fit' returns model fit; 'data' returns modeled data (default 'data')
 %
 
 
 p = inputParser;
 
-valid2Scalar = @(x) numel(x) == 2 && isnumeric(x) && isvector(x);
+valid2Scalar = @(x) isnumeric(x) && isreal(x) && numel(x) == 2 && ...
+    all(isfinite(x(:))) && x(1) > 0 && x(2) >= x(1);
+validThreshold = @(x) isnumeric(x) && isreal(x) && isscalar(x) && isfinite(x) && x >= 0;
 expectedPeakType = @(x) any(validatestring(x, {'gaussian', 'cauchy'}));
 expectedAPModes = @(x) any(validatestring(x, {'knee', 'fixed'}));
 expectedFoD = @(x) any(validatestring(x, {'fit', 'data'}));
@@ -61,9 +63,9 @@ addRequired(p, 'TF');
 
 addParameter(p, 'peakWidthLims', [0.5 12], valid2Scalar);
 addParameter(p, 'maxPeaks', [], @nf_valid_max_peaks_local);
-addParameter(p, 'minPeakHeight', 0, @isscalar);
+addParameter(p, 'minPeakHeight', 0, validThreshold);
 addParameter(p, 'aPeriodicMode', 'fixed', expectedAPModes);
-addParameter(p, 'peakThreshold', 2.0, @isscalar);
+addParameter(p, 'peakThreshold', 2.0, validThreshold);
 addParameter(p, 'peakType', 'gaussian', expectedPeakType);
 addParameter(p, 'threshAfter', 1, @(x) isscalar(x) && ismember(x, [0 1]));
 addParameter(p, 'optim', 1, @(x) isscalar(x) && ismember(x, [0 1]));
@@ -72,6 +74,9 @@ addParameter(p, 'FoD', 'data', expectedFoD);
 parse(p, TF, varargin{:});
 opt = rmfield(p.Results, 'TF');
 clear p
+opt.aPeriodicMode = validatestring(opt.aPeriodicMode, {'fixed','knee'});
+opt.peakType = validatestring(opt.peakType, {'gaussian','cauchy'});
+opt.FoD = validatestring(opt.FoD, {'fit','data'});
 
 if ~isfield(TF, 'freqs')
     error('nf_tfspecparam:FreqsRequired','TF.freqs is required.');
@@ -109,15 +114,12 @@ if TF.nsensor < 1 || TF.nsensor ~= fix(TF.nsensor)
         'TF.nsensor must be a positive integer count.');
 end
 
+frequencyCache = hnf_specparam_frequency_cache(TF.freqs);
+if strcmp(opt.aPeriodicMode,'knee') && numel(TF.freqs) < 3
+    error('nf_tfspecparam:TooFewFrequencies','A three-parameter knee fit needs at least three frequencies.');
+end
 freqs = TF.freqs(:);
 freqRow = double(freqs).';
-
-if any(isfinite(freqRow) == false) || any(freqRow <= 0)
-    error('nf_tfspecparam:InvalidFrequencies', ...
-        'TF.freqs must contain only finite positive values.');
-end
-
-frequencyCache = hnf_specparam_frequency_cache(freqRow);
 
 if isempty(opt.maxPeaks)
     opt.maxPeaks = numel(freqs);
@@ -131,11 +133,19 @@ end
 
 powFields = nf_find_power_fields_local(TF);
 
+if ~any(strcmpi(powFields,'power'))
+    error('nf_tfspecparam:MissingPower','A numeric TF.power field is required.');
+end
 if strcmpi(TF.scale, 'linear')
     for i = 1:numel(powFields)
         name = powFields{i};
         X = TF.(name);
-        X(X <= 0) = eps;
+        if ~isreal(X)
+            error('nf_tfspecparam:ComplexPower', 'Power field %s must be real.', name);
+        end
+        if ~isfloat(X), X = double(X); end
+        X(X == 0) = eps; % Preserve the existing floor for a zero power bin.
+        X(X < 0) = NaN; % Signed energy has no real log10-power representation.
         TF.(name) = log10(X);
     end
     TF.scale = 'log10';
@@ -185,6 +195,10 @@ for i = 1:numel(powFields)
         nf_tfspecparam_core_local( ...
         surf, freqs, opt, strcmpi(srcName, 'power'), ...
         TF.nsensor, nSeries, frequencyCache, fitOptions);
+    % The one-sensor transform uses F x T x R. Return derived surfaces in
+    % the same layout as their input, including singleton sensor/time axes.
+    ap_log = reshape(ap_log,size(surf));
+    osc_log = reshape(osc_log,size(surf));
     clear surf
 
     TF.([srcName '_osc']) = osc_log;
@@ -204,6 +218,11 @@ for i = 1:numel(powFields)
         TF.specparam = specparam;
         TF.specparam.method = 'nf_tfspecparam';
         TF.specparam.options = opt;
+        if strcmp(opt.peakType,'gaussian')
+            TF.specparam.peak_width_definition = 'Gaussian standard deviation (Hz)';
+        else
+            TF.specparam.peak_width_definition = 'Cauchy half-width at half-maximum (Hz)';
+        end
         TF.specparam.power_osc_field = 'power_osc';
         TF.specparam.power_ap_field = 'power_ap';
     end
@@ -214,12 +233,16 @@ if any(badTrialsAll)
     keepIdx = ~badTrialsAll;
     removedIdx = find(badTrialsAll);
 
+    if ~any(keepIdx)
+        error('nf_tfspecparam:NoValidSpectra', ...
+            'Every trial or condition contained a failed spectrum. Inspect the frequency axis, power and scale.');
+    end
     TF = nf_remove_trials_local(TF, keepIdx);
 
     if isfield(TF, 'specparam') && isstruct(TF.specparam)
         TF.specparam.removed_trials = removedIdx(:);
         TF.specparam.n_removed_trials = numel(removedIdx);
-        TF.specparam.removal_reason = 'specparam error in at least one time slice';
+        TF.specparam.removal_reason = 'nonfinite power in at least one fitted spectrum';
     end
 end
 
@@ -235,6 +258,10 @@ function [ap_log, osc_log, specparam, badTrials] = ...
     frequencyCache, fitOptions)
 
 F = numel(freqs);
+if ~isreal(surf)
+    error('nf_tfspecparam:ComplexPower','Power fields must be real-valued.');
+end
+if ~isfloat(surf), surf = double(surf); end
 
 surf = nf_canonical_power_local( ...
     surf, F, nSensors, nSeries);
@@ -325,10 +352,10 @@ if storeParameters == true
         pkASlice = nan(K, 1, 'like', dataPrototype);
         pkSdSlice = nan(K, 1, 'like', dataPrototype);
 
-        sliceFailed = false;
         dataX = spectra(:, sliceIndex).';
 
-        try
+        sliceFailed = any(~isfinite(dataX));
+        if ~sliceFailed
             [apFit, periodicFit, apData, periodicData, ...
                 rSquare, maeValue, apParms, peakParms] = ...
                 hnf_specparam_fit_compact( ...
@@ -369,8 +396,6 @@ if storeParameters == true
                     pkSdSlice(1:nUse) = peakParms(1:nUse, 3);
                 end
             end
-        catch
-            sliceFailed = true;
         end
 
         apFlat(:, sliceIndex) = apSlice;
@@ -395,10 +420,10 @@ else
         apSlice = nan(F, 1, 'like', dataPrototype);
         oscSlice = nan(F, 1, 'like', dataPrototype);
 
-        sliceFailed = false;
         dataX = spectra(:, sliceIndex).';
 
-        try
+        sliceFailed = any(~isfinite(dataX));
+        if ~sliceFailed
             [apFit, periodicFit, apData, periodicData] = ...
                 hnf_specparam_fit_compact( ...
                 dataX, freqRow, fitOptions, frequencyCache, false);
@@ -410,8 +435,6 @@ else
                 apSlice = apData(:);
                 oscSlice = periodicData(:);
             end
-        catch
-            sliceFailed = true;
         end
 
         apFlat(:, sliceIndex) = apSlice;
@@ -739,77 +762,109 @@ end
 
 function TF = nf_remove_trials_local(TF, keepIdx)
 
-if isfield(TF,'conds')
-    nOld = TF.conds;
-elseif isfield(TF,'ntrls') && TF.ntrls>1
-    nOld = TF.ntrls;
-else
-    error('nf_tfspecparam:NotEnoughTrials','Either TF.conds (averaged) or TF.trials > 1 required for removal.');
+% Use the known series axis for each schema. A time or frequency axis
+% can have exactly the same length as the trial count.
+nOld = numel(keepIdx);
+if isfield(TF,'epoch') || isfield(TF,'event')
+    if ~isfield(TF,'times') || isempty(TF.times)
+        error('nf_tfspecparam:NoEventGrid','TF.times is required to remap rejected-trial events.');
+    end
+    TF = hnf_event_grid(TF, TF.times, TF.times, find(keepIdx), []);
 end
-
-keepIdx = keepIdx(:).';
-nNew = sum(keepIdx);
-
-fn = fieldnames(TF);
-
-for i = 1:numel(fn)
-
-    name = fn{i};
+names = fieldnames(TF);
+for i = 1:numel(names)
+    name = names{i};
     val = TF.(name);
-
-    if isnumeric(val)
-
-        nd = ndims(val);
-        sz = size(val);
-
-        if nd >= 3
-            if sz(nd) == nOld
-                idx = repmat({':'}, 1, nd);
-                idx{nd} = keepIdx;
-                TF.(name) = val(idx{:});
-            end
+    if ismember(name,{'epoch','event'}), continue; end
+    if strcmp(name,'behavior') || strcmp(name,'trialinfo') || ...
+            startsWith(name,'trial_') || strcmp(name,'trlerp')
+        if istable(val) && height(val)==nOld
+            TF.(name) = val(keepIdx,:);
+        elseif isvector(val) && numel(val)==nOld
+            TF.(name) = val(keepIdx);
+        elseif ismatrix(val) && size(val,1)==nOld
+            TF.(name) = val(keepIdx,:);
         end
-
-    elseif istable(val)
-
-        if height(val) == nOld
-            TF.(name) = val(keepIdx, :);
-        end
-
-    elseif isstruct(val)
-
-        if strcmpi(name, 'behavior')
-            TF.(name) = TF.(name)(keepIdx);
-        end
-
-        if strcmpi(name, 'specparam') || strcmpi(name, 'cpm')
-            fn2 = fieldnames(TF.(name));
-            for j = 1:numel(fn2)
-                name2 = fn2{j};
-                val2 = TF.(name).(name2);
-                if isnumeric(val2)
-                    nd2 = ndims(val2);
-                    sz2 = size(val2);
-                    if sz2(nd2) == nOld
-                        idx2 = repmat({':'}, 1, nd2);
-                        idx2{nd2} = keepIdx;
-                        TF.(name).(name2) = val2(idx2{:});
-                    end
-                end
-            end
+    elseif isnumeric(val) || islogical(val)
+        if ndims(val)>=3 && size(val,ndims(val))==nOld
+            TF.(name) = last_axis(val,keepIdx);
         end
     end
-
 end
-
-if isfield(TF, 'conds')
-    TF.conds = nNew;
+sp = TF.specparam;
+metrics = {'ap_offset','ap_knee','ap_exponent','pk_n','mae','rsquare', ...
+    'pk_f','pk_sd','pk_aLog10'};
+for i = 1:numel(metrics)
+    name = metrics{i};
+    sp.(name) = last_axis(sp.(name),keepIdx);
+end
+TF.specparam = sp;
+if isfield(TF,'conds')
+    TF.conds = nnz(keepIdx);
+    if isfield(TF,'normbase') && isfield(TF.normbase,'conditions')
+        TF.normbase.conditions = subset_condition_fields(TF.normbase.conditions, keepIdx);
+    end
+    if isfield(TF,'cpm')
+        % Numeric moment/validity maps use the same last condition axis as
+        % power. Recompute summed diagnostics from the retained conditions.
+        TF.cpm = subset_cpm(TF.cpm,keepIdx);
+    end
 else
-    TF.ntrls = nNew;
+    TF.ntrls = nnz(keepIdx);
+end
 end
 
+function out = last_axis(val,keepIdx)
+index = repmat({':'},1,ndims(val));
+index{end} = keepIdx;
+out = val(index{:});
 end
 
+function s = subset_condition_fields(s,keepIdx)
+for name = {'values','trialCounts'}
+    k = name{1};
+    if isfield(s,k), s.(k) = s.(k)(keepIdx); end
+end
+end
+
+function cpm = subset_cpm(cpm,keepIdx)
+if isfield(cpm,'conditions')
+    cpm.conditions = subset_condition_fields(cpm.conditions,keepIdx);
+end
+groups = {'total','phaseLocked','nonPhaseLocked','raw','validity'};
+for k = 1:numel(groups)
+    g = groups{k};
+    if ~isfield(cpm,g), continue; end
+    names = fieldnames(cpm.(g));
+    for j = 1:numel(names)
+        name = names{j};
+        x = cpm.(g).(name);
+        if (isnumeric(x) || islogical(x)) && size(x,ndims(x))==numel(keepIdx)
+            cpm.(g).(name) = last_axis(x,keepIdx);
+        end
+    end
+end
+if isfield(cpm,'leakageRatio'), cpm.leakageRatio = last_axis(cpm.leakageRatio,keepIdx); end
+if isfield(cpm,'validity') && isfield(cpm.validity,'conditionSummaries')
+    summaries = cpm.validity.conditionSummaries(keepIdx);
+    cpm.validity.conditionSummaries = summaries;
+    cpm.validity.summary = sum_condition_counts(summaries);
+end
+if isfield(cpm,'baselineDiagnosticsByCondition')
+    summaries = cpm.baselineDiagnosticsByCondition(keepIdx);
+    cpm.baselineDiagnosticsByCondition = summaries;
+    cpm.baselineDiagnostics = sum_condition_counts(summaries);
+end
+end
+
+function summary = sum_condition_counts(items)
+summary = struct();
+names = fieldnames(items);
+for i = 1:numel(names)
+    name = names{i};
+    summary.(name) = sum([items.(name)]);
+end
+end
 
 function tf = nf_is_param_power_field_local(name)
 

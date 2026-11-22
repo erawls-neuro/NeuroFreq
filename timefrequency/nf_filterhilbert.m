@@ -35,149 +35,62 @@ function tfRes = nf_filterhilbert(data, Fs, freqs, fBandWidth, order, verbose)
 % 6) verbose: print verbose output? 0 or 1, defaults to 0
 %
 
-% defaults
-if nargin < 6 || isempty(verbose)
-    verbose = 0;
-end
-if nargin < 5 || isempty(order)
-    order = 3;
-    if verbose == 1 
-        disp('[nf_filterhilbert]: setting filter order = 3 (default)');
-    end
-end
-if nargin < 4 || isempty(fBandWidth)
-    fBandWidth = 1;
-    if verbose == 1 
-        disp('[nf_filterhilbert]: setting filter bandwidth to 1 Hz (default)');
-    end
-end
-if nargin < 3 || isempty(freqs)
-    freqs = 1:1:floor((Fs / 2) - 1);
-    if verbose == 1 
-        disp('[nf_filterhilbert]: setting freqs to 1:1:Fs/2 (default)');
-    end
-end
-if nargin < 2 || isempty(Fs) || isempty(data)
-    error('nf_filterhilbert:InputsRequired',...
-        'at least a signal and sampling rate are required');
-end
-
-% sizes
-nChan  = size(data, 1);
-nTimes = size(data, 2);
-
-if ndims(data) == 3
-    nTrls = size(data, 3);
+narginchk(2,6);
+data = hnf_tf_input(data, Fs);
+if nargin < 3 || isempty(freqs), freqs = 1:floor(Fs/2-1); end
+if nargin < 4 || isempty(fBandWidth), fBandWidth = 1; end
+if nargin < 5 || isempty(order), order = 3; end
+if nargin < 6 || isempty(verbose), verbose = 0; end
+validateattributes(freqs, {'numeric'}, {'real','vector','nonempty','finite','nonnegative','<=',Fs/2});
+validateattributes(fBandWidth, {'numeric'}, {'real','vector','nonempty','finite','positive'});
+validateattributes(order, {'numeric'}, {'real','scalar','integer','finite','positive'});
+freqs = freqs(:).';
+if isscalar(fBandWidth)
+    widths = repmat(fBandWidth,1,numel(freqs));
+elseif numel(fBandWidth) == 2
+    widths = linspace(fBandWidth(1),fBandWidth(2),numel(freqs));
 else
-    nTrls = 1;
+    error('nf_filterhilbert:FBandwidthBad','Use one bandwidth or a pair of endpoints.');
 end
-
-% concatenate time across trials
-data = reshape(data, nChan, nTimes * nTrls);
-nTot  = size(data, 2);
-
-nFreq = numel(freqs);
-
-% parse bandwidth specification
-fLap = fBandWidth;
-
-if isscalar(fLap)
-    if verbose == 1 
-        disp(['[nf_filterhilbert]: using ' num2str(fLap) ' Hz bandwidth for all filters']);
-    end
-    bwidths = repmat(fLap, 1, nFreq);
-elseif numel(fLap) == 2
-    if verbose == 1 
-        disp(['[nf_filterhilbert]: filter bandwidth will linearly scale from ' num2str(fLap(1)) ...
-          ' to ' num2str(fLap(2))]);
-    end
-    bwidths = linspace(fLap(1), fLap(2), nFreq);
-else
-    error('nf_filterhilbert:FBandwidthBad',...
-        'fBandWidth must be scalar or [start end]');
-end
-
-% preallocate
-filtPow  = zeros(nChan, nFreq, nTot);
-filtPhas = zeros(nChan, nFreq, nTot);
-
-% progress
-disp('[nf_filterhilbert]: beginning filter-hilbert');
-
-% loop over frequencies (filters designed per band)
-for j = 1:nFreq
-    
-    fc = freqs(j);
-    bw = bwidths(j);
-    hipF  = fc - (bw / 2);
-    lowpF = fc + (bw / 2);
-   
-    % clamp to valid passband
-    if hipF <= 0
-        hipF = 0.01;
-    end
-    nyq = Fs / 2;
-    if lowpF >= nyq
-        lowpF = nyq - 0.01;
-    end
-    if lowpF <= hipF
-        warning('nf_filterhilbert:invalidBand', ...
-                'Invalid band for freq %.2f Hz (hipF=%.2f, lowpF=%.2f). Skipping.', ...
-                fc, hipF, lowpF);
-        continue
-    end
-    Wn = [hipF lowpF] ./ nyq;
-  
-    % design bandpass Butterworth (correct b,a order)
-    [b, a] = butter(order, Wn, 'bandpass');
-    
-    % filter all channels at once (time along rows)
-    band = filtfilt(b, a, double(data.')).';
-    
-    % analytic signal and power/phase
-    if isreal(data)
-        
-        % hilbert operates along columns, so transpose twice
-        analytic = hilbert(band.').';
-        mag2     = abs(analytic).^2;
-        phs      = angle(analytic);
-        
+[nChan,nTimes,nTrls] = size(data);
+% Separate columns prevent zero-phase filtering and Hilbert transforms from
+% leaking one epoch into the next. The Hilbert transform acts along time.
+traces = reshape(permute(double(data),[2 1 3]),nTimes,[]);
+power = zeros(nChan,numel(freqs),nTimes,nTrls);
+phase = power;
+for k = 1:numel(freqs)
+    nyquist = Fs/2;
+    band = freqs(k)+[-0.5 0.5]*widths(k);
+    if band(1) <= 0 && band(2) >= nyquist
+        analytic = traces;
     else
-        
-        % input already complex/analytic
-        mag2 = abs(band).^2;
-        phs  = angle(band);
-        
+        if band(1) <= 0
+            [z,p,gain] = butter(order,band(2)/nyquist,'low');
+        elseif band(2) >= nyquist
+            [z,p,gain] = butter(order,band(1)/nyquist,'high');
+        else
+            [z,p,gain] = butter(order,band/nyquist,'bandpass');
+        end
+        [sos,gain] = zp2sos(z,p,gain);
+        analytic = hnf_zero_phase(sos,gain,3*numel(p),traces);
     end
-    
-    % store (explicit reshape to avoid surprises)
-    filtPow(:, j, :)  = reshape(mag2, nChan, 1, nTot);
-    filtPhas(:, j, :) = reshape(phs,   nChan, 1, nTot);
-    
+    if isreal(data), analytic = hilbert(analytic); end
+    analytic = permute(reshape(analytic,nTimes,nChan,nTrls),[2 4 1 3]);
+    power(:,k,:,:) = abs(analytic).^2;
+    phase(:,k,:,:) = angle(analytic);
 end
-
-% reshape back to [chan x freq x time x trial]
-tfRes.power  = squeeze(reshape(filtPow,  nChan, nFreq, nTimes, nTrls));
-tfRes.phase  = squeeze(reshape(filtPhas, nChan, nFreq, nTimes, nTrls));
-tfRes.freqs  = freqs;
-tfRes.times  = 0:1 / Fs:((1 / Fs) * nTimes) - (1 / Fs);
+tfRes.power = hnf_tf_output(power);
+tfRes.phase = hnf_tf_output(phase);
+tfRes.freqs = freqs;
+tfRes.times = (0:nTimes-1)/Fs;
 tfRes.nsensor = nChan;
-tfRes.ntrls   = nTrls;
-tfRes.Fs      = Fs;
-tfRes.bandwidth = bwidths;
-tfRes.order     = order;
-tfRes.method    = 'filter-hilbert';
-tfRes.scale     = 'linear';
-
-disp('[nf_filterhilbert]: filter-hilbert complete');
-
+tfRes.ntrls = nTrls;
+tfRes.Fs = Fs;
+tfRes.bandwidth = widths;
+tfRes.order = order;
+tfRes.method = 'filter-hilbert';
+tfRes.phaseReference = 'instantaneous';
+tfRes.phaseReferenceSeconds = 0;
+tfRes.scale = 'linear';
+if verbose, disp('[nf_filterhilbert]: filter-hilbert complete'); end
 end
-
-
-
-
-
-
-
-
-

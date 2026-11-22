@@ -11,10 +11,16 @@ This documentation describes the NeuroFreq toolbox for MATLAB, which includes mu
 
 The toolbox includes TF decomposition algorithms of both linear and quadratic classes, utilities for resampling, averaging, and baseline correction of TF representations, and tools for visualizing and interacting with single-trial or averaged TF representations over multiple channels.
 
-The source code of this project is located in its repository on GitHub: https://github.com/erawls-neuro/NeuroFreq_public.
+The source code of this project is located in its repository on GitHub: https://github.com/erawls-neuro/NeuroFreq.
 
 The NeuroFreq bioRxiv preprint can be found at: https://www.biorxiv.org/content/10.1101/2023.11.01.565154v2.
 
+
+For a new installation, run ``nf_install`` from the NeuroFreq root. With
+only that root on the MATLAB path, call a single function as
+``nf_run('nf_stft', data, Fs)``. To run examples with ordinary
+``nf_*`` calls and the configured dependencies, put the code in a MATLAB
+function and call ``nf_run(@my_analysis)``.
 
 .. toctree::
    :maxdepth: 2

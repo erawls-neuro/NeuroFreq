@@ -11,9 +11,15 @@ end
 % Flatten samples and epochs after selecting the training channels.
 % EEG.nbchan is not necessarily the number of channels used for ICA.
 data = reshape(EEG.data(icaChannels,:,:), numel(icaChannels), []);
-% resample to 100 Hz with anti aliasing
-data = resample(data, 100, EEG.srate, 'Dimension',2);
+% The rescue fits 1-50 Hz. Upsampling a lower-rate record cannot supply
+% the missing spectrum. Use integer resample factors even for a fractional
+% acquisition rate. Columns are channels for MATLAB's time-axis convention.
 fs = 100;
+if EEG.srate < fs
+    error('hnf_MARA_TF:FrequencySupport','The 1-50 Hz spectrum requires a sampling rate of at least 100 Hz.');
+end
+[up,down] = rat(fs/EEG.srate);
+data = resample(data.',up,down).';
 %compute ICA activation and standardize variance to 1
 icacomps = (EEG.icaweights * EEG.icasphere * data)';
 icacomps = icacomps./repmat(std(icacomps,0,1),length(icacomps(:,1)),1);

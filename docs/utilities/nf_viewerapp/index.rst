@@ -6,7 +6,7 @@ NeuroFreq includes a viewer app that allows interacting with TF structures for M
 
 .. code-block:: matlab
    
-  TF = nf_viewerapp( TF );
+  nf_viewerapp(TF);
 
 Where 1) TF is the output of nf_tftransform (single subject) or of nf_aggregate (multi-subject).
 

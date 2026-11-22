@@ -1,270 +1,74 @@
-function Results = hnf_ept_TFCE_glm(data1, data2, chanlocs, varargin)
-%
-% EPT_TFCE_GLM  TFCE-corrected mass-univariate GLM using OLS + permutations.
-%
-% OUTPUT
-% ------
-% Results.Beta      : beta maps for each regressor
-% Results.Obs       : t-stat maps for each regressor (what TFCE operates on)
-% Results.TFCE_Obs  : TFCE-transformed observed t-stat maps
-% Results.maxTFCE   : max abs TFCE under null for each perm/regressor
-% Results.P_Values  : TFCE-corrected p-values
-% Results.df        : degrees of freedom (n - rank(X))
-%
-% Notes:
-% - Uses inv(X'X) via pinv for robustness
-% - Permutes rows of X (regressors) which preserves X'X, enabling fast perms
-%
-
-% -----------------------------
-% Defaults
-% -----------------------------
-E_H = [0.66 2];
-nPerm = 1000;
-flag_ft = 0;
-ChN = [];
-
-% -----------------------------
-% Check inputs
-% -----------------------------
-if nargin < 2
-    error('at least data are required');
+function Results = hnf_ept_TFCE_glm(data1, X, chanlocs, varargin)
+% OLS with one spatial maximum distribution per design column. The design
+% is used as supplied (include a ones column if an intercept is wanted).
+% For each test, preserve the fitted contribution of the other columns
+% and permute the reduced-model residuals across independent observations
+% (Freedman-Lane). A constant column instead requires symmetric errors
+% and independently sign-flips each observation's entire residual map.
+[eh, count, grid, neighbours, parallel] = hnf_tfce_options(data1, chanlocs, varargin{:});
+Y = double(data1(:,:));
+X = double(X);
+[n,k] = size(X);
+if n ~= size(Y,1) || ~isreal(Y) || ~isreal(X) || any(~isfinite(Y(:))) || any(~isfinite(X(:)))
+    error('NeuroFreq:InvalidGLM', 'Supply finite real observations with matching design rows.');
 end
-
-% -----------------------------
-% Parse varargin
-% -----------------------------
-if ~isempty(varargin)
-    if mod(numel(varargin), 2) ~= 0
-        error('Name-value arguments must come in pairs.');
-    end
+df = n - k;
+if df <= 0 || rank(X) ~= k
+    error('NeuroFreq:InvalidGLM', 'Coefficient tests require an estimable full-rank design and residual degrees of freedom.');
 end
-
-for iArg = 1:2:numel(varargin)
-
-    Param = varargin{iArg};
-    Value = varargin{iArg + 1};
-
-    if ~ischar(Param)
-        error('Flag arguments must be strings');
-    end
-
-    Param = lower(Param);
-
-    if strcmp(Param, 'e_h')
-        E_H = Value;
-    elseif strcmp(Param, 'nperm')
-        nPerm = Value;
-    elseif strcmp(Param, 'flag_ft')
-        flag_ft = Value;
-    elseif strcmp(Param, 'chn')
-        ChN = Value;
+% QR avoids squaring the condition number as X''X would.
+[Q,R] = qr(X,0);
+inverse = R \ Q';
+B = inverse * Y;
+seFactor = sqrt(sum(inverse.^2,2));
+rmse = sqrt(sum((Y-X*B).^2,1) / df);
+T = B ./ (seFactor .* rmse);
+dims = size(data1);
+shape = [k dims(2:end)];
+enhanced = zeros(size(T));
+p = zeros(size(T));
+null = zeros(count,k);
+for j = 1:k
+    obs = enhance(T(j,:), dims, neighbours, eh, grid);
+    enhanced(j,:) = obs(:)';
+    nuisance = X(:,[1:j-1 j+1:k]);
+    if isempty(nuisance)
+        fitted = zeros(size(Y));
     else
-        error(['Unknown parameter setting: ' Param]);
+        fitted = nuisance * (nuisance \ Y);
     end
-
-end
-
-% -----------------------------
-% Set things
-% -----------------------------
-DataX = double(data1);
-Regs = double(data2);
-e_loc = chanlocs;
-
-% -----------------------------
-% Info / error checking
-% -----------------------------
-nCh = size(DataX, 2);
-
-if flag_ft == 0
-    if ~isequal(nCh, length(e_loc))
-        error('Number of channels in data does not equal that of locations file');
+    residual = Y - fitted;
+    flip = all(X(:,j) == X(1,j));
+    if parallel
+        parfor b = 1:count
+            null(b,j) = draw(fitted,residual,flip,X,inverse,j,seFactor(j),df,dims,neighbours,eh,grid);
+        end
+    else
+        for b = 1:count
+            null(b,j) = draw(fitted,residual,flip,X,inverse,j,seFactor(j),df,dims,neighbours,eh,grid);
+        end
     end
+    p(j,:) = hnf_tfce_pvalues(enhanced(j,:), null(:,j));
+end
+Results = struct('Beta',reshape(B,shape),'Obs',reshape(T,shape), ...
+    'TFCE_Obs',reshape(enhanced,shape),'maxTFCE',sort(null,1), ...
+    'P_Values',reshape(p,shape),'df',df);
 end
 
-tic;
-
-% -----------------------------
-% Channel neighbours
-% -----------------------------
-if flag_ft == 0 && isempty(ChN)
-    disp('calculating channel neighbours...')
-    ChN = ept_ChN2(e_loc);
+function maxVal = draw(fitted,residual,flip,X,inverse,j,seFactor,df,dims,neighbours,eh,grid)
+n = size(X,1);
+if flip
+    y = fitted + residual .* (2*(rand(n,1)>=0.5)-1);
+else
+    y = fitted + residual(randperm(n),:);
+end
+b = inverse*y;
+rmse = sqrt(sum((y-X*b).^2,1)/df);
+map = enhance(b(j,:) ./ (seFactor*rmse), dims, neighbours, eh, grid);
+maxVal = max(abs(map(:)));
 end
 
-% -----------------------------
-% Preallocate
-% -----------------------------
-nRegs = size(Regs, 2);
-maxTFCE = zeros(nPerm, nRegs);
-
-% -----------------------------
-% Compute observed GLM statistics
-% -----------------------------
-disp('calculating observed GLM statistics...')
-
-D = DataX;
-siD = size(D);
-siD = siD(2:end);
-
-Dmat = D(:, :);
-
-[Beta_Obs, T_Obs, df, invXX, diagC] = local_glm_beta_t(Dmat, Regs);
-
-Beta_Obs = reshape(Beta_Obs, [size(Beta_Obs, 1), siD]);
-T_Obs = reshape(T_Obs, [size(T_Obs, 1), siD]);
-
-TFCE_Obs = zeros(size(T_Obs));
-
-for p = 1:size(T_Obs, 1)
-    TFCE_Obs(p, :, :, :) = tfce_transformation( ...
-        squeeze(T_Obs(p, :, :, :)), ...
-        ChN, ...
-        E_H, ...
-        flag_ft );
+function map = enhance(vector,dims,neighbours,eh,grid)
+map = squeeze(reshape(vector,[1 dims(2:end)]));
+map = hnf_tfce_transformation(map,neighbours,eh,grid);
 end
-
-% -----------------------------
-% Permutations
-% -----------------------------
-prog = 1;
-fprintf(1, 'calculating permutations: %3d%%\n', prog);
-
-for iPerm = 1:nPerm
-
-    regs1 = Regs(randperm(size(Dmat, 1)), :);
-
-    [~, T_Perm] = local_glm_beta_t_fast(Dmat, regs1, df, invXX, diagC);
-
-    T_Perm = reshape(T_Perm, [size(T_Perm, 1), siD]);
-
-    for p = 1:size(T_Perm, 1)
-        TFCE_Perm = tfce_transformation( ...
-            squeeze(T_Perm(p, :, :, :)), ...
-            ChN, ...
-            E_H, ...
-            flag_ft );
-
-        maxTFCE(iPerm, p) = max(abs(TFCE_Perm(:)));
-    end
-
-    prog = 100 * (iPerm / nPerm);
-    fprintf(1, '\b\b\b\b%3.0f%%', prog);
-
-end
-
-fprintf(1, '\n');
-
-% -----------------------------
-% Corrected p-values
-% -----------------------------
-edges = [maxTFCE; max(abs(TFCE_Obs(:, :)), [], 2)'];
-
-sz = size(TFCE_Obs);
-sz(1) = [];
-
-P_Values = zeros(size(TFCE_Obs));
-
-for r = 1:size(TFCE_Obs, 1)
-
-    edgeVec = sort(edges(:, r));
-
-    [~, bin] = histc(abs(TFCE_Obs(r, :)), edgeVec);
-
-    P_Values(r, :) = 1 - bin ./ (nPerm + 2);
-
-end
-
-P_Values = reshape(P_Values, [r, sz]);
-
-% -----------------------------
-% Output
-% -----------------------------
-Results = struct();
-
-Results.Beta = Beta_Obs;
-Results.Obs = T_Obs;
-Results.TFCE_Obs = TFCE_Obs;
-Results.maxTFCE = sort(maxTFCE);
-Results.P_Values = P_Values;
-Results.df = df;
-
-toc;
-
-[min_P, idx] = min(Results.P_Values(:));
-max_Obs = Results.Obs(idx);
-
-display(['Peak significance: T = ' num2str(max_Obs) ', p = ' num2str(min_P)]);
-
-end
-
-% ====================================================================== %
-% Local helpers
-% ====================================================================== %
-
-function [B, T, df, invXX, diagC] = local_glm_beta_t(Dmat, X)
-
-n = size(Dmat, 1);
-
-if size(X, 1) ~= n
-    error('Regressor matrix rows must match data observations.');
-end
-
-rankX = rank(X);
-df = n - rankX;
-
-if df <= 0
-    error('Invalid degrees of freedom in GLM. Check design rank/size.');
-end
-
-XtX = X' * X;
-invXX = pinv(XtX);
-
-diagC = diag(invXX);
-diagC(diagC < 0) = 0;
-
-B = invXX * (X' * Dmat);
-
-R = Dmat - (X * B);
-
-SSE = sum(R .^ 2, 1);
-
-mse = SSE ./ df;
-
-se = sqrt(bsxfun(@times, diagC, mse));
-
-T = B ./ se;
-
-T(~isfinite(T)) = NaN;
-
-end
-
-function [B, T] = local_glm_beta_t_fast(Dmat, Xperm, df, invXX, diagC)
-
-B = invXX * (Xperm' * Dmat);
-
-R = Dmat - (Xperm * B);
-
-SSE = sum(R .^ 2, 1);
-
-mse = SSE ./ df;
-
-se = sqrt(bsxfun(@times, diagC, mse));
-
-T = B ./ se;
-
-T(~isfinite(T)) = NaN;
-
-end
-
-
-
-
-
-
-
-
-
-
-

@@ -80,14 +80,8 @@ e_loc = chanlocs;
 %get info
 nA   = size(Data{1},1);
 nCh  = size(Data{1},2);
-nS   = size(Data{1},3);
-
-% For Frequency-Time Data...
-if ndims(Data{1})==4
-    nS = size(Data{1},4);
-    nF = size(Data{1},3);
-else
-    nF = [];
+if nA < 2
+    error('NeuroFreq:TooFewObservations', 'A one-sample test requires at least two observations.');
 end
 
 % Check Location File for Number of Channels
@@ -101,7 +95,7 @@ tic; % Start the timer for the entire analysis
 % Calculate the channels neighbours... using the modified version ChN2
 if ~flag_ft && isempty(ChN)
     disp('calculating channel neighbours')
-    ChN = ept_ChN2(e_loc);
+    if nCh == 1, ChN = 1; else, ChN = ept_ChN2(e_loc); end
 end
 
 % Create all variables in loop at their maximum size to increase performance
@@ -130,30 +124,22 @@ maxTFCE = zeros(nPerm,1);
 disp('calculating actual differences')
 % Calculate T-values
 D    = Data{1}-Data{2};
-T_Obs = squeeze(mean(D,1)./(std(D)./sqrt(nA)));
+T_Obs = squeeze(mean(D,1)./(std(D,0,1)./sqrt(nA)));
 % check for zero T-values (will crash TFCE)
-if max(abs(T_Obs(:))) < eps
-    error('T-values were all 0')
-end
 % TFCE transformation...
-TFCE_Obs = tfce_transformation(T_Obs,ChN,E_H,flag_ft);
+TFCE_Obs = hnf_tfce_transformation(T_Obs,ChN,E_H,flag_ft);
 
 % Calculating the T value and TFCE of each different permutation
 prog=1;
 fprintf(1,'calculating permutations: %3d%%\n',prog);
 for i   = 1:nPerm           % Look into parfor for parallel computing
-    Signs =[-1,1];
-    SignSwitch = randsample(Signs,size(D,1),'true')';
-    if ismatrix(T_Obs)
-        SignSwitch = repmat(SignSwitch, [1 nCh nS]);
-    else
-        SignSwitch = repmat(SignSwitch, [1 nCh nF nS]);
-    end
+    % One independent sign per observation, shared by every spatial sample.
+    SignSwitch = 2 * (rand(nA,1) >= 0.5) - 1;
     nData = SignSwitch.*D;
-    T_Perm = mean(nData,1)./(std(nData)./sqrt(size(nData,1)));
+    T_Perm = mean(nData,1)./(std(nData,0,1)./sqrt(size(nData,1)));
     T_Perm = squeeze(T_Perm);
     % TFCE transformation...
-    TFCE_Perm = tfce_transformation(T_Perm,ChN,E_H,flag_ft);
+    TFCE_Perm = hnf_tfce_transformation(T_Perm,ChN,E_H,flag_ft);
     % stores the maximum absolute value
     maxTFCE(i) = max(abs(TFCE_Perm(:)));
     %update progress bar
@@ -170,10 +156,7 @@ fprintf(1,'\n');
 
 
 
-% add observed maximum
-edges = [maxTFCE;max(abs(TFCE_Obs(:)))];
-[~,bin]     = histc(abs(TFCE_Obs),sort(edges)); %#ok
-P_Values    = 1-bin./(nPerm+2);
+P_Values = hnf_tfce_pvalues(TFCE_Obs, maxTFCE);
 
 %output
 Results.Obs                 = T_Obs;

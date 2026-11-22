@@ -34,11 +34,15 @@ if nargin < 7 || isempty(use_mex)
     use_mex = true;
 end
 
-if ndims(phas) ~= 4
+validateattributes(nperm, {'numeric'}, {'real','scalar','finite','integer','nonnegative'});
+validateattributes(nbin, {'numeric'}, {'real','scalar','finite','integer','>=',2});
+validateattributes(use_mex, {'numeric','logical'}, {'real','scalar','binary'});
+
+if ndims(phas) > 4 || isempty(phas) || ~isreal(phas)
     error('nf_mipac_cross: phas must be [nChan x nLoF x nTimes x nTrial].');
 end
 
-if ndims(pow) ~= 4
+if ndims(pow) > 4 || isempty(pow) || ~isreal(pow)
     error('nf_mipac_cross: pow must be [nChan x nHiF x nTimes x nTrial].');
 end
 
@@ -61,6 +65,8 @@ if isempty(ampCh)
     ampCh = 1:nChanAmpTotal;
 end
 
+validateattributes(phaseCh, {'numeric'}, {'real','vector','integer','positive','<=',nChanPhaseTotal});
+validateattributes(ampCh, {'numeric'}, {'real','vector','integer','positive','<=',nChanAmpTotal});
 nPhaseChan = numel(phaseCh);
 nAmpChan   = numel(ampCh);
 nTimes     = nTimes1;
@@ -84,33 +90,26 @@ for iPhase = 1:nPhaseChan
                 pow_ts = reshape(pow_ts, [nTimes, nTrial]);
                 power_samples = reshape(pow_ts, [nTimes, 1, nTrial]);
                 
-                mi_obs_3d = mi_kernel(phase_samples, power_samples, nbin, use_mex);
+                mi_obs_3d = hnf_mi_kernel(phase_samples, power_samples, nbin, use_mex);
                 mi_obs = reshape(mi_obs_3d, [1, nTrial]);
                 
                 if nperm > 0
-                    sum_null  = zeros(1, nTrial);
-                    sum2_null = zeros(1, nTrial);
+                    mu = zeros(1, nTrial);
+                    m2 = zeros(1, nTrial);
                     
                     for ip = 1:nperm
-                        power_perm = surr_timeshift_vec(power_samples, [], use_mex);
-                        mi_perm_3d = mi_kernel(phase_samples, power_perm, nbin, use_mex);
+                        power_perm = hnf_surr_timeshift_vec(power_samples, [], use_mex);
+                        mi_perm_3d = hnf_mi_kernel(phase_samples, power_perm, nbin, use_mex);
                         mi_perm = reshape(mi_perm_3d, [1, nTrial]);
                         
-                        sum_null  = sum_null  + mi_perm;
-                        sum2_null = sum2_null + mi_perm .^ 2;
+                        % Update the surrogate mean and centered sum of squares.
+                        delta = mi_perm - mu;
+                        mu = mu + delta ./ ip;
+                        m2 = m2 + delta .* (mi_perm - mu);
                     end
+                    sd = sqrt(m2 ./ max(1, nperm - 1));
                     
-                    mu = sum_null ./ nperm;
-                    
-                    if nperm > 1
-                        var = (sum2_null - nperm .* (mu .^ 2)) ./ (nperm - 1);
-                        var(var < 0) = 0;
-                        sd = sqrt(var);
-                    else
-                        sd = zeros(1, nTrial);
-                    end
-                    
-                    sd(sd == 0) = NaN;
+                    sd(sd <= 8*eps(abs(mu))) = NaN;
                     out_vals = (mi_obs - mu) ./ sd;
                 else
                     out_vals = mi_obs;

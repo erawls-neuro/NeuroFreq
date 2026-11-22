@@ -75,13 +75,13 @@ local_require_field('Fs');
 local_require_field('chanlocs');
 
 if isempty(report.errors)
-    if ~isnumeric(TF.freqs) || ~isvector(TF.freqs)
+    if ~isnumeric(TF.freqs) || ~isvector(TF.freqs) || any(~isfinite(TF.freqs(:)))
         addErr('TF.freqs must be a numeric vector.');
     end
-    if ~isnumeric(TF.times) || ~isvector(TF.times)
+    if ~isnumeric(TF.times) || ~isvector(TF.times) || any(~isfinite(TF.times(:)))
         addErr('TF.times must be a numeric vector.');
     end
-    if ~isnumeric(TF.Fs) || ~isscalar(TF.Fs) || TF.Fs <= 0
+    if ~isnumeric(TF.Fs) || ~isscalar(TF.Fs) || ~isreal(TF.Fs) || ~isfinite(TF.Fs) || TF.Fs <= 0
         addErr('TF.Fs must be a positive scalar.');
     end
     if ~isstruct(TF.chanlocs)
@@ -150,49 +150,18 @@ for iF = 1:numel(fields)
         continue
     end
 
-    if ndims(X) < 3
-        addErr(['Field ' name ' has <3 dims; expected ch x f x t x ...']);
+    nObs = numel(X)/(nChan*nFreq*nTime);
+    try
+        [X,compact] = hnf_tf_grid(X,nChan,nFreq,nTime,nObs,name);
+    catch err
+        addErr(err.message);
         continue
     end
-
-    % Allow fix: if user stored 1ch as f x t x trials
-    if doFix == true
-        if ndims(X) == 3
-            if size(X, 1) == nFreq && size(X, 2) == nTime
-                X = reshape(X, 1, size(X, 1), size(X, 2), size(X, 3));
-                TF.(name) = X;
-                addWarn(['Fixed 1ch legacy shape for field ' name '.']);
-            end
-        end
-    end
-
-    if size(X, 1) ~= nChan
-        addErr(['Field ' name ' dim1 must match chanlocs (' num2str(nChan) ').']);
-        continue
-    end
-
-    if size(X, 2) ~= nFreq
-        addErr(['Field ' name ' dim2 must match freqs (' num2str(nFreq) ').']);
-        continue
-    end
-
-    if size(X, 3) ~= nTime
-        addErr(['Field ' name ' dim3 must match times (' num2str(nTime) ').']);
-        continue
-    end
-
+    if doFix && compact, TF.(name) = X; end
     if isempty(baseShape)
-        baseShape = size(X);
-    else
-        if size(X, 1) ~= baseShape(1)
-            addErr(['Field ' name ' channel dim mismatch vs other fields.']);
-        end
-        if size(X, 2) ~= baseShape(2)
-            addErr(['Field ' name ' freq dim mismatch vs other fields.']);
-        end
-        if size(X, 3) ~= baseShape(3)
-            addErr(['Field ' name ' time dim mismatch vs other fields.']);
-        end
+        baseShape = [nChan nFreq nTime nObs];
+    elseif nObs~=baseShape(4)
+        addErr(['Observation count differs in ' name '.']);
     end
 
     if any(~isfinite(X(:)))
@@ -204,21 +173,17 @@ end
 % -------------------------
 % Determine setType (avg / singletrial / continuous)
 % -------------------------
-report.setType = local_detect_type_from_fields(TF, powerFields, phaseFields, wpliFields);
-
-% Behavior checks
-if strcmpi(report.setType, 'singletrial')
-    nTr = local_infer_trials(TF, powerFields, phaseFields, wpliFields);
-    if ~isfield(TF, 'behavior')
-        addErr('Single-trial TF set requires TF.behavior with one entry per trial.');
-    else
-        if ~isstruct(TF.behavior)
-            addErr('TF.behavior must be a struct array.');
-        else
-            if numel(TF.behavior) ~= nTr
-                addErr(['TF.behavior length must equal trials (' num2str(nTr) ').']);
-            end
-        end
+if isempty(baseShape), local_finalize(); return; end
+nTr = baseShape(4);
+report.setType = 'continuous';
+if isfield(TF,'conds') && isfield(TF,'ntrls') && isequal(TF.ntrls,1) && isequal(TF.conds,nTr)
+    report.setType = 'avg';
+elseif nTr>1 || (isfield(TF,'epoch') && ~isempty(TF.epoch))
+    report.setType = 'singletrial';
+end
+if strcmpi(report.setType,'singletrial')
+    if isfield(TF,'behavior') && (~isstruct(TF.behavior) || numel(TF.behavior)~=nTr)
+        addErr('TF.behavior must contain one structure per trial when present.');
     end
 elseif strcmpi(report.setType, 'avg')
     if isfield(TF, 'conds')
@@ -251,8 +216,8 @@ if isfield(TF, 'event')
                 if any(~isfinite(lat))
                     addWarn('TF.event latency contains NaN/Inf.');
                 else
-                    if any(lat < 1) || any(lat > nTime)
-                        addWarn('Some TF.event.latency values fall outside [1, nTime].');
+                    if any(lat < 1) || any(lat > nTime*nTr)
+                        addWarn('Some TF.event.latency values fall outside the concatenated sample range.');
                     end
                 end
             end
@@ -268,7 +233,7 @@ return
 % ======================================================================
     function local_check_stat()
 
-        containers = {'power','phase','wpli'};
+        containers = fieldnames(TF);
         found = false;
 
         for iC = 1:numel(containers)
@@ -279,10 +244,14 @@ return
                 continue
             end
 
-            if ~isstruct(TF.(cname))
+            if ~isstruct(TF.(cname)) || ~isscalar(TF.(cname))
                 continue
             end
 
+            if all(isfield(TF.(cname),{'corrcoef','tstat','p_vals'}))
+                found = true;
+                continue
+            end
             meas = fieldnames(TF.(cname));
 
             for iM = 1:numel(meas)
@@ -390,11 +359,11 @@ for i = 1:numel(fn)
 
     lname = lower(name);
 
-    if contains(lname, 'power')
+    if ~isempty(regexp(lname,'^(power|pow)($|_)','once'))
         powerFields{end + 1, 1} = name; %#ok<AGROW>
-    elseif contains(lname, 'phase')
+    elseif ~isempty(regexp(lname,'^(phase|ph|itpc)($|_)','once'))
         phaseFields{end + 1, 1} = name; %#ok<AGROW>
-    elseif contains(lname, 'wpli')
+    elseif ~isempty(regexp(lname,'^wpli($|_)','once'))
         wpliFields{end + 1, 1} = name; %#ok<AGROW>
     end
 
@@ -405,87 +374,3 @@ phaseFields = sort(phaseFields);
 wpliFields = sort(wpliFields);
 
 end
-
-function setType = local_detect_type_from_fields(TF, powerFields, phaseFields, wpliFields)
-
-setType = 'continuous';
-
-fields = [powerFields; phaseFields; wpliFields];
-
-hasTrials = false;
-
-for i = 1:numel(fields)
-
-    X = TF.(fields{i});
-
-    if ndims(X) >= 4
-        if size(X, 4) > 1
-            hasTrials = true;
-        end
-    end
-
-end
-
-if hasTrials == true
-    setType = 'singletrial';
-end
-
-if isfield(TF, 'ntrls') && isfield(TF, 'conds')
-    if isnumeric(TF.ntrls) && TF.ntrls == 1
-        % check if looks like averaged: last dim equals conds for first power field
-        if ~isempty(powerFields)
-            X = TF.(powerFields{1});
-            if ndims(X) == 4
-                if size(X, 4) == TF.conds
-                    setType = 'avg';
-                end
-            end
-            if ndims(X) == 3
-                if size(X, 3) == TF.conds
-                    setType = 'avg';
-                end
-            end
-        end
-    end
-end
-
-end
-
-function nTr = local_infer_trials(TF, powerFields, phaseFields, wpliFields)
-
-nTr = [];
-
-fields = [powerFields; phaseFields; wpliFields];
-
-for i = 1:numel(fields)
-
-    X = TF.(fields{i});
-
-    if ndims(X) >= 4
-        nTrNow = size(X, 4);
-        if isempty(nTr)
-            nTr = nTrNow;
-        else
-            if nTrNow ~= nTr
-                error('nf_checkset:TrialMismatch', 'Trial counts differ across measured fields.');
-            end
-        end
-    end
-
-end
-
-if isempty(nTr)
-    nTr = 1;
-end
-
-end
-
-
-
-
-
-
-
-
-
-
