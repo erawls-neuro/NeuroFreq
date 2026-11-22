@@ -82,11 +82,12 @@ Xmat = reshape(double(X), [nSamples, nVars]);
 
 % Match circshift(x, +k, 1) in both backends. Draw shifts only once.
 shifts = randi([minShift, maxShift], 1, nVars);
-if use_mex && exist('hnf_surr_timeshift_mex', 'file') == 3
+if use_mex && hnf_mex_available('hnf_surr_timeshift_mex')
     try
         Xs = reshape(hnf_surr_timeshift_mex(Xmat, shifts), sz);
         return
     catch failure
+        if ~hnf_mex_load_error(failure), rethrow(failure); end
         warning('NeuroFreq:ShiftFallback', 'Using MATLAB shifts: %s', failure.message);
     end
 end

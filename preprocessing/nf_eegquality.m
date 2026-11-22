@@ -794,9 +794,24 @@ channelDb = 10 .* log10(max(meanPower(:, frequencyMask), realmin));
 channelDb(validSegmentCount == 0,:) = NaN;
 psd.frequencies = frequencies(frequencyMask);
 psd.channelDb = channelDb;
-psd.medianDb = nf_percentile(channelDb, 50);
-psd.lowerDb = nf_percentile(channelDb, 10);
-psd.upperDb = nf_percentile(channelDb, 90);
+envelopes = [];
+if exist('hnf_qc_percentiles_mex','file') == 3 && ...
+        (~exist('hnf_mex_available','file') || hnf_mex_available('hnf_qc_percentiles_mex'))
+    try
+        envelopes = hnf_qc_percentiles_mex(channelDb);
+    catch err
+        if ~exist('hnf_mex_load_error','file') || ~hnf_mex_load_error(err), rethrow(err); end
+    end
+end
+if ~isempty(envelopes)
+    psd.medianDb = envelopes(1,:);
+    psd.lowerDb = envelopes(2,:);
+    psd.upperDb = envelopes(3,:);
+else
+    psd.medianDb = nf_percentile(channelDb, 50);
+    psd.lowerDb = nf_percentile(channelDb, 10);
+    psd.upperDb = nf_percentile(channelDb, 90);
+end
 end
 
 function power = nf_periodogram(data, sampleRate, nfft)

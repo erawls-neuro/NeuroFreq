@@ -7,12 +7,21 @@ if size(x,1) <= pad
     error('NeuroFreq:ShortFilterEpoch', ...
         'A %d-sample epoch needs more than %d samples for this filter order.',size(x,1),pad);
 end
-x = [bsxfun(@minus,2*x(1,:),x(pad+1:-1:2,:)); x; ...
-    bsxfun(@minus,2*x(end,:),x(end-1:-1:end-pad,:))];
 % Distribute the scalar gain over the cascade so early intermediate sections
 % do not amplify a long low-frequency trace before a tiny final gain.
 sos(:,1:3) = sos(:,1:3)*abs(gain)^(1/size(sos,1));
 sos(1,1:3) = sign(gain)*sos(1,1:3);
+if isa(x,'double') && isa(sos,'double') && isreal(sos) && ~issparse(x) && exist('hnf_sosfiltfilt_mex','file')==3 && ...
+        exist('hnf_mex_available','file')==2 && hnf_mex_available('hnf_sosfiltfilt_mex')
+    try
+        y = hnf_sosfiltfilt_mex(sos,double(pad),x);
+        return
+    catch err
+        if ~hnf_mex_load_error(err), rethrow(err); end
+    end
+end
+x = [bsxfun(@minus,2*x(1,:),x(pad+1:-1:2,:)); x; ...
+    bsxfun(@minus,2*x(end,:),x(end-1:-1:end-pad,:))];
 for direction = 1:2
     for section = 1:size(sos,1)
         b = sos(section,1:3)/sos(section,4);

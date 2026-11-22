@@ -85,9 +85,11 @@ initialApFit = hnf_gen_aperiodic(workFreqs, initialApParms, ...
     options.aPeriodicMode, frequencyCache);
 initialPeriodicData = workSpec - initialApFit;
 
+approvedPeakKernel = []; % A direct serial fit uses its local kernel policy.
+if isfield(options,'approvedPeakKernel'), approvedPeakKernel = options.approvedPeakKernel; end
 [peakParms, ~, usedBounds] = hnf_fit_peaks(workFreqs, initialPeriodicData, ...
     options.maxPeaks, options.peakThreshold, options.minPeakHeight, ...
-    options.peakWidthLims ./ 2, [], options.optim, peakType);
+    options.peakWidthLims ./ 2, [], options.optim, peakType, approvedPeakKernel);
 
 if options.threshAfter == 1 && ~usedBounds && ~isempty(peakParms)
     keepPeak = peakParms(:, 2) >= options.minPeakHeight;

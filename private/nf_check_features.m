@@ -44,7 +44,7 @@ end
 
 % EPT ships C sources and binaries for selected systems. Preserve the
 % sources on every platform, and flag the specific MEX files MATLAB cannot
-% load on this architecture. The installer does not invoke a compiler.
+% load on this architecture. Native NF compilation excludes vendor sources.
 if ~isempty(which('ept_ChN2'))
     names = {'ept_mex_TFCE2D','ept_mex_TFCE3D'};
     missing = names(cellfun(@(n) exist(n,'file') ~= 3, names));

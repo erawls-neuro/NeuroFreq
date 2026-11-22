@@ -115,42 +115,10 @@ for f1 = 1:loF
         obsMI = reshape(mi_3d, [nChan, nTrial]);                          % [nChan x nTrial]
         
         if nperm > 0
-            
-            permutedMI = zeros(nperm, nChan, nTrial);
-            
-            for ip = 1:nperm
-                
-                % circular time-shift surrogates for power, all chan×trial at once
-                % first dimension = time; trailing dims = chan x trial
-                power_perm = hnf_surr_timeshift_vec(power_samples, [], use_mex);    % [time x chan x trial]
-                
-                % MI for this permutation
-                mi_perm_3d = hnf_mi_kernel(phase_samples, power_perm, nbin, use_mex);  % [1 x nChan x nTrial]
-                permutedMI(ip, :, :) = reshape(mi_perm_3d, [nChan, nTrial]);
-                
-            end
-            
-            % Null distribution stats
-            mu_null = reshape(mean(permutedMI, 1), [nChan, nTrial]);           % [nChan x nTrial]
-            sd_null = reshape(std(permutedMI, 0, 1), [nChan, nTrial]);         % [nChan x nTrial]
-            
-            % Guard against zero std
-            zero_sd = (sd_null <= 8*eps(abs(mu_null)));
-            sd_null(zero_sd) = NaN;
-            
-            % zMI
-            zMI = (obsMI - mu_null) ./ sd_null;               % [nChan x nTrial]
-            
-            % Assign to output: chan x loF x hiF x trial
-            PAC(:, f1, f2, :) = reshape(zMI, [nChan, 1, 1, nTrial]);
-            
-        else
-            
-            % Raw MI
-            PAC(:, f1, f2, :) = reshape(obsMI, [nChan, 1, 1, nTrial]);
-            
+            obsMI = hnf_pac_permutation_z(phase_samples, power_samples, obsMI, ...
+                nperm, 'mi', nbin, use_mex, false);
         end
-        
+        PAC(:, f1, f2, :) = reshape(obsMI, [nChan, 1, 1, nTrial]);
     end
     
     % Update progress bar

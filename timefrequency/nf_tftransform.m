@@ -23,6 +23,8 @@ function [tfRes, p] = nf_tftransform(EEG, varargin)
 % INPUT:
 % ------
 % 1) EEG - an eeglab structure, required
+% For wavelet/dcwt, pass 'ExecutionEnvironment','gpu' to process EEG.data
+% in GPU FFT batches. The default 'auto' follows the input data residency.
 %
 
 % parse input
@@ -61,6 +63,9 @@ defaultVerbose = [];
 
 %INPUTS
 addRequired(p, 'EEG');
+% The Morlet path supports device-resident FFT batches. Other methods can
+% explicitly select CPU when the input data are already on a device.
+addParameter(p, 'ExecutionEnvironment', 'auto', @(x) any(strcmpi(x,{'auto','cpu','gpu'})));
 addParameter(p, 'method', defaultMethod, @(x) any(strcmpi(x, expectedMethods)));
 addParameter(p, 'freqs', defaultFreqs, validMonotonicVector);
 addParameter(p, 'times', defaultTimes, @(x) validNumVector(x) && all(diff(x) >= 0));
@@ -107,6 +112,14 @@ if verbose, disp(['[nf_tftransform]: beginning time-frequency transformation usi
 
 % OPTIONS
 method = lower(method);
+environment = p.Results.ExecutionEnvironment;
+if ~any(strcmp(method,{'wavelet','dcwt'}))
+    if strcmpi(environment,'gpu')
+        error('nf_tftransform:UnsupportedGPU','GPU execution is available for the wavelet/dcwt method.');
+    elseif isa(data,'gpuArray') && strcmpi(environment,'cpu')
+        data = gather(data);
+    end
+end
 switch method
     case 'stft'
         tfRes = nf_stft(data, Fs, ...
@@ -131,7 +144,7 @@ switch method
         tfRes = nf_dcwt(data, Fs, ...
                 freqs, ...
                 cycles, ...
-                verbose);
+                verbose,environment);
     case 'cwt'
         tfRes = nf_cwt(data, Fs, verbose);
     case 'stransform'
