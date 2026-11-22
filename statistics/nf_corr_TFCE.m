@@ -1,4 +1,7 @@
-function tfce = nf_corr_TFCE(dataX, dataY, chanlocs, faxis, taxis, nperm, par)
+function tfce = nf_corr_TFCE(dataX, dataY, chanlocs, faxis, taxis, nperm, par, predictorMode)
+% Simple permutation tests assume independent, exchangeable observations.
+% Pooled repeated trials across participants require a subject-aware design.
+
 %
 % NF_CORR_TFCE  TFCE-corrected correlation between TF data and covariates.
 %
@@ -23,6 +26,12 @@ function tfce = nf_corr_TFCE(dataX, dataY, chanlocs, faxis, taxis, nperm, par)
 %   - table with named predictors (recommended)
 %
 
+% Numeric arrays of the same shape default to matched-location correlations
+% (the historical EEG-versus-EEG use case). Pass 'predictors' as input 8
+% to test every predictor at every location when a 2-D shape is ambiguous.
+% A table always supplies predictor columns. 'pointwise' requests paired maps.
+if nargin < 8 || isempty(predictorMode), predictorMode = 'auto'; end
+if nargin >= 2 && istable(dataY), predictorMode = 'predictors'; end
 if nargin < 7 || isempty(par)
     par = 0;
 end
@@ -55,7 +64,8 @@ end
 % NEW: struct-aware wrapper path (numeric path remains original below)
 % -------------------------------------------------------------------------
 if isstruct(dataX) == 1
-    tfce = local_corr_tfset_wrapper(dataX, dataY, chanlocs, faxis, taxis, nperm, par);
+    hnf_stats_check_observations(dataX);
+    tfce = local_corr_tfset_wrapper(dataX, dataY, chanlocs, faxis, taxis, nperm, par, predictorMode);
     return
 end
 
@@ -83,19 +93,19 @@ end
 
 if ~isempty(chanlocs)
     if par == 0
-        tfc = ept_TFCE_corr(dataX, dataYmat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_corr(dataX, dataYmat, chanlocs, 'nperm', nperm, 'corr_mode', predictorMode);
     else
-        tfc = ept_TFCE_corr_par(dataX, dataYmat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_corr_par(dataX, dataYmat, chanlocs, 'nperm', nperm, 'corr_mode', predictorMode);
     end
 else
     if par == 0
-        tfc = ept_TFCE_corr(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_corr(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1, 'corr_mode', predictorMode);
     else
-        tfc = ept_TFCE_corr_par(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_corr_par(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1, 'corr_mode', predictorMode);
     end
 end
 
-obs = squeeze(tfc.Obs);
+obs = tfc.Obs;
 
 tfce = struct();
 
@@ -110,6 +120,7 @@ tfce.droppedVars = droppedVars;
 tfce.df = size(dataX, 1) - 2;
 
 tfce.corrcoef = obs;
+tfce.predictorMode = tfc.predictorMode;
 tfce.tstat = obs .* sqrt(tfce.df ./ (1 - obs .^ 2));
 
 tfce.p_vals = tfc.P_Values;
@@ -157,7 +168,10 @@ end
 % ====================================================================== %
 % NEW: TF-STRUCT WRAPPER
 % ====================================================================== %
-function tfce = local_corr_tfset_wrapper(tfset, dataY, chanlocs, faxis, taxis, nperm, par)
+function tfce = local_corr_tfset_wrapper(tfset, dataY, chanlocs, faxis, taxis, nperm, par, predictorMode)
+
+tfset = hnf_stats_measures(hnf_stats_layout(tfset));
+
 
 % Fill axes from tfset if caller passed empty
 if isempty(chanlocs) == 1
@@ -302,6 +316,8 @@ for iG = 1:numel(groupList)
                 end
             end
 
+            % Different condition labels can sanitize to the same MATLAB field.
+            condsValid = matlab.lang.makeUniqueStrings(condsValid);
             fieldOut.conds_raw = condsRaw;
             fieldOut.conds = condsValid;
             fieldOut.results = struct();
@@ -318,7 +334,7 @@ for iG = 1:numel(groupList)
                         size(dataYmat, 1), size(Xc, 1), grp, fn, c);
                 end
 
-                r = local_corr_core_numeric(Xc, dataY, chanlocs, faxis, taxis, nperm, par);
+                r = local_corr_core_numeric(Xc, dataY, chanlocs, faxis, taxis, nperm, par, predictorMode);
 
                 r = local_prune_heavy_fields(r);
 
@@ -338,7 +354,7 @@ for iG = 1:numel(groupList)
 
             Xobs = reshape(Xobs, nObs, nChan, nFreq, nTime);
 
-            r = local_corr_core_numeric(Xobs, dataY, chanlocs, faxis, taxis, nperm, par);
+            r = local_corr_core_numeric(Xobs, dataY, chanlocs, faxis, taxis, nperm, par, predictorMode);
 
             r = local_prune_heavy_fields(r);
 
@@ -384,6 +400,14 @@ if isfield(tfset, 'aggtype') == 1
         end
     end
 end
+
+for field = {'aggtype','scale'}
+    if isfield(tfset,field{1}) && any(strcmpi(tfset.(field{1}),{'avg','singletrial'}))
+        mode = tfset.(field{1});
+        return
+    end
+end
+if isfield(tfset,'ntrls') && ~isfield(tfset,'conds'), mode = 'singletrial'; return; end
 
 if isfield(tfset, 'conds') == 1
     if iscell(tfset.conds) == 1
@@ -471,6 +495,11 @@ if isfield(tfset, 'conds') == 1
     end
 end
 
+if isfield(tfset,'nf_stats_subject_first') && tfset.nf_stats_subject_first
+    Xsf = X;
+    [nObs,nChan,nFreq,nTime,nConds] = size(X);
+    return
+end
 if ndims(X) == 4
 
     if isempty(nConds) == 1
@@ -535,7 +564,8 @@ nObs = size(Xsf, 1);
 
 end
 
-function [Xobs, nObs, nChan, nFreq, nTime] = local_standardize_singletrial_obsfirst(X, ~, chanlocs, faxis, taxis)
+function [Xobs, nObs, nChan, nFreq, nTime] = local_standardize_singletrial_obsfirst(X, tfset, chanlocs, faxis, taxis)
+X = hnf_stats_trial_grid(X,tfset,chanlocs,faxis,taxis);
 
 if isempty(chanlocs) == 0
     nChan = numel(chanlocs);
@@ -587,7 +617,7 @@ end
 
 end
 
-function r = local_corr_core_numeric(dataX, dataY, chanlocs, faxis, taxis, nperm, par)
+function r = local_corr_core_numeric(dataX, dataY, chanlocs, faxis, taxis, nperm, par, predictorMode)
 
 % This uses the SAME logic as the original numeric path above,
 % but kept as a helper so the tfset wrapper can call it.
@@ -611,19 +641,19 @@ end
 
 if ~isempty(chanlocs)
     if par == 0
-        tfc = ept_TFCE_corr(dataX, dataYmat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_corr(dataX, dataYmat, chanlocs, 'nperm', nperm, 'corr_mode', predictorMode);
     else
-        tfc = ept_TFCE_corr_par(dataX, dataYmat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_corr_par(dataX, dataYmat, chanlocs, 'nperm', nperm, 'corr_mode', predictorMode);
     end
 else
     if par == 0
-        tfc = ept_TFCE_corr(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_corr(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1, 'corr_mode', predictorMode);
     else
-        tfc = ept_TFCE_corr_par(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_corr_par(dataX, dataYmat, [], 'nperm', nperm, 'flag_ft', 1, 'corr_mode', predictorMode);
     end
 end
 
-obs = squeeze(tfc.Obs);
+obs = tfc.Obs;
 
 r = struct();
 
@@ -638,6 +668,7 @@ r.droppedVars = droppedVars;
 r.df = size(dataX, 1) - 2;
 
 r.corrcoef = obs;
+r.predictorMode = tfc.predictorMode;
 r.tstat = obs .* sqrt(r.df ./ (1 - obs .^ 2));
 
 r.p_vals = tfc.P_Values;
@@ -758,7 +789,7 @@ for iV = 1:numel(vars)
     if isnumeric(col) || islogical(col)
         if size(col, 2) ~= 1
             error('nf_corr_TFCE:TableVariableBadSize', ...
-                ['Table variable "%s" must be Nx1 numeric.', vars{iV}]);
+                'Table variable "%s" must be Nx1 numeric.', vars{iV});
         end
 
         keepIdx = [keepIdx iV]; %#ok<AGROW>

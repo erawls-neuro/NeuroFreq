@@ -1,9 +1,9 @@
 function Xs = hnf_surr_timeshift_vec(X, minShift, use_mex)
 % SURR_TIMESHIFT_VEC    Circular time-shift surrogates
 %
-%   Xs = surr_timeshift_vec(X)
-%   Xs = surr_timeshift_vec(X, minShift)
-%   Xs = surr_timeshift_vec(X, minShift, use_mex)
+%   Xs = hnf_surr_timeshift_vec(X)
+%   Xs = hnf_surr_timeshift_vec(X, minShift)
+%   Xs = hnf_surr_timeshift_vec(X, minShift, use_mex)
 %
 % Generates circular time-shifted surrogates for real-valued time series.
 %
@@ -80,65 +80,19 @@ end
 % reshape to [nSamples x nVars]
 Xmat = reshape(double(X), [nSamples, nVars]);
 
-if maxShift == 0
-    % all shifts must be zero
-    Xs_mat = Xmat;
-else
-    % draw random circular shifts for each series
-    shiftRange = maxShift - minShift + 1;
-    shifts = randi(shiftRange, [1, nVars]);
-    shifts = shifts + (minShift - 1);
-    
-    % try MEX if requested and available
-    use_mex_here = false;
-    if use_mex
-        if exist('surr_timeshift_mex', 'file') == 3
-            use_mex_here = true;
-        end
-    end
-    
-    if use_mex_here
-        % MEX implementation: column-wise circular shift in C
-        try
-            Xs_mat = surr_timeshift_mex(Xmat, shifts);
-        catch
-            warning('surr_timeshift_vec: using mex failed - using matlab-native (slower).');
-            % pure MATLAB fallback: per-column circular shift
-            Xs_mat = zeros(nSamples, nVars);
-            idx_base = (0:(nSamples - 1))';
-            for v = 1:nVars
-                k = shifts(v);
-                if k == 0
-                    Xs_mat(:, v) = Xmat(:, v);
-                else
-                    idx = idx_base + k;
-                    idx = 1 + mod(idx, nSamples);
-                    Xs_mat(:, v) = Xmat(idx, v);
-                end
-            end
-        end
-    else
-        % pure MATLAB fallback: per-column circular shift
-        Xs_mat = zeros(nSamples, nVars);
-        idx_base = (0:(nSamples - 1))';
-        for v = 1:nVars
-            k = shifts(v);
-            if k == 0
-                Xs_mat(:, v) = Xmat(:, v);
-            else
-                idx = idx_base + k;
-                idx = 1 + mod(idx, nSamples);
-                Xs_mat(:, v) = Xmat(idx, v);
-            end
-        end
+% Match circshift(x, +k, 1) in both backends. Draw shifts only once.
+shifts = randi([minShift, maxShift], 1, nVars);
+if use_mex && exist('hnf_surr_timeshift_mex', 'file') == 3
+    try
+        Xs = reshape(hnf_surr_timeshift_mex(Xmat, shifts), sz);
+        return
+    catch failure
+        warning('NeuroFreq:ShiftFallback', 'Using MATLAB shifts: %s', failure.message);
     end
 end
-
+Xs_mat = zeros(nSamples, nVars);
+for v = 1:nVars
+    Xs_mat(:,v) = circshift(Xmat(:,v), shifts(v), 1);
+end
 Xs = reshape(Xs_mat, sz);
-
 end
-
-
-
-
-

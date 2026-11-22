@@ -10,7 +10,7 @@ The NeuroFreq Toolbox includes several high-level utilities for interacting with
 
    nf_prepdata/index
    nf_tftransform/index
-   nf_avebase/index
+   nf_normbase/index
    nf_resample/index
    nf_aggregate/index
    nf_viewerapp/index

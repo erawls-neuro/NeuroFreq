@@ -50,10 +50,13 @@ TFin = p.Results.TF;
 % -------------------------
 % Validate TF
 % -------------------------
-[~, rep] = nf_checkset(TFin, 'mode', 'error');
+[TFin, rep] = nf_checkset(TFin, 'mode','error','fix',true);
 
 if strcmpi(rep.setType, 'stat')
     error('nf_epoch:BadType', 'nf_epoch does not operate on stat sets.');
+end
+if ~strcmpi(rep.setType,'continuous') || (isfield(TFin,'epoch') && ~isempty(TFin.epoch))
+    error('nf_epoch:AlreadyEpoched','Epoch extraction requires a continuous TF recording.');
 end
 
 if ~isfield(TFin, 'event')
@@ -92,12 +95,28 @@ end
 
 local_error_if_epoched(TFin, powerFields, phaseFields, wpliFields);
 
+% A continuous Stockwell transform uses the recording start as its phase
+% origin. Express angles at each sample before assigning new trial origins.
+if isfield(TFin,'phaseReference') && strcmp(TFin.phaseReference,'epoch-start-carrier')
+    for i=1:numel(phaseFields)
+        name = phaseFields{i};
+        if ~isempty(regexpi(name,'^(phase|ph)($|_)','once'))
+            TFin.(name) = hnf_phase_at_sample(TFin,TFin.(name));
+        end
+    end
+    TFin.phaseReference = 'instantaneous';
+    TFin.phaseReferenceSeconds = 0;
+end
+
 % -------------------------
 % Convert tlimits to seconds (pop_epoch convention)
 % -------------------------
 tmin = double(tlimits(1));
 tmax = double(tlimits(2));
 
+if ~any(strcmpi(p.Results.tunit,{'seconds','s','ms'})) || any(~isfinite(tlimits))
+    error('nf_epoch:BadLimits','Use finite limits and seconds or ms.');
+end
 if strcmpi(char(p.Results.tunit), 'ms')
     tmin = tmin / 1000;
     tmax = tmax / 1000;
@@ -163,6 +182,16 @@ end
 % -------------------------
 % Determine valid epochs (exclude boundary-truncated epochs)
 % -------------------------
+% A boundary marks a discontinuity between consecutive stored samples.
+% An epoch spanning it cannot represent one continuous event response.
+boundaries = [];
+if isfield(ev,'type')
+    for i=1:numel(ev)
+        if (ischar(ev(i).type) || isstring(ev(i).type)) && strcmpi(ev(i).type,'boundary')
+            boundaries(end+1) = allLat(i); %#ok<AGROW>
+        end
+    end
+end
 keepAnchorIdx = [];
 epochWindows = [];
 anchorLatRound = [];
@@ -198,6 +227,7 @@ for iK = 1:numel(selIdx)
         continue
     end
 
+    if any(boundaries>=w1 & boundaries<w2), continue; end
     keepAnchorIdx = [keepAnchorIdx iAnchor]; %#ok<AGROW>
     epochWindows = [epochWindows; [w1 w2]]; %#ok<AGROW>
     anchorLatRound = [anchorLatRound latR]; %#ok<AGROW>
@@ -205,7 +235,7 @@ for iK = 1:numel(selIdx)
 end
 
 if isempty(keepAnchorIdx)
-    error('nf_epoch:NoValidEpochs', 'All matched events were too close to edges for the epoch window.');
+    error('nf_epoch:NoValidEpochs', 'No matched event has a complete epoch inside continuous data.');
 end
 
 nEp = size(epochWindows, 1);
@@ -337,7 +367,7 @@ for iEp = 1:nEp
 
         % Event latency in ms relative to epoch timeline (0 at timelock)
         % timelock event is at ~t = 0 because start is tmin seconds.
-        latSecRel = (double(pos - 1) / Fs) + tmin;
+        latSecRel = (double(pos - 1) + smin) / Fs;
         epEventLatencyMs{k} = latSecRel * 1000;
 
         epEventPosition{k} = pos;
@@ -408,11 +438,11 @@ for i = 1:numel(fn)
 
     lname = lower(name);
 
-    if contains(lname, 'power')
+    if ~isempty(regexp(lname,'^(power|pow)($|_)','once'))
         powerFields{end + 1, 1} = name; %#ok<AGROW>
-    elseif contains(lname, 'phase')
+    elseif ~isempty(regexp(lname,'^(phase|ph|itpc)($|_)','once'))
         phaseFields{end + 1, 1} = name; %#ok<AGROW>
-    elseif contains(lname, 'wpli')
+    elseif ~isempty(regexp(lname,'^wpli($|_)','once'))
         wpliFields{end + 1, 1} = name; %#ok<AGROW>
     end
 
@@ -453,7 +483,11 @@ function tf = local_match_type(et, types)
 
 tf = false;
 
-if iscell(types)
+if isnumeric(types) && ~isscalar(types)
+    list = num2cell(types);
+elseif isstring(types)
+    list = cellstr(types);
+elseif iscell(types)
     list = types;
 else
     list = {types};
@@ -523,7 +557,7 @@ for iF = 1:numel(fields)
         error('nf_epoch:BadShape', 'Field %s time dimension shorter than epoch window.', name);
     end
 
-    Y = zeros(nChan, nFreq, L, nEp);
+    Y = zeros(nChan,nFreq,L,nEp,'like',X);
 
     for iEp = 1:nEp
 

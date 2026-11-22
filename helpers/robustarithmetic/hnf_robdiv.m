@@ -1,12 +1,7 @@
-function Z = hnf_robdiv(A,B)
-% HNF_ROBDIV  element‑wise A./B but returns 0 where B==0 and NaN‑safe
-Z = zeros(size(A),class(A));
-mask = (B ~= 0) & isfinite(A) & isfinite(B);
-Z(mask) = A(mask) ./ B(mask);
-% leave the rest at 0 – statistic = 0 → p‑value = 1 (non‑sig)
+function Z = hnf_robdiv(A, B)
+% HNF_ROBDIV  Element-wise A./B with zero for invalid operands or zero B.
+% Ordinary division supplies the correct scalar/array expansion and class.
+Z = A ./ B;
+invalid = ~isfinite(A) | ~isfinite(B) | B == 0;
+Z(invalid) = 0;
 end
-
-
-
-
-

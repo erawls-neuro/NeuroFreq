@@ -5,7 +5,7 @@ if nargin < 4
 end
 
 model = hnf_expo_function(xs, params, logXs);
-residual = ys - model;
+residual = ys(:) - model(:);
 err = sum(residual .* residual);
 
 end

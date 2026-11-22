@@ -236,7 +236,7 @@ for iR = 1:numel(rois)
 
     roiResolved(iR).chan_idx = local_resolve_chan_idx(TF, rois(iR).chans);
     roiResolved(iR).freq_idx = local_resolve_axis_idx(freqs, rois(iR).foi, 'freq');
-    roiResolved(iR).time_idx = local_resolve_time_idx(times, rois(iR).toi, opt.time_units);
+    roiResolved(iR).time_idx = local_resolve_time_idx(times, rois(iR).toi, opt.time_units,TF);
 
     if isempty(roiResolved(iR).chan_idx) == 1
         error('nf_extractpower:BadROIs', 'ROI "%s" resolved to 0 channels.', roiName);
@@ -272,7 +272,26 @@ for iF = 1:numel(allPowFields)
         continue
     end
 
-    [chanDim, freqDim, timeDim, obsDim] = local_detect_dims(Xraw, TF, freqs, times, nObs, powName);
+    nCh = numel(Xraw)/(numel(freqs)*numel(times)*nObs);
+    if isfield(TF,'chanlocs'), nCh = numel(TF.chanlocs); end
+    % NF's native layout wins when observation and sensor counts coincide.
+    % The alternate subjects-first layout is accepted when unambiguous.
+    expected = [nCh,numel(freqs),numel(times),nObs];
+    stored = [size(Xraw) ones(1,max(0,4-ndims(Xraw)))];
+    if isequal(stored,expected([4 1 2 3])) && ~isequal(stored,expected)
+        Xraw = permute(Xraw,[2 3 4 1]);
+    end
+    try
+        Xraw = hnf_tf_grid(Xraw,nCh,numel(freqs),numel(times),nObs,powName);
+    catch shapeError
+        % Legacy imports may have other axis orders. Preserve the earlier
+        % capability when the supplied metadata identifies a unique order.
+        candidates = perms(1:4);
+        if numel(stored)~=4, rethrow(shapeError); end
+        matches = all(reshape(stored(candidates),size(candidates))==expected,2);
+        if nnz(matches)~=1, rethrow(shapeError); end
+        Xraw = permute(Xraw,candidates(matches,:));
+    end
 
     for iR = 1:numel(roiResolved)
 
@@ -282,7 +301,7 @@ for iF = 1:numel(allPowFields)
         freqIdx = roiResolved(iR).freq_idx;
         timeIdx = roiResolved(iR).time_idx;
 
-        vals = local_extract_roi_mean(Xraw, chanDim, freqDim, timeDim, obsDim, chanIdx, freqIdx, timeIdx, nObs);
+        vals = local_extract_roi_mean(Xraw,chanIdx,freqIdx,timeIdx,nObs);
 
         colBase = [powName '_' roiName];
         colName = matlab.lang.makeValidName(colBase);
@@ -387,24 +406,13 @@ if isnumeric(X) == 0
     return
 end
 
-sz = size(X);
-
-if numel(sz) < 4
-    return
+if size(X,2)==nFreq && size(X,3)==nTime
+    nObs = size(X,4);
+elseif size(X,1)==nFreq && size(X,2)==nTime
+    nObs = size(X,3);
+elseif size(X,3)==nFreq && size(X,4)==nTime
+    nObs = size(X,1);
 end
-
-% Heuristic: if looks like C x F x T x N
-if sz(2) == nFreq && sz(3) == nTime
-    nObs = sz(4);
-    return
-end
-
-% If looks like N x C x F x T
-if sz(3) == nFreq && sz(4) == nTime
-    nObs = sz(1);
-    return
-end
-
 end
 
 function chanIdx = local_resolve_chan_idx(TF, chansIn)
@@ -422,7 +430,9 @@ elseif islogical(chansIn) == 1
     chanIdx = find(chansIn(:) ~= 0);
     chanIdx = chanIdx(:)';
 
-elseif isstring(chansIn) == 1 || iscell(chansIn) == 1
+elseif ischar(chansIn) || isstring(chansIn) || iscell(chansIn)
+
+    if ischar(chansIn), chansIn = {chansIn}; end
 
     if isstring(chansIn) == 1
         chansIn = cellstr(chansIn(:));
@@ -451,9 +461,8 @@ elseif isstring(chansIn) == 1 || iscell(chansIn) == 1
 
         hit = find(strcmpi(labels, nm), 1);
 
-        if isempty(hit) == 0
-            wantIdx = [wantIdx hit]; %#ok<AGROW>
-        end
+        if isempty(hit), error('nf_extractpower:BadChans','Unknown channel label %s.',nm); end
+        wantIdx = [wantIdx hit]; %#ok<AGROW>
 
     end
 
@@ -532,7 +541,7 @@ end
 
 end
 
-function idx = local_resolve_time_idx(times, toi, time_units)
+function idx = local_resolve_time_idx(times, toi, time_units,TF)
 
 if isempty(toi) == 1
     error('nf_extractpower:BadROI', 'toi is empty.');
@@ -546,10 +555,16 @@ toi = double(toi(:)');
 
 tAxis = double(times(:));
 
-if strcmpi(time_units, 'ms') == 1
-    toi_use = toi ./ 1000;
-elseif strcmpi(time_units, 's') == 1
-    toi_use = toi;
+if any(strcmpi(time_units,{'ms','s'}))
+    % NF normally stores seconds. Recognize EEGLAB-style millisecond grids
+    % using the sample interval when Fs is available.
+    unitsPerSecond = 1;
+    if isfield(TF,'Fs') && numel(tAxis)>1
+        spacing = median(diff(tAxis))*TF.Fs;
+        if abs(log(spacing/1000))<abs(log(spacing)), unitsPerSecond = 1000; end
+    end
+    toi_use = toi*unitsPerSecond;
+    if strcmpi(time_units,'ms'), toi_use = toi_use/1000; end
 elseif strcmpi(time_units, 'auto') == 1
 
     if max(abs(tAxis)) < 20 && max(abs(toi)) > 20
@@ -566,141 +581,11 @@ idx = local_resolve_axis_idx(tAxis, toi_use, 'time');
 
 end
 
-function [chanDim, freqDim, timeDim, obsDim] = local_detect_dims(X, TF, freqs, times, nObs, fname)
-
-sz = size(X);
-nd = ndims(X);
-
-if nd < 3
-    error('nf_extractpower:BadField', 'Field %s must be at least 3D.', fname);
-end
-
-nChan = 0;
-
-if isfield(TF, 'chanlocs') == 1
-    nChan = numel(TF.chanlocs);
-end
-
-nFreq = numel(freqs);
-nTime = numel(times);
-
-% Find dims by size matching (prefer NF convention if possible)
-dimsChan = find(sz == nChan);
-dimsFreq = find(sz == nFreq);
-dimsTime = find(sz == nTime);
-dimsObs  = find(sz == nObs);
-
-if isempty(dimsObs) == 1
-    error('nf_extractpower:BadField', 'Field %s has no dimension matching nObs=%d.', fname, nObs);
-end
-
-% obsDim: prefer last, then first, then the first match
-if any(dimsObs == nd)
-    obsDim = nd;
-elseif any(dimsObs == 1)
-    obsDim = 1;
-else
-    obsDim = dimsObs(1);
-end
-
-% freqDim: prefer 2 if matches, else first match not equal obsDim
-if any(dimsFreq == 2) && obsDim ~= 2
-    freqDim = 2;
-else
-    freqDim = local_first_not(dimsFreq, obsDim);
-end
-
-% timeDim: prefer 3 if matches, else first match not equal obsDim/freqDim
-if any(dimsTime == 3) && obsDim ~= 3 && freqDim ~= 3
-    timeDim = 3;
-else
-    timeDim = local_first_not(dimsTime, [obsDim freqDim]);
-end
-
-% chanDim: prefer 1 if matches, else first match not equal obsDim/freqDim/timeDim
-if nChan > 0 && any(dimsChan == 1) && obsDim ~= 1 && freqDim ~= 1 && timeDim ~= 1
-    chanDim = 1;
-else
-    chanDim = local_first_not(dimsChan, [obsDim freqDim timeDim]);
-end
-
-if isempty(freqDim) == 1 || isempty(timeDim) == 1
-    error('nf_extractpower:BadField', 'Could not resolve freq/time dims for field %s.', fname);
-end
-
-if isempty(chanDim) == 1
-    % If chanlocs missing, assume chanDim is the remaining non-obs/freq/time dim
-    allDims = 1:nd;
-    used = unique([obsDim freqDim timeDim]);
-    rem = setdiff(allDims, used);
-
-    if isempty(rem) == 0
-        chanDim = rem(1);
-    else
-        chanDim = 1;
-    end
-end
-
-end
-
-function d = local_first_not(cands, banned)
-
-d = [];
-
-if isempty(cands) == 1
-    return
-end
-
-if isempty(banned) == 1
-    d = cands(1);
-    return
-end
-
-for i = 1:numel(cands)
-    if ~any(cands(i) == banned)
-        d = cands(i);
-        return
-    end
-end
-
-end
-
-function vals = local_extract_roi_mean(X, chanDim, freqDim, timeDim, obsDim, chanIdx, freqIdx, timeIdx, nObs)
-
-nd = ndims(X);
-
-idx = repmat({':'}, 1, nd);
-
-idx{chanDim} = chanIdx;
-idx{freqDim} = freqIdx;
-idx{timeDim} = timeIdx;
-idx{obsDim} = 1:size(X, obsDim);
-
-Xroi = X(idx{:});
-
-perm = 1:nd;
-
-% bring obsDim to front
-perm = [obsDim perm(perm ~= obsDim)];
-
-Xp = permute(Xroi, perm);
-
-szp = size(Xp);
-
-if szp(1) ~= nObs
-    % nObs mismatch; try to coerce if singleton behavior
-    if szp(1) == 1 && nObs > 1
-        Xp = repmat(Xp, [nObs ones(1, nd - 1)]);
-        szp = size(Xp);
-    else
-        error('nf_extractpower:BadObs', 'ROI extraction produced obs dim %d but expected %d.', szp(1), nObs);
-    end
-end
-
-Xp2 = reshape(double(Xp), [nObs prod(szp(2:end))]);
-
-vals = local_nanmean_rows(Xp2);
-
+function vals = local_extract_roi_mean(X,c,f,t,nObs)
+roi = X(c,f,t,:);
+% Each column is an observation. Preserve a final singleton observation.
+values = reshape(double(roi),[],nObs).';
+vals = local_nanmean_rows(values);
 end
 
 function m = local_nanmean_rows(X)

@@ -1,4 +1,7 @@
-function tfce = nf_indsamples_TFCE(dataX,dataY,chanlocs,faxis,taxis,nperm,par)
+function tfce = nf_indsamples_TFCE(dataX,dataY,chanlocs,faxis,taxis,nperm,par,varargin)
+% Simple permutation tests assume independent, exchangeable observations.
+% Pooled repeated trials across participants require a subject-aware design.
+
 %
 % GENERAL
 % -------
@@ -31,11 +34,9 @@ function tfce = nf_indsamples_TFCE(dataX,dataY,chanlocs,faxis,taxis,nperm,par)
 %
 
 
-if nargin < 8
-    varargin = {};
-end
 
 if isstruct(dataX) == 1
+    hnf_stats_check_observations(dataX);
     if nargin < 7 || isempty(par) == 1
         par = 0;
     end
@@ -75,6 +76,7 @@ if isstruct(dataX) == 1
     end
 
     if isstruct(dataY) == 1
+        hnf_stats_check_observations(dataY);
         runnerPair = @(XA, XB) nf_indsamples_TFCE(XA, XB, chanlocs, faxis, taxis, nperm, par);
 
         tfce = local_apply_pairwise_tf(dataX, dataY, runnerPair, varargin{:});
@@ -133,15 +135,15 @@ end
 
 if ~isempty(chanlocs)
     if par == 0
-        tfc = ept_TFCE_indsamples(dataX, dataY, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_indsamples(dataX, dataY, chanlocs, 'nperm', nperm);
     else
-        tfc = ept_TFCE_indsamples_par(dataX, dataY, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_indsamples_par(dataX, dataY, chanlocs, 'nperm', nperm);
     end
 else
     if par == 0
-        tfc = ept_TFCE_indsamples(dataX, dataY, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_indsamples(dataX, dataY, [], 'nperm', nperm, 'flag_ft', 1);
     else
-        tfc = ept_TFCE_indsamples_par(dataX, dataY, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_indsamples_par(dataX, dataY, [], 'nperm', nperm, 'flag_ft', 1);
     end
 end
 
@@ -149,6 +151,8 @@ tfce = struct();
 
 tfce.obs = {squeeze(mean(dataX, 1)), squeeze(mean(dataY, 1))};
 tfce.sd = {squeeze(std(dataX, 0, 1)), squeeze(std(dataY, 0, 1))};
+% Preserve per-group degrees of freedom. The statistic is Welch t; the
+% reported p-values are permutation maxima rather than a parametric t CDF.
 tfce.df = {size(dataX, 1) - 1, size(dataY, 1) - 1};
 
 if ~isempty(taxis)
@@ -176,6 +180,9 @@ end
 
 function out = local_run_split(Xobs, group, chanlocs, faxis, taxis, nperm, par)
 
+if numel(group) ~= size(Xobs,1)
+    error('nf_indsamples_TFCE:GroupMismatch','Supply one group assignment per observation.');
+end
 u = unique(group(~isnan(group)));
 
 if numel(u) ~= 2
@@ -203,101 +210,42 @@ end
 
 function tfce = local_apply_pairwise_tf(tfA, tfB, runnerPair, varargin)
 
-groups = {'power', 'phase'};
-slices = [];
-
-if mod(numel(varargin), 2) ~= 0
-    error('nf_indsamples_TFCE:NameValuesRequired',...
-        'Name/value pairs required.');
-end
-
-for i = 1:2:numel(varargin)
-    key = lower(char(varargin{i}));
-    val = varargin{i + 1};
-
-    if strcmp(key, 'groups') == 1
-        groups = val;
-    elseif strcmp(key, 'slices') == 1
-        slices = val;
+% Use the same axis, slice and field rules as the one-sample path so
+% channels or conditions cannot silently become the independent samples.
+for axis = {'freqs','times'}
+    name = axis{1};
+    if isfield(tfA,name) && isfield(tfB,name) && ~isequal(tfA.(name)(:),tfB.(name)(:))
+        error('nf_indsamples_TFCE:AxisMismatch','The two inputs have different %s coordinates.',name);
     end
 end
-
-tfce = struct();
-tfce.results = struct();
-
-for iG = 1:numel(groups)
-    gname = groups{iG};
-
-    if isfield(tfA, gname) == 0 || isfield(tfB, gname) == 0
-        continue
+if isfield(tfA,'chanlocs') && isfield(tfB,'chanlocs') && ...
+        isfield(tfA.chanlocs,'labels') && isfield(tfB.chanlocs,'labels') && ...
+        ~isequal({tfA.chanlocs.labels},{tfB.chanlocs.labels})
+    error('nf_indsamples_TFCE:AxisMismatch','The two inputs have different channel labels or order.');
+end
+a = nf_tfstats_apply(tfA,@(x) x,varargin{:});
+b = nf_tfstats_apply(tfB,@(x) x,varargin{:});
+tfce = a;
+groups = fieldnames(a.results);
+if ~isequal(sort(groups),sort(fieldnames(b.results)))
+    error('nf_indsamples_TFCE:GroupMismatch','The two inputs have different measure groups.');
+end
+for g = 1:numel(groups)
+    group = groups{g};
+    names = fieldnames(a.results.(group));
+    if ~isequal(sort(names),sort(fieldnames(b.results.(group))))
+        error('nf_indsamples_TFCE:GroupMismatch','The two inputs have different %s fields.',group);
     end
-
-    if isstruct(tfA.(gname)) == 0 || isstruct(tfB.(gname)) == 0
-        continue
-    end
-
-    fa = fieldnames(tfA.(gname));
-    fb = fieldnames(tfB.(gname));
-
-    if ~isequal(fa, fb)
-        error('nf_indsamples_TFCE:GroupMismatch',...
-            'Group field mismatch between inputs.');
-    end
-
-    tfce.results.(gname) = struct();
-
-    for iF = 1:numel(fa)
-        fn = fa{iF};
-
-        XA = tfA.(gname).(fn);
-        XB = tfB.(gname).(fn);
-
-        if ndims(XA) ~= ndims(XB)
-            error('nf_indsamples_TFCE:ShapeMismatch',...
-                'Shape mismatch between paired fields.');
+    for j = 1:numel(names)
+        name = names{j};
+        left = a.results.(group).(name);
+        right = b.results.(group).(name);
+        if ~isequal(left.slice_labels,right.slice_labels)
+            error('nf_indsamples_TFCE:ConditionMismatch','Condition labels or ordering differ between the groups.');
         end
-
-        sliceCount = 1;
-
-        if ndims(XA) == 5
-            sliceCount = size(XA, 5);
+        for k = 1:numel(left.tfce)
+            tfce.results.(group).(name).tfce{k} = runnerPair(left.tfce{k},right.tfce{k});
         end
-
-        useSlices = 1:sliceCount;
-
-        if isempty(slices) == 0
-            useSlices = slices(:)';
-        end
-
-        res = struct();
-        res.tfce = cell(numel(useSlices), 1);
-        res.slice_index = useSlices(:);
-
-        for iS = 1:numel(useSlices)
-            sIdx = useSlices(iS);
-
-            XA_s = XA;
-            XB_s = XB;
-
-            if ndims(XA) == 5
-                XA_s = XA(:, :, :, :, sIdx);
-                XB_s = XB(:, :, :, :, sIdx);
-            end
-
-            res.tfce{iS} = runnerPair(XA_s, XB_s);
-        end
-
-        tfce.results.(gname).(fn) = res;
     end
 end
-
 end
-
-
-
-
-
-
-
-
-

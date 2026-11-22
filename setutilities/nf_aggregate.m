@@ -192,6 +192,7 @@ tfagg.source_paths = fullPaths;
 tfagg.freqs = ref.freqs;
 tfagg.times = ref.times;
 tfagg.chanlocs = ref.chanlocs;
+if isfield(ref,'Fs'), tfagg.Fs = ref.Fs; end
 
 if isfield(ref, 'conds') == 1
     tfagg.conds = ref.conds;
@@ -522,6 +523,9 @@ if isfield(tf, 'conds') == 1
 
 end
 
+if isfield(tf,'ntrls') && ~isfield(tf,'ntrial')
+    tf.ntrial = tf.ntrls;
+end
 if isfield(tf, 'ntrial') == 1
     if isempty(tf.ntrial) == 1
         if opts.strict == 1
@@ -657,22 +661,19 @@ if checkConds == 1
         error('nf_aggregate:LayoutMismatch', 'conds missing for avg layout check: %s vs %s', pathRef, pathCur);
     end
 
-    % if tfRef.conds ~= tfCur.conds
-    %     warning('nf_aggregate:LayoutMismatch', 'conds length mismatch: %s vs %s', pathRef, pathCur);
-    %     warning('continuing WITHOUT this file');
-    %     valid = 0;
-    %     return
-    % else
-    valid = 1;
-    % end
-
-    % for i = 1:numel(tfRef.conds)
-    %     if strcmpi(tfRef.conds{i}, tfCur.conds{i}) == 0
-    %         error('nf_aggregate:LayoutMismatch', 'conds mismatch: %s vs %s', pathRef, pathCur);
-    %     end
-    % end
+    if ~isequal(tfRef.conds(:),tfCur.conds(:))
+        error('nf_aggregate:LayoutMismatch','Condition layout differs between %s and %s.',pathRef,pathCur);
+    end
+    if isfield(tfRef,'normbase') && isfield(tfCur,'normbase') && ...
+            isfield(tfRef.normbase,'conditions') && isfield(tfCur.normbase,'conditions') && ...
+            ~isequal(tfRef.normbase.conditions.values,tfCur.normbase.conditions.values)
+        error('nf_aggregate:LayoutMismatch','Condition labels differ between %s and %s.',pathRef,pathCur);
+    end
 end
-
+if isfield(tfRef,'scale') && isfield(tfCur,'scale') && ~isequal(tfRef.scale,tfCur.scale)
+    error('nf_aggregate:ScaleMismatch','Power scales differ between %s and %s.',pathRef,pathCur);
+end
+valid = 1;
 end
 
 % Local: extract channel labels robustly
@@ -714,9 +715,11 @@ nChan = numel(tf.chanlocs);
 nFreq = numel(tf.freqs);
 nTime = numel(tf.times);
 nConds = tf.conds;
+if ~isnumeric(nConds) || ~isscalar(nConds), nConds = numel(nConds); end
+payload.conds = nConds;
 
 [powAll, powRaw] = local_collect_top_level_tf_numeric(tf, {'power', 'pow_'}, filepath, opts);
-[phAll, phRaw] = local_collect_top_level_tf_numeric(tf, {'phase', 'ph_'}, filepath, opts);
+[phAll, phRaw] = local_collect_top_level_tf_numeric(tf, {'phase', 'ph_', 'itpc', 'wpli'}, filepath, opts);
 
 if opts.strict == 1
     if isempty(fieldnames(powAll)) == 1 && isempty(fieldnames(phAll)) == 1
@@ -780,12 +783,12 @@ nFreq = numel(tf.freqs);
 nTime = numel(tf.times);
 
 [powAll, powRaw] = local_collect_top_level_tf_numeric(tf, {'power', 'pow_'}, filepath, opts);
-[phAll, phRaw] = local_collect_top_level_tf_numeric(tf, {'phase', 'ph_'}, filepath, opts);
+[phAll, phRaw] = local_collect_top_level_tf_numeric(tf, {'phase', 'ph_', 'itpc', 'wpli'}, filepath, opts);
 
 if opts.strict == 1
-    % if isempty(fieldnames(powAll)) == 1 && isempty(fieldnames(phAll)) == 1
-    %     error('nf_aggregate:NoDataFields', 'No 4D top-level power/phase fields found for singletrial aggregation. File: %s', filepath);
-    % end
+    if isempty(fieldnames(powAll)) && isempty(fieldnames(phAll))
+        error('nf_aggregate:NoDataFields', 'No TF measurements in %s.', filepath);
+    end
 end
 
 payload.powerFields_raw = powRaw;
@@ -822,6 +825,7 @@ if opts.strict == 1
 end
 
 payload.ntrials = tf.ntrial;
+if isfield(tf,'behavior'), payload.behavior = tf.behavior; end
 
 payload.trial_condindex = [];
 payload.trial_condlabel = {};
@@ -834,7 +838,9 @@ end
 
 if isfield(tf, 'trial_condlabel') == 1
     if numel(tf.trial_condlabel) == payload.ntrials
-        payload.trial_condlabel = tf.trial_condlabel(:);
+        labels = tf.trial_condlabel(:);
+        if ~iscell(labels), labels = num2cell(labels); end
+        payload.trial_condlabel = labels;
     end
 end
 
@@ -931,56 +937,14 @@ end
 % Local: standardize avg fields to chan x freq x time x cond (4D only)
 function X4 = local_standardize_avg_field(X, nConds, nChan, nFreq, nTime, filename, fname)
 
-if ndims(X) ~= 4
-    error('nf_aggregate:BadAvgShape', ...
-        'Avg field %s must be 4D (chan x freq x time x cond). File: %s', fname, filename);
-end
-
-if size(X, 1) ~= nChan
-    error('nf_aggregate:BadAvgShape', 'Field %s channel dim mismatch. File: %s', fname, filename);
-end
-
-if size(X, 2) ~= nFreq
-    error('nf_aggregate:BadAvgShape', 'Field %s freq dim mismatch. File: %s', fname, filename);
-end
-
-if size(X, 3) ~= nTime
-    error('nf_aggregate:BadAvgShape', 'Field %s time dim mismatch. File: %s', fname, filename);
-end
-
-if size(X, 4) ~= nConds
-    error('nf_aggregate:BadAvgShape', 'Field %s cond dim mismatch. File: %s', fname, filename);
-end
-
-X4 = X;
+X4 = hnf_tf_grid(X,nChan,nFreq,nTime,nConds,[filename ' / ' fname]);
 
 end
 
 % Local: standardize singletrial fields to chan x freq x time x trial (4D only)
 function X4 = local_standardize_singletrial_field(X, nTrial, nChan, nFreq, nTime, filename, fname)
 
-if ndims(X) ~= 4
-    error('nf_aggregate:BadSingleTrialShape', ...
-        'Single-trial field %s must be 4D (chan x freq x time x trial). File: %s', fname, filename);
-end
-
-if size(X, 1) ~= nChan
-    error('nf_aggregate:BadSingleTrialShape', 'Field %s channel dim mismatch. File: %s', fname, filename);
-end
-
-if size(X, 2) ~= nFreq
-    error('nf_aggregate:BadSingleTrialShape', 'Field %s freq dim mismatch. File: %s', fname, filename);
-end
-
-if size(X, 3) ~= nTime
-    error('nf_aggregate:BadSingleTrialShape', 'Field %s time dim mismatch. File: %s', fname, filename);
-end
-
-if size(X, 4) ~= nTrial
-    error('nf_aggregate:BadSingleTrialShape', 'Field %s trial dim mismatch. File: %s', fname, filename);
-end
-
-X4 = X;
+X4 = hnf_tf_grid(X,nChan,nFreq,nTime,nTrial,[filename ' / ' fname]);
 
 end
 
@@ -1076,6 +1040,11 @@ for s = 1:nSub
         tfagg.(fn)(:, :, :, idx) = p.(fn);
     end
 
+    if isfield(p,'behavior') ~= isfield(p0,'behavior') || ...
+            (isfield(p,'behavior') && numel(p.behavior) ~= nT)
+        error('nf_aggregate:BehaviorMismatch','Expected aligned behavior rows in %s.',p.filepath);
+    end
+    if isfield(p,'behavior'), p.behavior = reshape(p.behavior,1,[]); end
     if (s==1) && isfield(p,'behavior')
         tfagg.behavior = p.behavior;
     elseif s>1 && isfield(p,'behavior')
@@ -1089,8 +1058,18 @@ for s = 1:nSub
     end
 
     tfagg.trial_fileindex(idx) = s;
+    if isfield(p,'trial_condlabel') && ~isempty(p.trial_condlabel)
+        if ~isfield(tfagg,'trial_condlabel'), tfagg.trial_condlabel=cell(nTrialsAll,1); end
+        tfagg.trial_condlabel(idx) = p.trial_condlabel;
+    end
 
-    tfagg.trial_condindex(idx) = 1;
+    if isfield(p,'conds')
+        tfagg.trial_condindex(idx) = 1:nT;
+    elseif ~isempty(p.trial_condindex)
+        tfagg.trial_condindex(idx) = p.trial_condindex;
+    else
+        tfagg.trial_condindex(idx) = 1;
+    end
 
     cursor = cursor + nT;
 end
@@ -1099,6 +1078,7 @@ if isfield(payloads{s},'conds')
     tfagg.conds = nTrialsAll;
 else
     tfagg.ntrials = nTrialsAll;
+    tfagg.ntrls = nTrialsAll;
 end
 
 end
@@ -1183,7 +1163,7 @@ for i = 1:numel(sf)
 
     end
 
-    X = local_move_subject_last_to_first(X);
+    X = local_move_subject_last_to_first(X,numel(baseSz)+1);
 
     tfagg.stat.(fn) = X;
 
@@ -1216,9 +1196,8 @@ end
 
 end
 
-function Y = local_move_subject_last_to_first(X)
+function Y = local_move_subject_last_to_first(X,nd)
 
-nd = ndims(X);
 
 if nd < 2
     Y = X;
@@ -1300,7 +1279,7 @@ for iF = 1:numel(metricNames)
 
     end
 
-    X = local_move_subject_last_to_first(X);
+    X = local_move_subject_last_to_first(X,numel(baseSz)+1);
 
     mOut.(fn) = X;
 
@@ -1428,7 +1407,7 @@ for i = 1:numel(fns)
     for j = 1:numel(prefixes)
         pfx = prefixes{j};
 
-        if strncmpi(fn, pfx, numel(pfx)) == 1
+        if strcmpi(fn,pfx) || (pfx(end)=='_' && strncmpi(fn,pfx,numel(pfx))) || strncmpi(fn,[pfx '_'],numel(pfx)+1)
             isMatch = true;
         end
     end
@@ -1447,9 +1426,6 @@ for i = 1:numel(fns)
         continue
     end
 
-    if ndims(X) ~= 4
-        continue
-    end
 
     key = matlab.lang.makeValidName(fn);
 

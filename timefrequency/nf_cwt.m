@@ -27,68 +27,36 @@ function tfRes = nf_cwt(data,Fs,verbose)
 % 3) verbose: print verbose output? 0 or 1, defaults to 0
 %
 
-%defaults
-if nargin<3 || isempty(verbose)
-    %verbose=0;
-end
-if nargin<2 || isempty(Fs) || isempty(data)
-    error('nf_cwt:SignalAndFsRequired',...
-        'at least a signal and sampling rate are required');
-end
-
-%get all sizes
-nChan = size(data,1);
-nTimes = size(data,2);
-%multiple trials?
-if ndims(data)==3
-    nTrls = size(data,3);
-else
-    nTrls = 1;
-end
-
-%make data long over trials
-data=reshape(data,nChan,nTimes*nTrls); %concatenate times
-
-%test run - figure out returned frequencies for preallocation
-[~,f] = cwt(single(data(1,:)),Fs,'amor'); %test frequencies
-cwtPow = zeros(nChan,numel(f),nTimes*nTrls); %preallocate
-cwtPhas = zeros(nChan,numel(f),nTimes*nTrls); %preallocate
-
-%progress
-disp('[nf_cwt]: beginning continuous wavelet transform');
-%sensor loop
-for i=1:nChan
-    %one sensor of data
-    dataY=data(i,:);
-    %continuous wavelet
-    convDat = cwt(single(dataY),Fs,'amor');
-    if isreal(dataY)
-        cwtPow(i,:,:) = flipud(abs(convDat).^2);
-        cwtPhas(i,:,:) = flipud(angle(convDat));
-    else
-        cwtPow(i,:,:) = flipud(abs(convDat(:,:,1)).^2);
-        cwtPhas(i,:,:) = flipud(angle(convDat(:,:,1)));
+narginchk(2,3);
+data = hnf_tf_input(data, Fs);
+if nargin < 3 || isempty(verbose), verbose = 0; end
+[nChan,nTimes,nTrls] = size(data);
+for trial = 1:nTrls
+    for sensor = 1:nChan
+        % CWT chooses scales and reflects boundaries for an individual
+        % epoch. Concatenating trials changes both the scales and the data
+        % available at either edge. Page 1 is positive rotation for complex x.
+        [coefficients, f] = cwt(single(data(sensor,:,trial)), 'amor', Fs);
+        if trial == 1 && sensor == 1
+            freqs = flipud(f(:)).';
+            power = zeros(nChan,numel(f),nTimes,nTrls);
+            phase = power;
+        end
+        coefficients = flipud(coefficients(:,:,1));
+        power(sensor,:,:,trial) = abs(coefficients).^2;
+        phase(sensor,:,:,trial) = angle(coefficients);
     end
 end
-
-%format
-tfRes.power = squeeze(reshape(cwtPow,nChan,numel(f),nTimes,nTrls)); %power, reshape back
-tfRes.phase = squeeze(reshape(cwtPhas,nChan,numel(f),nTimes,nTrls)); %phase, reshape back
-tfRes.freqs=flipud(f)';
-tfRes.times=0:1/Fs:((1/Fs)*nTimes)-(1/Fs);
-tfRes.nsensor=nChan;
-tfRes.ntrls=nTrls;
-tfRes.Fs=Fs;
-tfRes.method='cwt';
+tfRes.power = hnf_tf_output(power);
+tfRes.phase = hnf_tf_output(phase);
+tfRes.freqs = freqs;
+tfRes.times = (0:nTimes-1)/Fs;
+tfRes.nsensor = nChan;
+tfRes.ntrls = nTrls;
+tfRes.Fs = Fs;
+tfRes.method = 'cwt';
+tfRes.phaseReference = 'instantaneous';
+tfRes.phaseReferenceSeconds = 0;
 tfRes.scale = 'linear';
-
-disp('[nf_cwt]: continuous wavelet transform complete');
-
+if verbose, disp('[nf_cwt]: continuous wavelet transform complete'); end
 end
-
-
-
-
-
-
-

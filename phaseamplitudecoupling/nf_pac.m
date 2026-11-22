@@ -13,7 +13,9 @@ function pac = nf_pac(TF, foiLow, foiHi, varargin)
 %
 % GENERAL BEHAVIOR
 % ----------------
-% - Uses TF.phase and TF.power from nf_tftransform.m
+% - Uses TF.phase and TF.power from nf_tftransform.m. NeuroFreq's default
+%   high-frequency weighting is power. Select 'weighting','amplitude' for
+%   the conventional analytic amplitude envelope term in MVL, MI and ERPAC.
 % - Selects frequency bands via foiLow / foiHi ranges
 % - Selects time-of-interest as the contiguous span between the first and
 %   last element of 'toi'
@@ -55,7 +57,7 @@ function pac = nf_pac(TF, foiLow, foiHi, varargin)
 %             .freqs [1 x nFreq]
 %             .times [1 x nTimes]
 %             .Fs
-%             .chanlocs
+%             .chanlocs (optional)
 %   foiLow  : [fMin fMax] low-frequency range (phase)
 %   foiHi   : [fMin fMax] high-frequency range (amplitude)
 %
@@ -64,7 +66,8 @@ function pac = nf_pac(TF, foiLow, foiHi, varargin)
 %   'method'   : 'MVL' (default), 'MI', or 'ERPAC'
 %   'mode'     : 'within' (default), or 'between'/'cross'
 %   'nperm'    : permutations for z-scoring (default 100)
-%   'nbin'     : phase bins for MI (default 18)
+%   'nbin'     : phase bins for MI (integer >= 2; default 18)
+%   'weighting': 'power' (historical default) or 'amplitude' (sqrt power)
 %   'phaseCh'  : phase channel indices (cross mode; default = all)
 %   'ampCh'    : amplitude channel indices (cross mode; default = all)
 %   'use_mex'  : logical, enable MEX acceleration (default true)
@@ -94,17 +97,19 @@ addParameter(p, 'method',  defaultMethod, ...
 addParameter(p, 'mode',    defaultMode, ...
     @(x) any(strcmpi(x, expectedModes)));
 addParameter(p, 'nperm',   defaultNperm, validScalarNum);
+addParameter(p, 'weighting', 'power', @(v) any(strcmpi(v,{'power','amplitude'})));
 addParameter(p, 'nbin',    defaultNbin,  validScalarNum);
 addParameter(p, 'phaseCh', defaultPhaseCh, validNumVector);
 addParameter(p, 'ampCh',   defaultAmpCh,   validNumVector);
 addParameter(p, 'use_mex', defaultUseMex, ...
-    @(x) (islogical(x) && isscalar(x)) || (isnumeric(x) && isscalar(x)));
+    @(x) (islogical(x) && isscalar(x)) || (isnumeric(x) && isscalar(x) && ismember(x,[0 1])));
 parse(p, TF, foiLow, foiHi, varargin{:});
 
 % Extract parsed values
 toi     = p.Results.toi;
-method  = lower(p.Results.method);
-modeStr = lower(p.Results.mode);
+method  = lower(char(p.Results.method));
+weighting = lower(char(p.Results.weighting));
+modeStr = lower(char(p.Results.mode));
 nperm   = p.Results.nperm;
 nbin    = p.Results.nbin;
 phaseCh = p.Results.phaseCh;
@@ -114,12 +119,12 @@ use_mex = logical(p.Results.use_mex);
 % greetings
 disp(['[nf_pac]: phase-amplitude coupling using ' method]);
 % Sanity checks on scalar parameters
-if ~isscalar(nperm) || nperm < 0 || nperm ~= round(nperm)
+if ~isreal(nperm) || ~isfinite(nperm) || nperm < 0 || nperm ~= round(nperm)
     error('nf_pac:BadNPerm', 'nperm must be a non-negative integer scalar.');
 end
 
-if ~isscalar(nbin) || nbin < 1 || nbin ~= round(nbin)
-    error('nf_pac:BadNBin', 'nbin must be a positive integer scalar.');
+if ~isreal(nbin) || ~isfinite(nbin) || nbin < 2 || nbin ~= round(nbin)
+    error('nf_pac:BadNBin', 'nbin must be an integer >= 2.');
 end
 
 isCross = strcmp(modeStr, 'between') || strcmp(modeStr, 'cross');
@@ -162,8 +167,48 @@ if isempty(timeInd)
 end
 
 % Extract TF data and basic dimension checks
-dataLow = TF.phase(:, loFreqs, timeInd, :);
-dataHi  = TF.power(:, hiFreqs, timeInd, :);
+% Public NF transforms store one sensor as frequency x time x trial. An
+% older transform may also have squeezed a singleton frequency/time axis.
+% Restore declared axes before selecting any bins; reject incompatible
+% shapes even when a transposition would leave the element count unchanged.
+if ~isfield(TF,'phase') || ~isequal(size(TF.phase),size(TF.power)) || ~isreal(TF.phase) || ~isreal(TF.power)
+    error('nf_pac:BadTF','Expected matching real phase and power arrays from a phase-resolving transform.');
+end
+if ~isfield(TF,'chanlocs'), TF.chanlocs = []; end
+nChan = size(TF.phase,1);
+if isfield(TF,'nsensor')
+    nChan = TF.nsensor;
+elseif ~isempty(TF.chanlocs)
+    nChan = numel(TF.chanlocs);
+end
+validateattributes(nChan,{'numeric'},{'real','finite','scalar','integer','positive'});
+nTrials = numel(TF.phase)/(double(nChan)*numel(freqs)*numel(times));
+if isfield(TF,'ntrls') && ~isequal(double(TF.ntrls),nTrials)
+    error('nf_pac:BadTrialCount','TF.ntrls does not match the TF array dimensions.');
+end
+validateattributes(nTrials, {'numeric'}, {'scalar','finite','integer','positive'});
+phase4 = hnf_tf_grid(TF.phase,nChan,numel(freqs),numel(times),nTrials,'phase');
+power4 = hnf_tf_grid(TF.power,nChan,numel(freqs),numel(times),nTrials,'power');
+dataLow = phase4(:,loFreqs,timeInd,:);
+% Convert referenced Fourier coefficients to phase at each selected sample.
+dataLow = hnf_phase_at_sample(TF, dataLow, loFreqs, timeInd);
+dataHi = double(power4(:,hiFreqs,timeInd,:));
+if isfield(TF,'scale') && ~isempty(TF.scale)
+    switch lower(char(TF.scale))
+        case 'linear'
+            % Standard nf_tftransform output.
+        case 'log10'
+            dataHi = 10.^dataHi;
+        otherwise
+            error('nf_pac:BadScale','PAC needs linear or log10 power, before baseline normalization.');
+    end
+end
+if strcmp(weighting,'amplitude')
+    if any(dataHi(:)<0) || (isfield(TF,'method') && strcmpi(TF.method,'RID-Rihaczek'))
+        error('nf_pac:BadAmplitude','Envelope weighting requires an unsigned squared-magnitude TF representation.');
+    end
+    dataHi = sqrt(dataHi);
+end
 
 [nChanL, ~, nTimes, nTrialL]     = size(dataLow);
 [nChanH, ~, nTimesH, nTrialH]    = size(dataHi);
@@ -251,6 +296,7 @@ end
 % Assemble output struct
 pac.PAC      = pacRes;
 pac.method   = method;
+pac.weighting = weighting;
 pac.mode     = modeStr;
 pac.nperm    = nperm;
 pac.use_mex  = use_mex;
@@ -266,8 +312,11 @@ pac.chanlocs = TF.chanlocs;
 if isCross
     pac.phaseCh        = phaseCh;
     pac.ampCh          = ampCh;
-    pac.chanlocs_phase = TF.chanlocs(phaseCh);
-    pac.chanlocs_amp   = TF.chanlocs(ampCh);
+    pac.chanlocs_phase = []; pac.chanlocs_amp = [];
+    if ~isempty(TF.chanlocs)
+        pac.chanlocs_phase = TF.chanlocs(phaseCh);
+        pac.chanlocs_amp = TF.chanlocs(ampCh);
+    end
 end
 
 % Method-specific extras

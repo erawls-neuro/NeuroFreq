@@ -12,12 +12,6 @@ function out = hnf_tfdshift(in)
 
 % Copyright (C) -- see DiscreteTFDs/Copyright
 
-error(nargchk(1, 1, nargin)); %#ok
-
-N = size(in, 1);
-M = ceil(N/2);
-out = [in(M+1:N,:) ; in(1:M,:)];
+narginchk(1,1);
+out = fftshift(in,1);
 end
-
-
-

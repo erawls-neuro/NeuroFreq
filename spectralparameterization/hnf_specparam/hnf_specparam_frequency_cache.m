@@ -4,7 +4,12 @@ function cache = hnf_specparam_frequency_cache(freqs)
 persistent cachedFreqs
 persistent cachedValues
 
+validateattributes(freqs, {'numeric'}, {'vector','real','finite','positive'});
 freqRow = double(freqs(:).');
+if numel(freqRow) < 2 || any(diff(freqRow) <= 0)
+    error('NeuroFreq:FrequencyGrid', ...
+        'Spectral parameterization requires at least two strictly increasing positive frequencies.');
+end
 
 if ~isempty(cachedFreqs)
     if isequal(freqRow, cachedFreqs)

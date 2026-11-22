@@ -1,4 +1,7 @@
 function tfce = nf_glm_TFCE(dataX, dataY, chanlocs, faxis, taxis, nperm, par)
+% Simple permutation tests assume independent, exchangeable observations.
+% Pooled repeated trials across participants require a subject-aware design.
+
 %
 % NF_GLM_TFCE  TFCE-corrected GLM regression on subject-level data.
 %
@@ -67,6 +70,7 @@ end
 % NEW: struct-aware wrapper path (numeric path remains original below)
 % -------------------------------------------------------------------------
 if isstruct(dataX) == 1
+    hnf_stats_check_observations(dataX);
     tfce = local_glm_tfset_wrapper(dataX, dataY, chanlocs, faxis, taxis, nperm, par);
     return
 end
@@ -107,15 +111,15 @@ end
 
 if ~isempty(chanlocs)
     if par == 0
-        tfc = ept_TFCE_glm(dataX, designMat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_glm(dataX, designMat, chanlocs, 'nperm', nperm);
     else
-        tfc = ept_TFCE_glm_par(dataX, designMat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_glm_par(dataX, designMat, chanlocs, 'nperm', nperm);
     end
 else
     if par == 0
-        tfc = ept_TFCE_glm(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_glm(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
     else
-        tfc = ept_TFCE_glm_par(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_glm_par(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
     end
 end
 
@@ -133,6 +137,7 @@ tfce.obs = squeeze(mean(dataX, 1));
 tfce.sd = squeeze(std(dataX, 0, 1));
 
 tfce.beta = tfc.Beta;
+tfce.df = tfc.df;
 tfce.tstat = tfc.Obs;
 tfce.p_vals = tfc.P_Values;
 
@@ -145,7 +150,7 @@ if pmin < eps %#ok
     pmin = eps;
 end
 
-pmax = 1 - eps;
+pmax = 1;
 
 p = max(p, pmin);
 p = min(p, pmax);
@@ -193,6 +198,9 @@ end
 % NEW: TF-STRUCT WRAPPER
 % ====================================================================== %
 function tfce = local_glm_tfset_wrapper(tfset, dataY, chanlocs, faxis, taxis, nperm, par)
+
+tfset = hnf_stats_measures(hnf_stats_layout(tfset));
+
 
 % Fill axes from tfset if caller passed empty
 if isempty(chanlocs) == 1
@@ -353,6 +361,8 @@ for iG = 1:numel(groupList)
                 end
             end
 
+            % Different condition labels can sanitize to the same MATLAB field.
+            condsValid = matlab.lang.makeUniqueStrings(condsValid);
             fieldOut.conds_raw = condsRaw;
             fieldOut.conds = condsValid;
             fieldOut.results = struct();
@@ -445,15 +455,15 @@ end
 
 if ~isempty(chanlocs)
     if par == 0
-        tfc = ept_TFCE_glm(dataX, designMat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_glm(dataX, designMat, chanlocs, 'nperm', nperm);
     else
-        tfc = ept_TFCE_glm_par(dataX, designMat, chanlocs, 'nperm', nperm);
+        tfc = hnf_ept_TFCE_glm_par(dataX, designMat, chanlocs, 'nperm', nperm);
     end
 else
     if par == 0
-        tfc = ept_TFCE_glm(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_glm(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
     else
-        tfc = ept_TFCE_glm_par(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
+        tfc = hnf_ept_TFCE_glm_par(dataX, designMat, [], 'nperm', nperm, 'flag_ft', 1);
     end
 end
 
@@ -471,6 +481,7 @@ r.obs = squeeze(mean(dataX, 1));
 r.sd = squeeze(std(dataX, 0, 1));
 
 r.beta = tfc.Beta;
+r.df = tfc.df;
 r.tstat = tfc.Obs;
 r.p_vals = tfc.P_Values;
 
@@ -482,7 +493,7 @@ if pmin < eps %#ok
     pmin = eps;
 end
 
-pmax = 1 - eps;
+pmax = 1;
 
 p = max(p, pmin);
 p = min(p, pmax);
@@ -570,6 +581,14 @@ if isfield(tfset, 'aggtype') == 1
     end
 end
 
+for field = {'aggtype','scale'}
+    if isfield(tfset,field{1}) && any(strcmpi(tfset.(field{1}),{'avg','singletrial'}))
+        mode = tfset.(field{1});
+        return
+    end
+end
+if isfield(tfset,'ntrls') && ~isfield(tfset,'conds'), mode = 'singletrial'; return; end
+
 if isfield(tfset, 'conds') == 1
     if iscell(tfset.conds) == 1
         if isempty(tfset.conds) == 0
@@ -655,6 +674,11 @@ if isfield(tfset, 'conds') == 1
     end
 end
 
+if isfield(tfset,'nf_stats_subject_first') && tfset.nf_stats_subject_first
+    Xsf = X;
+    [nObs,nChan,nFreq,nTime,nConds] = size(X);
+    return
+end
 if ndims(X) == 4
 
     if isempty(nConds) == 1
@@ -715,7 +739,8 @@ nObs = size(Xsf, 1);
 
 end
 
-function [Xobs, nObs, nChan, nFreq, nTime] = local_standardize_singletrial_obsfirst(X, ~, chanlocs, faxis, taxis)
+function [Xobs, nObs, nChan, nFreq, nTime] = local_standardize_singletrial_obsfirst(X, tfset, chanlocs, faxis, taxis)
+X = hnf_stats_trial_grid(X,tfset,chanlocs,faxis,taxis);
 
 if isempty(chanlocs) == 0
     nChan = numel(chanlocs);

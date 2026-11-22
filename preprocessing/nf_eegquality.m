@@ -6,7 +6,7 @@ function [quality, figureHandle] = nf_eegquality(EEG_preclean, EEG_postclean, va
 % nf_preprocess integration these are the selected raw input before any
 % filtering/artifact correction and the data after IC subtraction.
 % Paired changes are calculated only when sample rate, points per epoch, and
-% epoch count match. All windowed calculations respect epoch boundaries.
+% epoch count and limits match, and recorded original epoch IDs agree. All windowed calculations respect epoch boundaries.
 %
 % Name/value inputs:
 %   final        Final epoched EEG dataset. Default: [].
@@ -377,13 +377,26 @@ comparability.sameEpochLimits = preclean.xmin == postclean.xmin && ...
 comparability.commonChannels = alignment.nCommon;
 comparability.preOnlyChannels = alignment.nPreOnly;
 comparability.postOnlyChannels = alignment.nPostOnly;
-comparability.paired = comparability.sameSampleRate && ...
+% NF preserves original epoch identities through cropping and rejection.
+% Equal-sized but differently ordered/subsetted trial sets cannot be paired.
+comparability.epochIdsCompared = isfield(preclean,'etc') && isfield(postclean,'etc') && ...
+    isfield(preclean.etc,'nf_epoch_ids') && isfield(postclean.etc,'nf_epoch_ids') && ...
+    ~isempty(preclean.etc.nf_epoch_ids) && ~isempty(postclean.etc.nf_epoch_ids);
+epochIdsAgree = ~comparability.epochIdsCompared || ...
+    isequal(preclean.etc.nf_epoch_ids(:),postclean.etc.nf_epoch_ids(:));
+comparability.paired = epochIdsAgree && comparability.sameSampleRate && ...
     comparability.samePointsPerEpoch && comparability.sameEpochCount && ...
     comparability.sameEpochLimits;
-comparability.assumption = ['Matching dimensions are treated as temporal correspondence. ' ...
-    'The function cannot independently verify trial lineage.'];
+if comparability.epochIdsCompared
+    comparability.assumption = 'Original epoch IDs and their order were compared.';
+else
+    comparability.assumption = 'Trial lineage is assumed from matching dimensions because original IDs are unavailable.';
+end
 reasons = {};
 
+if ~epochIdsAgree
+    reasons{end + 1} = 'original epoch IDs or order differ';
+end
 if ~comparability.sameSampleRate
     reasons{end + 1} = 'sample rates differ';
 end
@@ -597,6 +610,7 @@ end
 function [features, availability] = nf_window_features(data, sampleRate, thresholds)
 nonfinite = ~isfinite(data);
 nonfiniteFraction = mean(nonfinite, 2);
+data(nonfinite) = NaN;
 unreferencedStandardDeviation = std(data, 0, 2, 'omitnan');
 data = nf_common_average(data);
 channelMedian = median(data, 2, 'omitnan');
@@ -651,6 +665,7 @@ availability.lineNoise = lineAvailable;
 end
 
 function data = nf_common_average(data)
+data(~isfinite(data)) = NaN;
 reference = mean(data, 1, 'omitnan');
 data = data - reference;
 end
@@ -776,6 +791,7 @@ for channelIndex = 1:channelCount
 end
 
 channelDb = 10 .* log10(max(meanPower(:, frequencyMask), realmin));
+channelDb(validSegmentCount == 0,:) = NaN;
 psd.frequencies = frequencies(frequencyMask);
 psd.channelDb = channelDb;
 psd.medianDb = nf_percentile(channelDb, 50);
@@ -994,7 +1010,7 @@ end
 if isfield(icaModel, 'icachansind') && ~isempty(icaModel.icachansind)
     channelIndices = double(icaModel.icachansind(:)');
 else
-    channelIndices = 1:size(icaModel.icaweights, 2);
+    channelIndices = 1:size(icaModel.icasphere, 2);
 end
 if any(~isfinite(channelIndices)) || ...
         any(channelIndices ~= round(channelIndices)) || ...
@@ -1057,9 +1073,7 @@ if ocularAvailable && ~isempty(ocularRejected)
 else
     ocularRemoved = zeros(numel(channelIndices), size(data, 2));
 end
-data = data - mean(data, 2);
-totalRemoved = totalRemoved - mean(totalRemoved, 2);
-ocularRemoved = ocularRemoved - mean(ocularRemoved, 2);
+% The report specifies RMS of the full sensor backprojection, including DC.
 originalRms = sqrt(mean(data .^ 2, 2));
 totalRms = sqrt(mean(totalRemoved .^ 2, 2));
 ocularRms = sqrt(mean(ocularRemoved .^ 2, 2));

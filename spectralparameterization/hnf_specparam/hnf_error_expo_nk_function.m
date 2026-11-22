@@ -5,7 +5,7 @@ if nargin < 4
 end
 
 model = params(1) - params(2) .* log10Xs;
-residual = ys - model;
+residual = ys(:) - model(:);
 err = sum(residual .* residual);
 
 end

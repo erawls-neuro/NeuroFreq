@@ -10,22 +10,30 @@ function [EEG, info] = nf_filter(EEG, lowpass, highpass, notch, targetRate)
 
 nf_validate_eeg(EEG);
 
-if nargin < 2 || isempty(lowpass)
+if nargin < 2
     lowpass = 45;
+elseif isempty(lowpass)
+    lowpass = 0;
 end
-if nargin < 3 || isempty(highpass)
+if nargin < 3
     highpass = 0.3;
+elseif isempty(highpass)
+    highpass = 0;
 end
-if highpass>lowpass % you mixed them up
+if lowpass > 0 && highpass > lowpass % tolerate reversed positive cutoffs
     lpt = lowpass;
     lowpass = highpass;
     highpass = lpt;
 end
-if nargin < 4 || isempty(notch)
+if nargin < 4
     notch = 60;
+elseif isempty(notch)
+    notch = 0;
 end
-if nargin < 5 || isempty(targetRate)
+if nargin < 5
     targetRate = 250;
+elseif isempty(targetRate)
+    targetRate = 0;
 end
 
 nf_validate_settings(EEG, lowpass, highpass, notch, targetRate);

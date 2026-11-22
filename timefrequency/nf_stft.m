@@ -4,9 +4,8 @@ function tfRes = nf_stft(data,Fs,window,overlap,fRes,verbose)
 % GENERAL
 % -------
 % Calculates time-frequency of an input dataset (1/2/3D) using short-time
-% Fourier transform. For matlab >R2019a, uses matlab built-in function
-% 'stft'. Otherwise, uses the slower but otherwise mathematically
-% equivalent 'spectrogram'. If 100% overlap is specified then spectrogram
+% Fourier transform with symmetric Hamming windows and a frame-wise FFT.
+% If 100% overlap is specified the transform
 % will have the same sampling rate as the original data, although it will
 % be missing 1/2 the window width from the beginning and the end.
 %
@@ -34,143 +33,61 @@ function tfRes = nf_stft(data,Fs,window,overlap,fRes,verbose)
 %
 
 
-%defaults
-if nargin<6 || isempty(verbose)
-    verbose = 0;
-end
-if nargin<5 || isempty(fRes)
-    fRes=1;
-    if verbose==1
-        disp('[nf_stft]: setting frequency resolution to 1 Hz (default)');
-    end
-end
-if nargin<4 || isempty(overlap)
-    overlap = 80;
-    if verbose==1
-        disp('[nf_stft]: setting overlap to 80% (default)');
-    end
-end
-if nargin<3 || isempty(window)
-    window = .5;
-    if verbose==1
-        disp('[nf_stft]: setting window to 500 ms (default)');
-    end
-end
-if nargin<2 || isempty(Fs) || isempty(data)
-    error('nf_stft:InputsRequired',...
-        'at least a signal and sampling rate are required inputs');
-end
-
-%get all sizes
-nChan = size(data,1);
-
-%multiple trials?
-if ndims(data)==3
-    nTrls = size(data,3);
-else
-    nTrls = 1;
-end
-
-%make window in s
+narginchk(2,6);
+data = hnf_tf_input(data, Fs);
+if nargin < 3 || isempty(window), window = 0.5; end
+if nargin < 4 || isempty(overlap), overlap = 80; end
+if nargin < 5 || isempty(fRes), fRes = 1; end
+if nargin < 6 || isempty(verbose), verbose = 0; end
+validateattributes(window, {'numeric'}, {'real','scalar','finite','positive'});
+validateattributes(overlap, {'numeric'}, {'real','scalar','finite','>=',0,'<=',100});
+validateattributes(fRes, {'numeric'}, {'real','scalar','finite','positive'});
+[nChan,nTimes,nTrls] = size(data);
 window = round(window*Fs);
-
-%check fRes/window compatibility
-if round(Fs/fRes)<window
-    warning('nf_stft:fResTooCoarse', 'fRes too coarse - setting fRes to allow requested window (check frequency output!)');
-    fRes = Fs/window;
+if window < 2 || window > nTimes
+    error('nf_stft:WindowLength','The window must contain 2 to %d samples.',nTimes);
 end
-
-%ensure we do not split samples
-if mod(window,2)==1 && mod(Fs/2,2)==1
-    window = window+1;
+nfft = round(Fs/fRes);
+if nfft < window
+    warning('nf_stft:fResTooCoarse','The requested window requires at least %d FFT samples.',window);
+    nfft = window;
 end
-w = hamming(window);
-
-%calculate overlap
-o = round(length(w)*(overlap/100));
-if o>=length(w)
-    if verbose==1
-        disp('[nf_stft]: overlap canot be > window; setting overlap to window-1 samples');
-    end
-    o = length(w)-1;
+hop = max(1,window-round(window*overlap/100));
+starts = 1:hop:nTimes-window+1;
+% Symmetric Hamming window, as in hamming(window). Use the explicit frame
+% DFT to keep the same scaling and bin order for real and complex signals.
+taper = 0.54 - 0.46*cos(2*pi*(0:window-1)/(window-1));
+nFreq = floor(nfft/2)+1;
+gain = ones(1,nFreq)/sum(taper);
+if isreal(data)
+    % Peak-amplitude convention for real sinusoids. Only interior bins have
+    % a separate negative-frequency partner to combine with the positive one.
+    gain(2:end) = 2*gain(2:end);
+    if mod(nfft,2) == 0, gain(end) = gain(end)/2; end
 end
-
-%is signal complex?
-if ~isreal(data)
-    fra = 'twosided';
-    scalef = 1; %power scaling - for complex we do not need to multiply
-    lengf  = 0.5; %freq cutting - for complex negative frequencies need removed
-else
-    fra='onesided';
-    scalef = 2; %power scaling - for one-sided we need to multiply by two
-    lengf  = 1; %freq cutting - for real no negative frequencies
+power = zeros(nChan,nFreq,numel(starts),nTrls);
+phase = power;
+for frame = 1:numel(starts)
+    indices = starts(frame)+(0:window-1);
+    spectrum = fft(bsxfun(@times, data(:,indices,:), taper), nfft, 2);
+    spectrum = bsxfun(@times, spectrum(:,1:nFreq,:), gain);
+    power(:,:,frame,:) = reshape(abs(spectrum).^2,nChan,nFreq,1,nTrls);
+    phase(:,:,frame,:) = reshape(angle(spectrum),nChan,nFreq,1,nTrls);
 end
-
-disp('[nf_stft]: beginning short time fourier transform');
-
-%find current version of matlab - if >R2019a stft, else spectrogram
-if ~verLessThan('matlab','9.6') %stft was not introduced until 2019a
-    %test run - figure out returned times/frequencies for preallocation
-    [~,f,t] = stft(single(squeeze(data(1,:,1))),Fs,...
-        'Window',w,'OverlapLength',o,'FrequencyRange',fra,...
-        'FFTLength',round(Fs/fRes)); %test
-    if strcmp(fra,'twosided')
-        f = f(1:(length(f)*lengf)+1); %cut frequencies
-    else
-        f = f(1:(length(f)*lengf)); %do not cut frequencies
-    end
-    specPow = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
-    specPhas = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
-    %sensor loop
-    for i = 1:nChan
-        dataY=squeeze(data(i,:,:)); %one channel of data
-        specDat = stft(single(dataY),Fs,...
-            'Window',w,'OverlapLength',o,'FrequencyRange',fra,...
-            'FFTLength',round(Fs/fRes)); %stft
-        specDat = specDat( 1:length(f), :, : ); %drop negative freqs (if complex)
-        specDat = (scalef*specDat)./sum(w); %normalize and scale
-        specPow(i,:,:,:) = abs(specDat).^2; %square magnitude
-        specPhas(i,:,:,:) = angle(specDat); %argument
-    end
-else
-    %test run - figure out returned times/frequencies for preallocation
-    [~,f,t] = spectrogram(single(squeeze(data(1,:,1))),w,o,round(Fs/fRes),Fs); %test
-    if strcmp(fra,'twosided')
-        f = f(1:(length(f)*lengf)+1); %cut frequencies
-    else
-        f = f(1:(length(f)*lengf)); %do not cut frequencies
-    end
-    specPow = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
-    specPhas = zeros(nChan,numel(f),numel(t),nTrls); %preallocate
-    %sensor loop
-    for i = 1:nChan
-        %trial loop
-        for trl = 1:nTrls
-            dataY=squeeze(data(i,:,trl)); %one trial of data
-            specDat = spectrogram(single(dataY),w,o,round(Fs/fRes),Fs); %spectrogram
-            specDat = specDat( 1:length(f), :, : ); %drop negative freqs (if complex)
-            specDat = (scalef*specDat)./sum(w); %normalize
-            specPow(i,:,:,trl) = abs(specDat).^2; %square magnitude
-            specPhas(i,:,:,trl) = angle(specDat); %argument
-        end
-    end
-end
-
-%package output
-tfRes.power = squeeze(specPow); %power
-tfRes.phase = squeeze(specPhas); %phase
-tfRes.freqs=f';
-tfRes.times=t';
-tfRes.nsensor=nChan;
-tfRes.ntrls=nTrls;
-tfRes.Fs=1/mean(diff(t));
-tfRes.window=window;
-tfRes.overlap=overlap;
-tfRes.method='stft';
+tfRes.power = hnf_tf_output(power);
+tfRes.phase = hnf_tf_output(phase);
+tfRes.freqs = (0:nFreq-1)*Fs/nfft;
+% MATLAB spectrogram timestamps each frame half a window from its start.
+tfRes.times = (starts-1+window/2)/Fs;
+tfRes.nsensor = nChan;
+tfRes.ntrls = nTrls;
+tfRes.Fs = Fs/hop;
+tfRes.window = window;
+tfRes.overlap = overlap;
+tfRes.method = 'stft';
+% A frame DFT is referenced to the beginning of its local window.
+tfRes.phaseReference = 'frame-start-carrier';
+tfRes.phaseReferenceSeconds = window/(2*Fs);
 tfRes.scale = 'linear';
-
-disp('[nf_stft]: short time fourier transform complete');
-
+if verbose, disp('[nf_stft]: short time Fourier transform complete'); end
 end
-
-

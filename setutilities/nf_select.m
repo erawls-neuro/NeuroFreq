@@ -144,10 +144,9 @@ if ~isempty(p.Results.noepochs)
     epochSelectionRequested = true;
 end
 
-nEpoch = [];
-if epochSelectionRequested == true
-    nEpoch = local_infer_nEpoch(TFout, nChan, nFreq, nTime);
-
+nEpoch = local_infer_nEpoch(TFout,nChan,nFreq,nTime);
+epochKeep = 1:nEpoch;
+if epochSelectionRequested
     if isempty(nEpoch)
         error('nf_select:EpochsRequestedButMissing', ...
             'Requested epochs/noepochs but no eligible TF numeric field had a 4th (epoch) dimension.');
@@ -172,6 +171,16 @@ end
 % -------------------------
 % Apply to core axes
 % -------------------------
+if epochSelectionRequested || numel(timeKeep) ~= nTime
+    TFout = hnf_event_grid(TFout,TF.times,TF.times(timeKeep),epochKeep,timeKeep);
+end
+if isfield(TFout,'nsensor'), TFout.nsensor = numel(chanKeep); end
+if isfield(TFout,'phaseReference') && strcmp(TFout.phaseReference,'epoch-start-carrier')
+    TFout.phaseReferenceSeconds = TFout.phaseReferenceSeconds(timeKeep);
+end
+if numel(timeKeep)>1 && all(diff(timeKeep)==timeKeep(2)-timeKeep(1))
+    TFout.Fs = TFout.Fs/(timeKeep(2)-timeKeep(1));
+end
 TFout.freqs = TFout.freqs(freqKeep);
 TFout.times = TFout.times(timeKeep);
 TFout.chanlocs = TFout.chanlocs(chanKeep);
@@ -179,12 +188,12 @@ TFout.chanlocs = TFout.chanlocs(chanKeep);
 % If user keeps an epochs vector in the struct, subset it too (common patterns).
 if epochSelectionRequested == true
 
-    if isfield(TFout, 'epoch')
-        TFout.epoch = TFout.epoch(epochKeep);
-    end
-
-    if isfield(TFout, 'behavior')
-        TFout.behavior = TFout.behavior(epochKeep);
+    aligned = {'behavior','trlvec','trial_subjectindex','trial_condindex','trial_subid','trial_fileindex','trial_condlabel'};
+    for i = 1:numel(aligned)
+        name = aligned{i};
+        if isfield(TFout,name) && numel(TFout.(name))==nEpoch
+            TFout.(name) = TFout.(name)(epochKeep);
+        end
     end
 
     if isfield(TFout, 'trialinfo')
@@ -195,12 +204,11 @@ if epochSelectionRequested == true
         end
     end
 
-    if isfield(TFout, 'ntrls')
-        if isnumeric(TFout.ntrls)
-            if isscalar(TFout.ntrls)
-                TFout.ntrls = numel(epochKeep);
-            end
-        end
+    if isfield(TFout,'conds') && isscalar(TFout.conds) && TFout.conds==nEpoch && isfield(TFout,'ntrls') && TFout.ntrls==1
+        TFout.conds = numel(epochKeep);
+        if isfield(TFout,'trlerp'), TFout.trlerp = TFout.trlerp(epochKeep); end
+    elseif isfield(TFout,'ntrls')
+        TFout.ntrls = numel(epochKeep);
     end
 end
 
@@ -220,46 +228,10 @@ for iF = 1:numel(fn)
 
     lname = lower(name);
 
-    if ~contains(lname, 'power') && ~contains(lname, 'phase') && ~contains(lname, 'wpli')
-        continue
-    end
-
-    X = val;
-
-    if ismatrix(X)
-        error('nf_select:BadShape', 'Field %s has <3 dims; expected ch x f x t x ...', name);
-    end
-
-    if size(X, 1) ~= nChan
-        error('nf_select:BadShape', 'Field %s first dim must match chanlocs (%d).', name, nChan);
-    end
-
-    if size(X, 2) ~= nFreq
-        error('nf_select:BadShape', 'Field %s second dim must match freqs (%d).', name, nFreq);
-    end
-
-    if size(X, 3) ~= nTime
-        error('nf_select:BadShape', 'Field %s third dim must match times (%d).', name, nTime);
-    end
-
-    X = X(chanKeep, :, :, :);
-    X = X(:, freqKeep, :, :);
-    X = X(:, :, timeKeep, :);
-
-    if epochSelectionRequested == true
-        if ndims(X) < 4
-            error('nf_select:EpochDimMissing', ...
-                'epochs/noepochs was requested but field %s has no 4th dimension.', name);
-        end
-
-        if size(X, 4) ~= nEpoch
-            error('nf_select:BadEpochShape', ...
-                'Field %s 4th dim (%d) does not match inferred nEpoch (%d).', name, size(X, 4), nEpoch);
-        end
-
-        X = X(:, :, :, epochKeep, :);
-    end
-
+    if isempty(regexp(lname,'^(power|phase|itpc|wpli|complex)($|_)','once')), continue; end
+    [X,compact] = hnf_tf_grid(val,nChan,nFreq,nTime,nEpoch,name);
+    X = X(chanKeep,freqKeep,timeKeep,epochKeep);
+    if compact, X = squeeze(X); end
     TFout.(name) = X;
 
 end
@@ -447,47 +419,14 @@ end
 function nEpoch = local_infer_nEpoch(TF, nChan, nFreq, nTime)
 
 nEpoch = [];
-
-fn = fieldnames(TF);
-
-for iF = 1:numel(fn)
-
-    name = fn{iF};
-    val = TF.(name);
-
-    if ~isnumeric(val)
-        continue
+names = fieldnames(TF);
+for i = 1:numel(names)
+    if isnumeric(TF.(names{i})) && ~isempty(regexpi(names{i},'^(power|phase|itpc|wpli|complex)($|_)','once'))
+        nEpoch = numel(TF.(names{i}))/(nChan*nFreq*nTime);
+        if nEpoch~=fix(nEpoch), error('nf_select:BadShape','Invalid TF data dimensions.'); end
+        return
     end
-
-    lname = lower(name);
-
-    if ~contains(lname, 'power') && ~contains(lname, 'phase') && ~contains(lname, 'wpli')
-        continue
-    end
-
-    X = val;
-
-    if ndims(X) < 4
-        continue
-    end
-
-    if size(X, 1) ~= nChan
-        continue
-    end
-
-    if size(X, 2) ~= nFreq
-        continue
-    end
-
-    if size(X, 3) ~= nTime
-        continue
-    end
-
-    nEpoch = size(X, 4);
-    return
-
 end
-
 end
 
 function TFout = local_select_stat_set(TFout, opts)
@@ -554,230 +493,47 @@ end
 
 TFout.chanlocs = TFout.chanlocs(chanKeep);
 
-epochSelectionRequested = false;
-
-if ~isempty(opts.epochs)
-    epochSelectionRequested = true;
+if isempty(freqKeep) || isempty(timeKeep)
+    error('nf_select:EmptySelection','Stat selection must contain frequencies and times.');
 end
-
-if ~isempty(opts.noepochs)
-    epochSelectionRequested = true;
-end
-
-nEpoch = [];
-epochKeep = [];
-
-if epochSelectionRequested == true
-    nEpoch = local_infer_stat_nEpoch(TFout, chanKeep, freqKeep, timeKeep);
-
-    if isempty(nEpoch)
-        error('nf_select:EpochsRequestedButMissing', ...
-            'Requested epochs/noepochs but no stat map had a 4th (epoch) dimension.');
-    end
-
-    epochKeep = (1:nEpoch);
-
-    if ~isempty(opts.epochs)
-        epochKeep = local_resolve_epoch_axis(nEpoch, opts.epochs, 'epochs');
-    end
-
-    if ~isempty(opts.noepochs)
-        epochDrop = local_resolve_epoch_axis(nEpoch, opts.noepochs, 'epochs');
-        epochKeep = setdiff(epochKeep, epochDrop);
-    end
-
-    if isempty(epochKeep)
-        error('nf_select:EmptySelection', 'Epoch selection resulted in empty set.');
+% nf_stregress writes metric arrays directly under each measure and primary
+% aliases at the root. Older sets have one more level of containers.
+group = isfield(TFout,'aggtype') && strcmpi(TFout.aggtype,'stat');
+[TFout,axis4] = local_stat_maps(TFout,[nChan nFreq nTime],chanKeep,freqKeep,timeKeep,opts,group);
+if ~isempty(opts.epochs) || ~isempty(opts.noepochs)
+    if isempty(axis4), error('nf_select:EpochDimMissing','No selectable fourth map axis.'); end
+    if isfield(TFout,'prednames') && ~isempty(TFout.prednames)
+        TFout.prednames = TFout.prednames(axis4);
+        if isfield(TFout,'regressors'), TFout.regressors = TFout.regressors(:,axis4); end
+    else
+        if isfield(TFout,'epochs'), TFout.epochs = TFout.epochs(axis4); end
+        if isfield(TFout,'trialinfo'), TFout.trialinfo = TFout.trialinfo(axis4,:); end
+        if isfield(TFout,'ntrls'), TFout.ntrls = numel(axis4); end
     end
 end
-
-containers = {'power', 'phase', 'wpli'};
-
-for iC = 1:numel(containers)
-
-    cname = containers{iC};
-
-    if ~isfield(TFout, cname)
-        continue
-    end
-
-    if ~isstruct(TFout.(cname))
-        continue
-    end
-
-    meas = fieldnames(TFout.(cname));
-
-    for iM = 1:numel(meas)
-
-        m = meas{iM};
-        S = TFout.(cname).(m);
-
-        if ~isstruct(S)
-            continue
-        end
-
-        fields = {'corrcoef','tstat','p_vals'};
-
-        for iF = 1:numel(fields)
-
-            fnm = fields{iF};
-
-            if ~isfield(S, fnm)
-                continue
-            end
-
-            X = S.(fnm);
-
-            if ismatrix(X)
-                continue
-            end
-
-            X = X(chanKeep, :, :, :);
-
-            if ~isempty(freqKeep)
-                if size(X, 2) >= max(freqKeep)
-                    X = X(:, freqKeep, :, :);
-                end
-            end
-
-            if ~isempty(timeKeep)
-                if size(X, 3) >= max(timeKeep)
-                    X = X(:, :, timeKeep, :);
-                end
-            end
-
-            if epochSelectionRequested == true
-                if ndims(X) < 4
-                    error('nf_select:EpochDimMissing', ...
-                        'epochs/noepochs was requested but stat field %s.%s.%s has no 4th dimension.', cname, m, fnm);
-                end
-
-                if size(X, 4) ~= nEpoch
-                    error('nf_select:BadEpochShape', ...
-                        'Stat field %s.%s.%s 4th dim (%d) does not match inferred nEpoch (%d).', ...
-                        cname, m, fnm, size(X, 4), nEpoch);
-                end
-
-                X = X(:, :, :, epochKeep, :);
-            end
-
-            S.(fnm) = X;
-
-        end
-
-        TFout.(cname).(m) = S;
-
-    end
-
 end
 
-% Subset any epoch-metadata if present
-if epochSelectionRequested == true
-    if isfield(TFout, 'epochs')
-        if isnumeric(TFout.epochs) && isvector(TFout.epochs)
-            if numel(TFout.epochs) == nEpoch
-                TFout.epochs = TFout.epochs(epochKeep);
-            end
-        end
-    end
-
-    if isfield(TFout, 'trialinfo')
-        if istable(TFout.trialinfo)
-            if height(TFout.trialinfo) == nEpoch
-                TFout.trialinfo = TFout.trialinfo(epochKeep, :);
-            end
-        end
-    end
-
-    if isfield(TFout, 'ntrls')
-        if isnumeric(TFout.ntrls)
-            if isscalar(TFout.ntrls)
-                TFout.ntrls = numel(epochKeep);
-            end
-        end
+function [S,selected] = local_stat_maps(S,dims,c,f,t,opts,group)
+selected = [];
+names = fieldnames(S);
+metrics = {'corrcoef','tstat','p_vals','tfce_tstat','beta'};
+for i = 1:numel(names)
+    name = names{i};
+    X = S.(name);
+    if isstruct(X) && isscalar(X) && ~strcmp(name,'chanlocs')
+        [S.(name),child] = local_stat_maps(X,dims,c,f,t,opts,group);
+        if ~isempty(child), selected = child; end
+    elseif isnumeric(X) && any(strcmp(name,metrics)) && ~isempty(X)
+        offset = double(group);
+        shape = [size(X,1+offset),size(X,2+offset),size(X,3+offset)];
+        if ~isequal(shape,dims), error('nf_select:BadShape','Stat map %s disagrees with its axes.',name); end
+        n = size(X,4+offset);
+        kept = 1:n;
+        if ~isempty(opts.epochs), kept = local_resolve_epoch_axis(n,opts.epochs,'epochs'); end
+        if ~isempty(opts.noepochs), kept = setdiff(kept,local_resolve_epoch_axis(n,opts.noepochs,'noepochs')); end
+        if isempty(kept), error('nf_select:EmptySelection','No observations or predictors remain.'); end
+        selected = kept;
+        if group, S.(name) = X(:,c,f,t,kept); else, S.(name) = X(c,f,t,kept); end
     end
 end
-
 end
-
-function nEpoch = local_infer_stat_nEpoch(TFout, chanKeep, freqKeep, timeKeep)
-
-nEpoch = [];
-
-containers = {'power', 'phase', 'wpli'};
-
-for iC = 1:numel(containers)
-
-    cname = containers{iC};
-
-    if ~isfield(TFout, cname)
-        continue
-    end
-
-    if ~isstruct(TFout.(cname))
-        continue
-    end
-
-    meas = fieldnames(TFout.(cname));
-
-    for iM = 1:numel(meas)
-
-        m = meas{iM};
-        S = TFout.(cname).(m);
-
-        if ~isstruct(S)
-            continue
-        end
-
-        fields = {'corrcoef','tstat','p_vals'};
-
-        for iF = 1:numel(fields)
-
-            fnm = fields{iF};
-
-            if ~isfield(S, fnm)
-                continue
-            end
-
-            X = S.(fnm);
-
-            if ~isnumeric(X)
-                continue
-            end
-
-            if ndims(X) < 4
-                continue
-            end
-
-            if size(X, 1) < max(chanKeep)
-                continue
-            end
-
-            if ~isempty(freqKeep)
-                if size(X, 2) < max(freqKeep)
-                    continue
-                end
-            end
-
-            if ~isempty(timeKeep)
-                if size(X, 3) < max(timeKeep)
-                    continue
-                end
-            end
-
-            nEpoch = size(X, 4);
-            return
-
-        end
-
-    end
-
-end
-
-end
-
-
-
-
-
-

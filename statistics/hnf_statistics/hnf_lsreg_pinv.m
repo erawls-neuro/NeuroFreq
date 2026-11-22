@@ -33,6 +33,12 @@ function beta = hnf_lsreg_pinv(D,regs)
 % along with this program; if not, write to the Free Software
 % Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
+if size(D,1) ~= size(regs,1) || size(D,1) < 2 || ...
+        any(~isfinite(D(:))) || any(~isfinite(regs(:))) || any(std(regs,0,1) == 0)
+    error('NeuroFreq:InvalidStandardizedDesign', ...
+        'Standardized slopes require matching finite rows and nonconstant predictors.');
+end
+% A constant outcome has no standardized units; its beta remains NaN.
 %standardize
 D = (D - mean(D)) ./ std(D);
 regz = (regs - mean(regs)) ./ std(regs);

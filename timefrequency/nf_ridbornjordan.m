@@ -24,111 +24,51 @@ function tfRes = nf_ridbornjordan(data,Fs,fRes,maxlags,makePos,verbose)
 % -----
 % 1) data: 1D(time), 2D(channelXtime) or 3D(channelXtimesample) (REQUIRED)
 % 2) Fs: sampling rate of signal, in Hz (REQUIRED)
-% 3) fRes: frequency spacing of output, defaults to 2*N(times) freqs
-% 4) maxlags: autocorrelation window length in s, defaults to n(times)
+% 3) fRes: frequency spacing of output, default grid has n(times) bins
+% 4) maxlags: autocorrelation window length in s, capped by the lag and frequency grid
 % 5) makePos: make result positive? 0 or 1, defaults to 0
 % 6) verbose: print verbose output? 0 or 1, defaults to 0
 %
 
-%defaults
-nTimes = size(data,2);
-if nargin<6 || isempty(verbose)
-    verbose=0;
-end
-if nargin<5 || isempty(makePos)
-    makePos=0;
-    if verbose == 1
-        disp('[rid_bornjordan]: returning both positive and negative values (default)');
-    end
-end
-if nargin<4 || isempty(maxlags)
-    maxlags=2*nTimes;
-    if verbose == 1
-        disp('[rid_bornjordan]: setting window length to 2*N (default)');
-    end
+narginchk(2,6);
+data = hnf_tf_input(data,Fs);
+if nargin < 3, fRes = []; end
+if nargin < 4, maxlags = []; end
+if nargin < 5 || isempty(makePos), makePos = 0; end
+if nargin < 6 || isempty(verbose), verbose = 0; end
+[nChan,nTimes,nTrls] = size(data);
+[nfft,freqs] = hnf_rid_grid(nTimes,Fs,fRes);
+if isempty(maxlags)
+    maxlags = 2*nTimes;
 else
+    validateattributes(maxlags, {'numeric'}, {'real','finite','scalar','positive'});
     maxlags = round(maxlags*Fs);
 end
-if nargin<3 || isempty(fRes)
-    fout = linspace(0,Fs/2,nTimes);
-    if verbose == 1
-        disp('[rid_bornjordan]: setting frequencies output to 2*N (default)');
-    end
-else
-    fout = 0:fRes:Fs/2; %user-specified resolution
+% Type II kernels use an even window and at most N positive lags.
+maxlags = 2*floor(min([nfft,maxlags,2*nTimes])/2);
+if maxlags < 2
+    error('NeuroFreq:RIDLagWindow','The effective lag window must contain at least two samples.');
 end
-if nargin<2 || isempty(Fs) || isempty(data)
-    error('rid_bornjordan:InputsRequired',...
-        'at least a signal and sampling rate are required');
-end
-
-%get all sizes
-nChan = size(data,1);
-nTimes = size(data,2);
-%multiple trials?
-if ndims(data)==3
-    nTrls = size(data,3);
-else
-    nTrls = 1;
-end
-
-%preallocate
-ridPowDat = zeros(nChan,numel(fout),nTimes,nTrls); %preallocate
-
-%make window
-maxlags=min(2*numel(fout),maxlags);
-if mod(maxlags,2)==1
-    maxlags=maxlags-1;
-end
-
-%progress
-disp('[rid_bornjordan]: beginning born-jordan rid');
-
-%sensor loop
-for eloc = 1:nChan
-    %trial loop
-    for trl = 1:nTrls
-        %get one sensor of data
-        dataY = squeeze(data(eloc,:,trl));
-        %Jeff O'Neills toolbox - Born-Jordan RID
-        tmpPow = born_jordan2(dataY,Fs,2*numel(fout),maxlags);
-        ridPowDat(eloc,:,:,trl) = tmpPow(((length(tmpPow(:,1))/2)+1):end,:);
+power = zeros(nChan,numel(freqs),nTimes,nTrls);
+for sensor = 1:nChan
+    for trial = 1:nTrls
+        signed = hnf_born_jordan2(data(sensor,:,trial),Fs,nfft,maxlags);
+        % Native DFT order puts DC in row 1, and, for even lengths, the
+        % unique Nyquist coefficient in row nfft/2+1.
+        native = ifftshift(signed,1);
+        power(sensor,:,:,trial) = native(1:numel(freqs),:);
     end
 end
-
-if makePos==1
-    %set all of surface to minimal non-zero value
-    tfThresh = squeeze(ridPowDat(:));
-    tfThresh(tfThresh<=0)=[];
-    ridPowDat(ridPowDat<min(tfThresh)) = min(tfThresh);
-end
-%format
-tfRes.power = squeeze(ridPowDat); %power
-tfRes.freqs = fout;
-tfRes.times=0:1/Fs:((1/Fs)*nTimes)-(1/Fs);
-tfRes.nsensor=nChan;
-tfRes.ntrls=nTrls;
-tfRes.Fs=Fs;
-tfRes.kernel=maxlags;
-tfRes.makePos=makePos;
-tfRes.method='bornjordan2';
+if makePos, power = hnf_positive_floor(power); end
+tfRes.power = hnf_tf_output(power);
+tfRes.freqs = freqs;
+tfRes.times = (0:nTimes-1)/Fs;
+tfRes.nsensor = nChan;
+tfRes.ntrls = nTrls;
+tfRes.Fs = Fs;
+tfRes.kernel = maxlags;
+tfRes.makePos = makePos;
+tfRes.method = 'bornjordan2';
 tfRes.scale = 'linear';
-
-disp('[rid_bornjordan]: born-jordan rid complete');
-
+if verbose, disp('[nf_ridbornjordan]: transform complete'); end
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

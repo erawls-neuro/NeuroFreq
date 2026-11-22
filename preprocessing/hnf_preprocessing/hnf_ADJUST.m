@@ -18,10 +18,10 @@ function [art, horiz, vert, blink, disc]=hnf_ADJUST(EEG,developmental)
 %   Fit only thresholds used by eligible detectors; compute kurtosis only
 %   for the classic blink detector. Preserve the existing decision rules.
 %
-if length(size(EEG.data))==3
-    num_epoch=size(EEG.data,3);
-else
-    num_epoch=0;
+num_epoch = size(EEG.data,3);
+if num_epoch < 2
+    error('hnf_ADJUST:InsufficientEpochs', ...
+        'ADJUST temporal features require at least two diagnostic epochs.');
 end
 
 
@@ -63,6 +63,10 @@ icaLocs = reshape(EEG.chanlocs(icaChannels), 1, []);
 hasPosition = true(1,numel(icaLocs));
 for el = 1:numel(icaLocs)
     loc = icaLocs(el);
+    if ~all(isfield(loc, {'X','Y','Z','theta','radius'}))
+        hasPosition(el) = false;
+        continue
+    end
     coordinates = {loc.X, loc.Y, loc.Z, loc.theta, loc.radius};
     hasPosition(el) = all(cellfun(@(v) ...
         isnumeric(v) && isreal(v) && isscalar(v) && isfinite(v), ...

@@ -41,16 +41,16 @@ if nargin < 4 || isempty(use_mex)
     use_mex = true;
 end
 
-if ~isscalar(nperm) || nperm < 0 || nperm ~= round(nperm)
+if ~isscalar(nperm) || ~isreal(nperm) || ~isfinite(nperm) || nperm < 0 || nperm ~= round(nperm)
     error('nf_mvlpac_within: nperm must be a non-negative integer scalar');
 end
 if ~isscalar(use_mex) || (~islogical(use_mex) && ~ismember(use_mex, [0 1]))
     error('nf_mvlpac_within: use_mex must be a logical scalar');
 end
-if ~isreal(phas)
+if isempty(phas) || ndims(phas) > 4 || ~isreal(phas)
     error('nf_mvlpac_within: phas must be real-valued angles in radians');
 end
-if ~isreal(pow)
+if isempty(pow) || ndims(pow) > 4 || ~isreal(pow)
     error('nf_mvlpac_within: pow must be real-valued');
 end
 
@@ -101,31 +101,31 @@ for f1 = 1:loF
         power_samples = reshape(power_tmp, [nTimes, nChan, nTrial]);
         
         % Observed MVL using MEX-aware kernel
-        mvl_3d = mvl_kernel(phase_samples, power_samples, use_mex);   % [1 x nChan x nTrial]
+        mvl_3d = hnf_mvl_kernel(phase_samples, power_samples, use_mex);   % [1 x nChan x nTrial]
         obsMVL = reshape(mvl_3d, [nChan, nTrial]);                    % [nChan x nTrial]
         
         if nperm > 0
             
             permutedPAC = zeros(nperm, nChan, nTrial);
             
-            parfor ip = 1:nperm
+            for ip = 1:nperm
                 
                 % circular time-shift surrogates for power, all chan×trial at once
                 % first dimension = time; trailing dims = chan x trial
-                power_perm = surr_timeshift_vec(power_samples, [], use_mex);    % [time x chan x trial]
+                power_perm = hnf_surr_timeshift_vec(power_samples, [], use_mex);    % [time x chan x trial]
                 
                 % MVL for this permutation
-                mvl_perm_3d = mvl_kernel(phase_samples, power_perm, use_mex);   % [1 x nChan x nTrial]
+                mvl_perm_3d = hnf_mvl_kernel(phase_samples, power_perm, use_mex);   % [1 x nChan x nTrial]
                 permutedPAC(ip, :, :) = reshape(mvl_perm_3d, [nChan, nTrial]);
                 
             end
             
             % Null distribution stats
-            mu_null = squeeze(mean(permutedPAC, 1));        % [nChan x nTrial]
-            sd_null = squeeze(std(permutedPAC, 0, 1));      % [nChan x nTrial]
+            mu_null = reshape(mean(permutedPAC, 1), [nChan, nTrial]);        % [nChan x nTrial]
+            sd_null = reshape(std(permutedPAC, 0, 1), [nChan, nTrial]);      % [nChan x nTrial]
             
             % Guard against zero std
-            zero_sd = (sd_null == 0);
+            zero_sd = (sd_null <= 8*eps(abs(mu_null)));
             sd_null(zero_sd) = NaN;
             
             % zMVL

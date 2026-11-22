@@ -29,11 +29,14 @@ if nargin < 6 || isempty(use_mex)
     use_mex = true;
 end
 
-if ndims(phas) ~= 4
+validateattributes(nperm, {'numeric'}, {'real','scalar','finite','integer','nonnegative'});
+validateattributes(use_mex, {'numeric','logical'}, {'real','scalar','binary'});
+
+if ndims(phas) > 4 || isempty(phas) || ~isreal(phas)
     error('nf_erpac_cross: phas must be [nChan x nLoF x nTimes x nTrial].');
 end
 
-if ndims(pow) ~= 4
+if ndims(pow) > 4 || isempty(pow) || ~isreal(pow)
     error('nf_erpac_cross: pow must be [nChan x nHiF x nTimes x nTrial].');
 end
 
@@ -56,6 +59,8 @@ if isempty(ampCh)
     ampCh = 1:nChanAmpTotal;
 end
 
+validateattributes(phaseCh, {'numeric'}, {'real','vector','integer','positive','<=',nChanPhaseTotal});
+validateattributes(ampCh, {'numeric'}, {'real','vector','integer','positive','<=',nChanAmpTotal});
 nPhaseChan = numel(phaseCh);
 nAmpChan   = numel(ampCh);
 nTimes     = nTimes1;
@@ -79,32 +84,25 @@ for iPhase = 1:nPhaseChan
         phase_rep = repmat(phase_cf, [1, 1, nHiF, nAmpChan]);
         phase_long = reshape(phase_rep, [nTrial, nVars]);
         
-        rho_flat = clcorr_kernel(phase_long, pow_long, use_mex);
+        rho_flat = hnf_clcorr_kernel(phase_long, pow_long, use_mex);
         
         if nperm > 0
-            sum_null  = zeros(1, nVars);
-            sum2_null = zeros(1, nVars);
+            mu = zeros(1, nVars);
+            m2 = zeros(1, nVars);
             
             for ip = 1:nperm
                 perm_idx = randperm(nTrial);
                 pow_perm = pow_long(perm_idx, :);
-                rho_perm = clcorr_kernel(phase_long, pow_perm, use_mex);
+                rho_perm = hnf_clcorr_kernel(phase_long, pow_perm, use_mex);
                 
-                sum_null  = sum_null  + rho_perm;
-                sum2_null = sum2_null + rho_perm .^ 2;
+                % Update the surrogate mean and centered sum of squares.
+                delta = rho_perm - mu;
+                mu = mu + delta ./ ip;
+                m2 = m2 + delta .* (rho_perm - mu);
             end
+            sd = sqrt(m2 ./ max(1, nperm - 1));
             
-            mu = sum_null ./ nperm;
-            
-            if nperm > 1
-                var = (sum2_null - nperm .* (mu .^ 2)) ./ (nperm - 1);
-                var(var < 0) = 0;
-                sd = sqrt(var);
-            else
-                sd = zeros(1, nVars);
-            end
-            
-            sd(sd == 0) = NaN;
+            sd(sd <= 8*eps(abs(mu))) = NaN;
             out_flat = (rho_flat - mu) ./ sd;
         else
             out_flat = rho_flat;

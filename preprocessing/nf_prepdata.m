@@ -32,7 +32,7 @@ function dOut = nf_prepdata( EEG, center, detrend, taper, analytic, verbose)
 
 disp('[nf_prepdata]: beginning data preparation for tf.');
 
-if nargin<5 || isempty(verbose)
+if nargin<6 || isempty(verbose)
     verbose = 0;
 end
 if nargin<5 || isempty(analytic)
@@ -62,6 +62,9 @@ end
 if nargin<1 || isempty(EEG)
     error('nf_prepdata:DataRequired','data is a required input');
 end
+% A standalone vector is one time series, in either orientation.
+columnInput = ~isstruct(EEG) && iscolumn(EEG);
+if columnInput, EEG = EEG.'; end
 %get dimensions
 if isstruct( EEG )
     flag = 1;
@@ -87,6 +90,8 @@ else
     end
 end
 
+% Fractional detrending and Hilbert coefficients need floating-point storage.
+if ~isfloat(dEEG), dEEG = double(dEEG); end
 %begin preparation
 for eloc=1:nChan
     for trl=1:nTrls
@@ -99,7 +104,7 @@ for eloc=1:nChan
         if detrend==1
             %remove quadratic trends
             ind = 0:nTimes-1;
-            r = polyfit(ind,data,2);
+            r = polyfit(ind,data,min(2,nTimes-1));
             fit = polyval(r,ind);
             data = data-fit;
         end
@@ -122,6 +127,7 @@ if flag==1
     dOut = EEG;
 else
     dOut = dEEG;
+    if columnInput, dOut = dOut.'; end
 end
 
 disp('[nf_prepdata]: data preparation for tf complete.');

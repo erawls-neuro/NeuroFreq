@@ -27,6 +27,15 @@ function tfce = nf_lme_TFCE(dataX, designTab, varargin)
 %   'nperm'            : override permutations
 %   'par'              : override parallel flag 0/1
 %
+% PERMUTATION NULL
+% Between-subject predictors are shuffled at subject level. Trial predictors
+% are shuffled as complete rows within subjects. Mixed designs also exchange
+% complete predictor profiles between subjects of the same trial count.
+% This is a joint randomization null, not a conditional test in the presence
+% of other non-null fixed effects. Subject-specific slopes can also violate
+% invariance under reassigning a predictor with a zero mean slope. Trials must be exchangeable within subject
+% when trial predictors are present; use another analysis for ordered runs.
+%
 % NOTES ON AVG vs SINGLETRIAL
 % ---------------------------
 % - Single-trial aggregated: observations = trials (height(designTab) == nTrialsAll)
@@ -51,7 +60,7 @@ taxis = [];
 nperm = 1000;
 par = 1;
 
-flag_ft = 1;
+flag_ft = [];
 
 % -----------------------------
 % Basic checks
@@ -71,42 +80,14 @@ end
 % -----------------------------
 % Parse positional inputs: chanlocs, faxis, taxis, nperm, par
 % -----------------------------
+positional = {chanlocs,faxis,taxis,nperm,par};
 nvStart = 1;
-
-if numel(varargin) >= 1
-    if ischar(varargin{1}) == 0 && isstring(varargin{1}) == 0
-        chanlocs = varargin{1};
-        nvStart = 2;
-    end
+while nvStart <= min(5,numel(varargin)) && ...
+        ~(ischar(varargin{nvStart}) || isstring(varargin{nvStart}))
+    if ~isempty(varargin{nvStart}), positional{nvStart} = varargin{nvStart}; end
+    nvStart = nvStart + 1;
 end
-
-if numel(varargin) >= 2
-    if ischar(varargin{2}) == 0 && isstring(varargin{2}) == 0
-        faxis = varargin{2};
-        nvStart = 3;
-    end
-end
-
-if numel(varargin) >= 3
-    if ischar(varargin{3}) == 0 && isstring(varargin{3}) == 0
-        taxis = varargin{3};
-        nvStart = 4;
-    end
-end
-
-if numel(varargin) >= 4
-    if ischar(varargin{4}) == 0 && isstring(varargin{4}) == 0
-        nperm = varargin{4};
-        nvStart = 5;
-    end
-end
-
-if numel(varargin) >= 5
-    if ischar(varargin{5}) == 0 && isstring(varargin{5}) == 0
-        par = varargin{5};
-        nvStart = 6;
-    end
-end
+[chanlocs,faxis,taxis,nperm,par] = positional{:};
 
 % -----------------------------
 % Parse name-value options
@@ -177,6 +158,10 @@ if any(~isfinite(dataY(:)))
     error('nf_lme_TFCE:BadDesign', 'Fixed-effect design contains NaN/Inf. Clean or impute before LME.');
 end
 
+if any(~isfinite(subID)), error('nf_lme_TFCE:BadSubjectID','Missing subject identifiers cannot define exchangeability blocks.'); end
+if numel(unique(subID)) == numel(subID)
+    error('nf_lme_TFCE:NoRepeatedSubject','Each subject has one row. Use nf_glm_TFCE for independent subject-level observations.');
+end
 if numel(unique(subID)) < 2
     error('nf_lme_TFCE:TooFewSubjects', 'Need at least 2 unique subjects for mixed-effects modeling.');
 end
@@ -195,7 +180,22 @@ randomSlopesIdx = local_random_slopes_to_indices(randomSlopes, fixedNames, size(
 % =========================================================================
 if isstruct(dataX) == 1
 
-    tfIn = dataX;
+    tfIn = hnf_stats_layout(dataX);
+    if isfield(tfIn,'trial_subjectindex') && isfield(tfIn,'aggtype') && strcmpi(tfIn.aggtype,'singletrial')
+        actual = tfIn.trial_subjectindex(:);
+        if numel(actual) ~= nObs || size(unique([actual subID],'rows'),1) ~= numel(unique(subID)) || ...
+                numel(unique(actual)) ~= numel(unique(subID))
+            error('nf_lme_TFCE:SubjectPairing','The design subject groups differ from the aggregate trial_subjectindex groups.');
+        end
+        if isfield(tfIn,'trial_subid')
+            labels = string(tfIn.trial_subid(:));
+            designLabels = string(designTab.(subjectFieldResolved));
+            designLabels = designLabels(:);
+            if isequal(sort(unique(labels)),sort(unique(designLabels))) && ~isequal(labels,designLabels)
+                error('nf_lme_TFCE:SubjectPairing','The same subject labels appear in a different trial order.');
+            end
+        end
+    end
 
     if isempty(chanlocs) == 1
         if isfield(tfIn, 'chanlocs') == 1
@@ -238,6 +238,7 @@ if isstruct(dataX) == 1
     tfce.randomSlopes = randomSlopesIdx;
     tfce.fitMethod = fitMethod;
     tfce.uncorrelated = uncorrelated;
+    if isempty(flag_ft), flag_ft = isempty(chanlocs); end
     tfce.flag_ft = flag_ft;
 
     tfce.nperm = nperm;
@@ -270,10 +271,17 @@ if isstruct(dataX) == 1
             continue
         end
 
-        Xobs = local_force_obs_dim_first(Xraw, nObs);
-        Xobs = local_force_obs_first_to_4d_or_5d(Xobs);
+        if (isfield(tfIn,'aggtype') && strcmpi(tfIn.aggtype,'singletrial')) || ...
+                (~isfield(tfIn,'conds') && (isfield(tfIn,'ntrial') || isfield(tfIn,'ntrls')))
+            Xraw = hnf_stats_trial_grid(Xraw,tfIn,chanlocs,faxis,taxis);
+            Xobs = permute(Xraw,[4 1 2 3]);
+            if size(Xobs,1) ~= nObs, error('nf_lme_TFCE:ObsMismatch','Trial count differs from design.'); end
+        else
+            Xobs = local_force_obs_dim_first(Xraw, nObs);
+        end
+        Xobs = local_force_obs_first_to_4d_or_5d(Xobs,chanlocs,faxis,taxis);
 
-        if ndims(Xobs) == 4
+        if ndims(Xobs) <= 4
 
             r = local_run_lme_once(Xobs, dataY, subID, chanlocs, faxis, taxis, nperm, par, flag_ft, fixedNames, randomSlopesIdx, fitMethod, uncorrelated);
             tfce.(matlab.lang.makeValidName(fname)) = r;
@@ -318,9 +326,9 @@ if isnumeric(dataX) == 0
 end
 
 Xobs = local_force_obs_dim_first(dataX, nObs);
-Xobs = local_force_obs_first_to_4d_or_5d(Xobs);
+Xobs = local_force_obs_first_to_4d_or_5d(Xobs,chanlocs,faxis,taxis);
 
-if ndims(Xobs) ~= 4
+if ndims(Xobs) > 4
     error('nf_lme_TFCE:BadShape', 'Numeric dataX must resolve to 4D (obs x chan x freq x time).');
 end
 
@@ -345,11 +353,12 @@ end
 
 function r = local_run_lme_once(Xobs4, dataY, subID, chanlocs, faxis, taxis, nperm, par, flag_ft, fixedNames, randomSlopesIdx, fitMethod, uncorrelated)
 
+if isempty(flag_ft), flag_ft = isempty(chanlocs); end
 if isempty(Xobs4) == 1
     error('nf_lme_TFCE:BadData', 'Empty data passed to LME core.');
 end
 
-if ndims(Xobs4) ~= 4
+if ndims(Xobs4) > 4
     error('nf_lme_TFCE:BadData', 'LME core expects 4D: obs x chan x freq x time.');
 end
 
@@ -383,7 +392,7 @@ if isempty(taxis) == 0
     end
 end
 
-tfc = ept_TFCE_lme( ...
+tfc = hnf_ept_TFCE_lme( ...
     Xobs4, ...
     dataY, ...
     subID, ...
@@ -403,6 +412,7 @@ r.tstat = tfc.Obs;
 r.p_vals = tfc.P_Values;
 
 r.fixedNames = tfc.fixedNames;
+r.nullHypothesis = tfc.nullHypothesis;
 
 r.nperm = nperm;
 r.par = par;
@@ -536,8 +546,23 @@ X = permute(X, perm);
 
 end
 
-function X = local_force_obs_first_to_4d_or_5d(X)
+function X = local_force_obs_first_to_4d_or_5d(X,chanlocs,freqs,times)
 
+% Restore suppressed singletons from the supplied spatial axes. Match
+% dimension order as well as sample count, so a transpose cannot pass.
+dims = [max(1,numel(chanlocs)),max(1,numel(freqs)),max(1,numel(times))];
+if ~isempty(chanlocs) || ~isempty(freqs) || ~isempty(times)
+    n = size(X,1);
+    nSlices = numel(X)/(n*prod(dims));
+    if nSlices == fix(nSlices) && nSlices>=1
+        expected = [n,dims,nSlices];
+        observed = size(X);
+        if isequal(observed(observed~=1), expected(expected~=1))
+            X = reshape(X,expected);
+            return
+        end
+    end
+end
 nd = ndims(X);
 
 if nd == 2
@@ -606,7 +631,7 @@ else
 
 end
 
-if any(idx < 1) || any(idx > nFixed)
+if any(~isfinite(idx)) || any(idx ~= fix(idx)) || any(idx < 1) || any(idx > nFixed)
     error('nf_lme_TFCE:BadRandomSlopes', 'randomSlopes contains indices outside the fixed-effects range.');
 end
 
@@ -639,26 +664,19 @@ if isempty(subjectField) == 0
 
 end
 
+if ~isempty(subjectField) && isempty(subjField)
+    error('nf_lme_TFCE:NoSubjectID','The named subject field "%s" is absent.',subjectField);
+end
+
 if isempty(subjField) == 1
 
-    candidates = {'subID', 'subid', 'subject', 'Subject', 'participant', 'Participant', 'ID', 'id'};
-
-    for iC = 1:numel(candidates)
-        nm = candidates{iC};
-        if any(strcmp(vars, nm))
-            subjField = nm;
-        end
-    end
-
-    if isempty(subjField) == 1
-        for iC = 1:numel(candidates)
-            nm = candidates{iC};
-            for iV = 1:numel(vars)
-                if strcmpi(vars{iV}, nm) == 1
-                    subjField = vars{iV};
-                end
-            end
-        end
+    candidates = {'subid','subject','subjectid','participant','participantid'};
+    match = find(ismember(lower(string(vars)),candidates));
+    if isempty(match), match = find(strcmpi(vars,'id')); end
+    if numel(match)>1
+        error('nf_lme_TFCE:AmbiguousSubjects','Multiple subject identifiers found; specify subjectField.');
+    elseif numel(match)==1
+        subjField = vars{match};
     end
 
 end

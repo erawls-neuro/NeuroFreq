@@ -205,10 +205,10 @@ eligibleIdx = local_get_interaction_eligible_indices(isBinary, includeBinaryInte
 nEligible = numel(eligibleIdx);
 
 if isempty(maxOrder)
-    maxOrder = nEligible;
+    maxOrder = max(1,nEligible);
 end
 
-if ~isscalar(maxOrder) || ~isnumeric(maxOrder) || maxOrder < 1
+if ~isscalar(maxOrder) || ~isnumeric(maxOrder) || ~isfinite(maxOrder) || maxOrder < 1 || maxOrder ~= fix(maxOrder)
     error('nf_makefactorialdesign:BadMaxOrder', 'maxOrder must be a positive scalar integer or [].');
 end
 
@@ -221,6 +221,14 @@ end
 % -----------------------------
 % Build interactions
 % -----------------------------
+% Count terms before nchoosek materializes combinations (e.g. 25 factors).
+nTerms = nVars + logical(includeIntercept) + logical(keepSubjectInX);
+for order = 2:maxOrder
+    nTerms = nTerms + nchoosek(nEligible,order);
+    if nTerms > maxTerms
+        error('nf_makefactorialdesign:TooManyTerms', 'Design exceeds maxTerms=%d.',maxTerms);
+    end
+end
 interactionX = [];
 interactionNames = {};
 interactionOrders = [];
@@ -246,7 +254,7 @@ end
 
 if includeIntercept == true
     X = [ones(nObs, 1), X];
-    fixedNames = ['Intercept', fixedNames];
+    fixedNames = [{'Intercept'}, fixedNames];
 end
 
 % Optionally include subject in X (not recommended)
@@ -257,7 +265,7 @@ if keepSubjectInX == true
     end
     subjNum = double(grp2idx(categorical(subID)));
     X = [subjNum(:), X];
-    fixedNames = ['subID', fixedNames];
+    fixedNames = [{'subID'}, fixedNames];
 end
 
 if size(X, 2) > maxTerms
@@ -273,6 +281,9 @@ end
 designTab = array2table(X, 'VariableNames', fixedNames);
 
 if keepSubjectInDesignTab == true && hasSubject == true
+    if ismember(subjectFieldResolved,designTab.Properties.VariableNames)
+        designTab(:,subjectFieldResolved) = [];
+    end
     if subjectAsCategorical == true
         designTab = addvars(designTab, categorical(subID), 'Before', 1, 'NewVariableNames', subjectFieldResolved);
     else
@@ -481,8 +492,8 @@ for iVar = 1:nVars
     if islogical(col)
         isBinary(iVar) = true;
         baseX(:, iVar) = double(col);
-        mu(iVar) = nanmean(baseX(:, iVar)); %#ok
-        sigma(iVar) = nanstd(baseX(:, iVar), 0); %#ok
+        mu(iVar) = mean(baseX(:,iVar),'omitnan');
+        sigma(iVar) = std(baseX(:,iVar),0,'omitnan');
         continue
     end
 
@@ -502,14 +513,15 @@ for iVar = 1:nVars
 
     if isBinary(iVar) == true
         baseX(:, iVar) = x;
-        mu(iVar) = nanmean(x); %#ok
-        sigma(iVar) = nanstd(x, 0); %#ok
+        mu(iVar) = mean(x,'omitnan');
+        sigma(iVar) = std(x,0,'omitnan');
     else
-        mu(iVar) = nanmean(x); %#ok
-        sigma(iVar) = nanstd(x, 0); %#ok
+        mu(iVar) = mean(x,'omitnan');
+        sigma(iVar) = std(x,0,'omitnan');
 
-        if isnan(sigma(iVar)) || sigma(iVar) == 0
-            baseX(:, iVar) = zeros(size(x));
+        if standardize && (isnan(sigma(iVar)) || sigma(iVar) == 0)
+            baseX(:,iVar) = x;
+            baseX(isfinite(x),iVar) = 0;
         elseif standardize == true
             baseX(:, iVar) = (x - mu(iVar)) ./ sigma(iVar);
         else

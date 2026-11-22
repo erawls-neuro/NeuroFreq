@@ -38,7 +38,7 @@ void mexFunction( int nlhs,
 
     /* Get Xmat */
     const mxArray *Xmat_mx = prhs[0];
-    if( !mxIsDouble(Xmat_mx) || mxIsComplex(Xmat_mx) )
+    if( !mxIsDouble(Xmat_mx) || mxIsComplex(Xmat_mx) || mxIsSparse(Xmat_mx) || mxGetNumberOfDimensions(Xmat_mx) != 2 )
     {
         mexErrMsgIdAndTxt( "hnf_surr_timeshift_mex:Xmat",
                            "Xmat must be a real double matrix." );
@@ -56,7 +56,7 @@ void mexFunction( int nlhs,
 
     /* Get shifts */
     const mxArray *shifts_mx = prhs[1];
-    if( !mxIsDouble(shifts_mx) || mxIsComplex(shifts_mx) )
+    if( !mxIsDouble(shifts_mx) || mxIsComplex(shifts_mx) || mxIsSparse(shifts_mx) )
     {
         mexErrMsgIdAndTxt( "hnf_surr_timeshift_mex:shifts",
                            "shifts must be a real double vector." );
@@ -84,16 +84,11 @@ void mexFunction( int nlhs,
     {
         double shift_val = shifts[v];
 
-        /* Round to nearest integer, since MATLAB gave us double */
-        long k_long = (long) llround(shift_val);
-
-        if( k_long < 0 || k_long >= (long)nSamples )
-        {
-            mexErrMsgIdAndTxt( "hnf_surr_timeshift_mex:shiftRange",
-                               "Each shift must be in [0, nSamples-1]." );
-        }
-
-        mwSize k = (mwSize) k_long;
+        if (!mxIsFinite(shift_val) || shift_val != floor(shift_val) ||
+            shift_val < 0 || shift_val >= (double)nSamples)
+            mexErrMsgIdAndTxt("hnf_surr_timeshift_mex:shiftRange",
+                              "Each shift must be an integer in [0, nSamples-1].");
+        mwSize k = (mwSize)shift_val;
 
         const double *x_col  = Xmat + v * nSamples;
         double       *xs_col = Xs   + v * nSamples;
@@ -117,11 +112,7 @@ void mexFunction( int nlhs,
              */
             for( mwSize r = 0; r < nSamples; r++ )
             {
-                long src = (long)r - (long)k;
-                if( src < 0 )
-                {
-                    src += (long)nSamples;
-                }
+                mwSize src = (r >= k) ? r-k : nSamples-(k-r);
                 xs_col[r] = x_col[src];
             }
         }

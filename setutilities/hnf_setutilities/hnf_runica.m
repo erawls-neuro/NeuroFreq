@@ -1,8 +1,8 @@
 % POP_RUNICA - Run an ICA decomposition of an EEG dataset using RUNICA, 
 %                BINICA, or another ICA or other linear decomposition. 
 % Usage:
-%   >> OUT_EEG = pop_runica( EEG ); % pops-up a data entry window
-%   >> OUT_EEG = pop_runica( EEG, 'key', 'val' ); % no pop_up
+%   >> OUT_EEG = hnf_runica( EEG ); % pops-up a data entry window
+%   >> OUT_EEG = hnf_runica( EEG, 'key', 'val' ); % no pop_up
 %
 % Graphic interface:
 %   "ICA algorithm to use" - [edit box] The ICA algorithm to use for 
@@ -98,7 +98,7 @@
 % 03-18-02 add other decomposition options -ad
 % 03-19-02 text edition -sm
 
-function [ALLEEG, com] = pop_runica( ALLEEG, varargin )
+function [ALLEEG, com] = hnf_runica( ALLEEG, varargin )
 
 com = '';
 if nargin < 1   
@@ -163,17 +163,16 @@ end
 % special AMICA (deprecated use the pop_runamica function)
 % -------------
 selectamica = 0;
-if nargin > 1
-    if ischar(varargin{1})
-        if strcmpi(varargin{1}, 'selectamica')
-            selectamica = 1;
-            allalgs = { 'amica' allalgs{:} };
-            defaultopts = sprintf('''outdir'', ''%s''', fullfile(pwd, 'amicaout'));
-        elseif strcmpi(varargin{1}, 'selectamicaloc')
-            selectamica = 1;
-            allalgs = { 'amica' allalgs{:} };
-            defaultopts = sprintf('''outdir'', ''%s'', ''qsub'', ''off''', fullfile(pwd, 'amicaout'));
-        end
+if nargin>1 && ischar(varargin{1}) && any(strcmpi(varargin{1},{'selectamica','selectamicaloc'}))
+    selectamica = 1;
+    choice = find(strcmp({allalgs.name},'runamica15'),1);
+    if isempty(choice) || isempty(which('pop_runamica'))
+        error('hnf_runica:MissingAMICA','Install the EEGLAB AMICA plugin before using this shortcut.');
+    end
+    allalgs = allalgs([choice,setdiff(1:numel(allalgs),choice,'stable')]);
+    defaultopts = sprintf('''outdir'', ''%s''',fullfile(pwd,'amicaout'));
+    if strcmpi(varargin{1},'selectamicaloc')
+        defaultopts = [defaultopts ', ''qsub'', ''off'''];
     end
 end
 
@@ -268,7 +267,7 @@ if nargin < 2 || selectamica
     % ---
     result       = inputgui( 'geometry', geometry, 'geomvert', geomvert, 'uilist', promptstr, ...
                              'helpcom', 'pophelp(''pop_runica'')', ...
-                             'title', 'Run ICA decomposition -- pop_runica()', 'userdata', { alllabels alltypes allalgs } );
+                             'title', 'Run ICA decomposition -- hnf_runica()', 'userdata', { alllabels alltypes allalgs } );
     if isempty(result)
         return;
     end
@@ -312,12 +311,13 @@ if length(g.dataset) == 1
         EEG.etc = rmfield(EEG.etc, 'ic_classification');
     end
 elseif length(ALLEEG) > 1 && ~strcmpi(g.concatenate, 'on') && ~strcmpi(g.concatcond, 'on')
-    [ ALLEEG, com ] = eeg_eval( 'pop_runica', ALLEEG, 'warning', 'off', 'params', ...
-           { 'icatype' g.icatype 'options' g.options 'chanind' g.chanind } );
+    [ selected, com ] = eeg_eval( 'hnf_runica', ALLEEG(g.dataset), 'warning', 'off', 'params', ...
+           { 'icatype' g.icatype 'options' g.options 'chanind' g.chanind 'reorder' g.reorder } );
+    ALLEEG(g.dataset) = selected;
     return;
 elseif length(ALLEEG) > 1 && strcmpi(g.concatcond, 'on')
-    allsubjects = { ALLEEG.subject };
-    allsessions = { ALLEEG.session };
+    allsubjects = { ALLEEG(g.dataset).subject };
+    allsessions = { ALLEEG(g.dataset).session };
     alltags     = zeros(1,length(allsubjects));
     if any(cellfun('isempty', allsubjects))
         errordlg2( [ 'Aborting: Subject names missing from at least one dataset file.' 10 ...
@@ -339,7 +339,7 @@ elseif length(ALLEEG) > 1 && strcmpi(g.concatcond, 'on')
             end
             allinds = setdiff_bc(allinds, rmind);
             fprintf('Found %d datasets for subject ''%s'' session %d\n', length(allinds), allsubjects{index}, allsessions{index});
-            dats = { dats{:} allinds };
+            dats = { dats{:} g.dataset(allinds) };
             alltags(allinds) = 1;
         end
     end
@@ -350,8 +350,8 @@ elseif length(ALLEEG) > 1 && strcmpi(g.concatcond, 'on')
             TMPEEG{index} = ALLEEG(dats{index});
         end
         parfor index = 1:length(dats)
-            TMPEEG{index} = pop_runica(TMPEEG{index}, 'icatype', g.icatype, ...
-                'options', g.options, 'chanind', g.chanind, 'concatenate', 'on');
+            TMPEEG{index} = hnf_runica(TMPEEG{index}, 'icatype', g.icatype, ...
+                'options', g.options, 'chanind', g.chanind, 'reorder', g.reorder, 'concatenate', 'on');
         end
         for index = 1:length(dats)
             ALLEEG(dats{index}) = TMPEEG{index};
@@ -363,8 +363,8 @@ elseif length(ALLEEG) > 1 && strcmpi(g.concatcond, 'on')
         end
     else
         for index = 1:length(dats)
-            ALLEEG(dats{index}) = pop_runica(ALLEEG(dats{index}), 'icatype', g.icatype, ...
-                'options', g.options, 'chanind', g.chanind, 'concatenate', 'on');
+            ALLEEG(dats{index}) = hnf_runica(ALLEEG(dats{index}), 'icatype', g.icatype, ...
+                'options', g.options, 'chanind', g.chanind, 'reorder', g.reorder, 'concatenate', 'on');
             for idat = 1:length(dats{index})
                 ALLEEG(dats{index}(idat)).saved = 'no';
                 pop_saveset(ALLEEG(dats{index}(idat)), 'savemode', 'resave');
@@ -373,14 +373,14 @@ elseif length(ALLEEG) > 1 && strcmpi(g.concatcond, 'on')
             end
         end
     end
-    com = sprintf('EEG = pop_runica(EEG, %s);', ...
+    com = sprintf('EEG = hnf_runica(EEG, %s);', ...
               vararg2str({ 'icatype' g.icatype 'concatcond' 'on' 'options' g.options }) );
     return;
 else
     % copy data
     % ---------
     if all([ALLEEG(g.dataset).trials] == 1)
-        EEG = eeg_checkset(ALLEEG, 'loaddata');
+        EEG = eeg_checkset(ALLEEG(g.dataset), 'loaddata');
         EEG = pop_mergeset(EEG, 1:length(EEG));
     else
         disp('Concatenating datasets...');
@@ -391,13 +391,13 @@ else
         % -----------------------
         totalpnts = 0;
         for i = g.dataset
-            totalpnts = totalpnts+ALLEEG(g.dataset(i)).pnts*ALLEEG(g.dataset(i)).trials;
+            totalpnts = totalpnts+ALLEEG(i).pnts*ALLEEG(i).trials;
         end
         EEG.data = zeros(EEG.nbchan, totalpnts);
             
         for i = g.dataset
-            tmplen = ALLEEG(g.dataset(i)).pnts*ALLEEG(g.dataset(i)).trials;
-            TMP = eeg_checkset(ALLEEG(g.dataset(i)), 'loaddata');
+            tmplen = ALLEEG(i).pnts*ALLEEG(i).trials;
+            TMP = eeg_checkset(ALLEEG(i), 'loaddata');
             EEG.data(:,cpnts:cpnts+tmplen-1) = reshape(TMP.data, size(TMP.data,1), size(TMP.data,2)*size(TMP.data,3));
             cpnts = cpnts+tmplen;
         end
@@ -472,8 +472,6 @@ end
 % compute ICA on a definite set
 % -----------------------------
 tmpdata = reshape( EEG.data(g.chanind,:,:), length(g.chanind), EEG.pnts*EEG.trials);
-%tmprank = getrank(double(tmpdata(:,1:min(3000, size(tmpdata,2)))), pca_opt);
-tmprank = getrank(double(tmpdata(:,1:min(3000, size(tmpdata,2)))));
 tmpdata = tmpdata - repmat(mean(tmpdata,2), [1 size(tmpdata,2)]); % zero mean 
 if ~strcmpi(g.icatype, 'binica')
     try
@@ -488,6 +486,13 @@ if ~strcmpi(g.icatype, 'binica')
         disp('We advise use of "binica" instead of "runica."')
         disp('*************************************************************')
     end
+end
+% Rank reduction applies to Infomax. Estimate it on the same centered,
+% full recording used for the fit, including later trials.
+if any(strcmpi(g.icatype,{'runica','binica'})) && ~pca_opt
+    tmprank = getrank(double(tmpdata));
+else
+    tmprank = size(tmpdata,1);
 end
 switch lower(g.icatype)
     case 'runica' 
@@ -530,7 +535,6 @@ switch lower(g.icatype)
         if exist(ICABINARY) ~= 2
             error('Pop_runica(): binary ICA executable not found. Edit icadefs.m file to specify the ICABINARY location');
         end
-        tmprank = getrank(tmpdata(:,1:min(3000, size(tmpdata,2))));
         if tmprank == size(tmpdata,1) || pca_opt
             [EEG.icaweights,EEG.icasphere] = binica( tmpdata, 'lrate', 0.001, g.options{:} );
         else 
@@ -633,14 +637,15 @@ end
 
 % Reorder components by variance
 % ------------------------------
-meanvar = sum(EEG.icawinv.^2).*sum(transpose((EEG.icaweights *  EEG.icasphere)*EEG.data(EEG.icachansind,:)).^2)/((length(EEG.icachansind)*EEG.pnts)-1);
-[~, windex] = sort(meanvar);
-windex = windex(end:-1:1); % order large to small
-meanvar = meanvar(windex);
-EEG.icaweights = EEG.icaweights(windex,:);
-EEG.icawinv    = pinv( EEG.icaweights *  EEG.icasphere );
-if ~isempty(EEG.icaact)
-    EEG.icaact = EEG.icaact(windex,:,:);
+if strcmpi(g.reorder,'on')
+    % Component projection energy is the squared norm of its mixing column
+    % times the squared norm of its activation across all observations.
+    activations = (EEG.icaweights*EEG.icasphere)*EEG.data(EEG.icachansind,:);
+    energy = sum(EEG.icawinv.^2,1) .* sum(activations.^2,2).';
+    [~,windex] = sort(energy,'descend');
+    EEG.icaweights = EEG.icaweights(windex,:);
+    EEG.icawinv = EEG.icawinv(:,windex);
+    if ~isempty(EEG.icaact), EEG.icaact = EEG.icaact(windex,:,:); end
 end
 
 % copy back data to datasets if necessary
@@ -651,6 +656,10 @@ if length(g.dataset) > 1
         ALLEEG(i).icasphere  = EEG.icasphere;
         ALLEEG(i).icawinv    = EEG.icawinv;
         ALLEEG(i).icachansind = g.chanind;
+        ALLEEG(i).icaact = [];
+        if isfield(ALLEEG(i).etc,'ic_classification')
+            ALLEEG(i).etc = rmfield(ALLEEG(i).etc,'ic_classification');
+        end
     end          
     ALLEEG = eeg_checkset(ALLEEG);
 else
@@ -660,9 +669,9 @@ end
 
 if nargin < 2 || selectamica
     if ~isempty(g.options)
-        com = sprintf('EEG = pop_runica(EEG, ''icatype'', ''%s'', %s);', g.icatype, vararg2str(g.options) ); %vararg2str({ 'icatype' g.icatype 'dataset' g.dataset 'options' g.options }) );
+        com = sprintf('EEG = hnf_runica(EEG, ''icatype'', ''%s'', %s);', g.icatype, vararg2str(g.options) ); %vararg2str({ 'icatype' g.icatype 'dataset' g.dataset 'options' g.options }) );
     else
-        com = sprintf('EEG = pop_runica(EEG, ''icatype'', ''%s'');',g.icatype );
+        com = sprintf('EEG = hnf_runica(EEG, ''icatype'', ''%s'');',g.icatype );
     end
 end
 

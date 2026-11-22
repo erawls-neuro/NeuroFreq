@@ -50,9 +50,21 @@
 %%%%% Future Work %%%%%%
 % -Perhaps allow max_dist to be specified in centimeters
 
-function chan_hood=spatial_neighbors(chanlocs,max_dist,head_radius)
+function chan_hood=hnf_spatial_neighbors(chanlocs,max_dist,head_radius)
 
 n_chan=length(chanlocs);
+if ~isscalar(max_dist) || ~isfinite(max_dist) || max_dist<0
+    error('hnf_spatial_neighbors:Distance','Supply a finite nonnegative distance threshold.');
+end
+for coordinate = {'X','Y','Z'}
+    key = coordinate{1};
+    if ~isfield(chanlocs,key) || ~all(arrayfun(@(ch) isnumeric(ch.(key)) && isreal(ch.(key)) && ...
+            isscalar(ch.(key)) && isfinite(ch.(key)),chanlocs))
+        error('hnf_spatial_neighbors:Coordinate','Each sensor needs a finite scalar %s coordinate.',key);
+    end
+end
+if n_chan < 2, chan_hood=eye(n_chan); return; end
+
 
 if nargin<3,
     head_radius=[];

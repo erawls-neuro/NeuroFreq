@@ -42,16 +42,16 @@ if nargin < 4 || isempty(use_mex)
     use_mex = true;
 end
 
-if ~isscalar(nperm) || nperm < 0 || nperm ~= round(nperm)
+if ~isscalar(nperm) || ~isreal(nperm) || ~isfinite(nperm) || nperm < 0 || nperm ~= round(nperm)
     error('nf_erpac_within: nperm must be a non-negative integer scalar');
 end
 if ~isscalar(use_mex) || (~islogical(use_mex) && ~ismember(use_mex, [0 1]))
     error('nf_erpac_within: use_mex must be a logical scalar');
 end
-if ~isreal(phas)
+if isempty(phas) || ndims(phas) > 4 || ~isreal(phas)
     error('nf_erpac_within: phas must be real-valued angles in radians');
 end
-if ~isreal(pow)
+if isempty(pow) || ndims(pow) > 4 || ~isreal(pow)
     error('nf_erpac_within: pow must be real-valued');
 end
 
@@ -106,7 +106,7 @@ for ch = 1:nChan
         % Observed ERPAC: single call over all time x hiF
         % clcorr_kernel expects first dim = samples (trials)
         % Returns [1 x nTimes x hiF]
-        [obsPAC_3d, ~] = clcorr_kernel(phase_rep, pow_ch, use_mex);
+        [obsPAC_3d, ~] = hnf_clcorr_kernel(phase_rep, pow_ch, use_mex);
         obsPAC = reshape(obsPAC_3d, [nTimes, hiF]);   % [nTimes x hiF]
         
         if nperm > 0
@@ -114,14 +114,14 @@ for ch = 1:nChan
             % Permutation null distribution
             permutedPAC = zeros(nperm, nTimes, hiF);
             
-            parfor ip = 1:nperm
+            for ip = 1:nperm
                 
                 % Permute trials identically across time and hiF
                 perm_idx = randperm(nTrial);
                 pow_perm = pow_ch(perm_idx, :, :); %#ok
                 
                 % Null ERPAC for this permutation
-                [tmp_3d, ~] = clcorr_kernel(phase_rep, pow_perm, use_mex);   % [1 x nTimes x hiF]
+                [tmp_3d, ~] = hnf_clcorr_kernel(phase_rep, pow_perm, use_mex);   % [1 x nTimes x hiF]
                 tmp = reshape(tmp_3d, [nTimes, hiF]);
                 permutedPAC(ip, :, :) = tmp;
                 
@@ -134,7 +134,7 @@ for ch = 1:nChan
             sd_null = reshape(sd_null_3d, [nTimes, hiF]);
             
             % Guard against zero std
-            zero_sd = (sd_null == 0);
+            zero_sd = (sd_null <= 8*eps(abs(mu_null)));
             sd_null(zero_sd) = NaN;
             
             % z-score ERPAC

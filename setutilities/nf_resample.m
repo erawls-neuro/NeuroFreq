@@ -1,127 +1,80 @@
-function TF = nf_resample( TF, tVec, fVec, verbose )
-% NF_RESAMPLE    Resamples TF sets to new time/frequency vectors
-%
-% GENERAL
-% -------
-% Resamples TF structures to new time/frequency vectors using
-% interpolation.
-%
-% OUTPUT
-% ------
-% TF - structure output by tfUtility.m and tf_fun functions
-%
-% INPUT
-% -----
-% 1) TF - structure output by tfUtility.m and tf_fun functions
-% 2) tVec - new time vector. data is interpolated to new times.
-% 3) fVec - new freq vector. data is interpolated to new freqs
-%
-
-% greetings
-disp('[nf_resample]: beginning resampling tf data');
-
-if nargin < 3
-    fVec = [];
-end
-if nargin < 2
-    tVec = [];
-end
-if nargin < 1 || isempty(TF)
-    error('nf_resample:TFRequired','at least a TF structure is a required input');
-end
-
-%time resample
+function TF = nf_resample(TF,tVec,fVec,verbose)
+% NF_RESAMPLE Interpolate TF measurements to a new time or frequency grid.
+%   TF = nf_resample(TF,tVec,fVec) leaves an axis alone when its vector is
+%   empty. tVec uses the same time units as TF.times. Fs is always in Hz.
+%   Phase angles are unwrapped along the interpolated axis and then wrapped
+%   back to radians. This interpolation does not apply an anti-alias filter.
+if nargin < 1 || isempty(TF), error('nf_resample:TFRequired','Supply a TF set.'); end
+if nargin < 2, tVec = []; end
+if nargin < 3, fVec = []; end
+if nargin < 4 || isempty(verbose), verbose = true; end
+oldTimes = double(TF.times(:));
+oldFreqs = double(TF.freqs(:));
+targetTimes = oldTimes;
+targetFreqs = oldFreqs;
 if ~isempty(tVec)
-    %check for uniform time sampling
-    if length(unique(round(diff(tVec), 5))) > 1
-        error('nf_resample:UniformRequired','use uniform time sampling!');
+    targetTimes = double(tVec(:));
+    dt = diff(targetTimes);
+    if isempty(dt) || any(~isfinite(dt)) || any(dt<=0) || ...
+            any(abs(dt-mean(dt)) > 1e-6*mean(dt))
+        error('nf_resample:UniformRequired','Supply at least two uniformly increasing times.');
     end
-    if verbose==1
-        disp(['[nf_resample]: resampling data to ' num2str(1 / mean(diff(tVec))) ' Hz sampling rate in time.']);
+    if numel(oldTimes)<2, error('nf_resample:TimeAxis','Need two original time samples.'); end
+    % Infer seconds vs milliseconds from the original axis and sample rate.
+    unitsPerSecond = 1;
+    if abs(log(median(diff(oldTimes))*TF.Fs/1000)) < abs(log(median(diff(oldTimes))*TF.Fs))
+        unitsPerSecond = 1000;
     end
-    %power first
-    tfP = TF.power; %get power
-    if TF.nsensor > 1
-        tfP = interp1(TF.times, permute(tfP, [3, 1, 2, 4]), tVec); %times,chans,freqs,trls
-        tfP = permute(tfP, [2, 3, 1, 4]);
-    else
-        tfP = interp1(TF.times, permute(tfP, [2, 1, 3]), tVec); %times,freqs,trls
-        tfP = permute(tfP, [2, 1, 3]);
-    end
-    TF.power = tfP;
-    %now phase if it exists
-    if isfield(TF, 'phase')
-        tfR = TF.phase; %get phase
-        if TF.nsensor > 1
-            tfR = wrapToPi(interp1(TF.times, unwrap(permute(tfR, [3, 1, 2, 4])), tVec)); %times,chans,freqs,trials
-            tfR = permute(tfR, [2, 3, 1, 4]); %chans,freqs,times,trials
-        else
-            tfR = wrapToPi(interp1(TF.times, unwrap(permute(tfR, [2, 1, 3])), tVec)); %times,freqs,trials
-            tfR = permute(tfR, [2, 1, 3]); %freqs,times,trials
-        end
-        TF.phase = tfR;
-    end
-    TF.times = tVec;
-    TF.Fs = 1 / mean(diff(tVec));
+    TF.Fs = unitsPerSecond / mean(dt);
 end
-
-%frequency resample
 if ~isempty(fVec)
-    if verbose==1
-        disp('[nf_resample]: resampling data in frequency.');
+    targetFreqs = double(fVec(:));
+    if any(~isfinite(targetFreqs)) || any(diff(targetFreqs)<=0)
+        error('nf_resample:FrequencyAxis','Frequencies must be finite and strictly increasing.');
     end
-    %power first
-    tfP = TF.power; %get power
-    if TF.nsensor > 1
-        tfP = interp1(TF.freqs, permute(tfP, [2, 1, 3, 4]), fVec); %freqs,chans,times,trls
-        tfP = permute(tfP, [2, 1, 3, 4]); %chans,freqs,times,trials
-    else
-        tfP = interp1(TF.freqs, tfP, fVec); %freqs,times,trls
-    end
-    TF.power = tfP;
-
-    %now phase if it exists
-    if isfield(TF, 'phase')
-        tfR = TF.phase; %get phase
-        if TF.nsensor > 1
-            tfR = wrapToPi(interp1(TF.freqs, unwrap(permute(tfR, [2, 1, 3, 4])), fVec));
-            tfR = permute(tfR, [2, 1, 3, 4]);
-        else
-            tfR = wrapToPi(interp1(TF.freqs, unwrap(tfR), fVec));
-        end
-        TF.phase = tfR;
-    end
-    TF.freqs = fVec;
 end
-
-%make everything a double
+if verbose, fprintf('[nf_resample]: %d time points, %d frequencies.\n',numel(targetTimes),numel(targetFreqs)); end
+nCh = TF.nsensor;
+nF = numel(oldFreqs);
+nT = numel(oldTimes);
+nObs = numel(TF.power)/(nCh*nF*nT);
+fields = fieldnames(TF);
+for k = 1:numel(fields)
+    name = fields{k};
+    if ~isnumeric(TF.(name)) || isempty(regexpi(name,'^(power|phase|wpli|itpc|complex)($|_)','once'))
+        continue
+    end
+    X = TF.(name);
+    [X,compact] = hnf_tf_grid(X,nCh,nF,nT,nObs,name);
+    isAngle = ~isempty(regexpi(name,'^phase($|_)','once')) && ~contains(lower(name),'itpc') && ~contains(lower(name),'itc');
+    if ~isempty(tVec), X = interpolate(X,oldTimes,targetTimes,3,isAngle); end
+    if ~isempty(fVec), X = interpolate(X,oldFreqs,targetFreqs,2,isAngle); end
+    if compact, X = squeeze(X); end
+    TF.(name) = X;
+end
+if ~isempty(tVec)
+    TF = hnf_event_grid(TF,oldTimes,targetTimes,1:nObs,[]);
+    if isfield(TF,'phaseReference') && strcmp(TF.phaseReference,'epoch-start-carrier')
+        TF.phaseReferenceSeconds = interp1(oldTimes,TF.phaseReferenceSeconds,double(tVec),'linear',NaN);
+    end
+    TF.times = double(tVec);
+end
+if ~isempty(fVec), TF.freqs = double(fVec); end
 TF.power = double(TF.power);
-TF.times = double(TF.times);
-TF.freqs = double(TF.freqs);
-
-
-disp('[nf_resample]: resampling tf data complete');
-
-
 end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+function out = interpolate(X,axis,query,dim,isAngle)
+order = [dim,setdiff(1:4,dim,'stable')];
+X = permute(X,order);
+dims = [size(X,2),size(X,3),size(X,4)];
+X = reshape(X,numel(axis),[]);
+if numel(axis)==1
+    if ~isequal(query,axis), error('nf_resample:Singleton','Cannot interpolate a singleton axis.'); end
+    values = X;
+else
+    if isAngle, X = unwrap(X,[],1); end
+    values = interp1(axis,X,query,'linear',NaN);
+    if isAngle, values = angle(exp(1i*values)); end
+end
+out = ipermute(reshape(values,[numel(query),dims]),order);
+end

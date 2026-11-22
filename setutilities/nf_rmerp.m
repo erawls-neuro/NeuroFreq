@@ -617,6 +617,8 @@ for fieldIndex = 1:numel(names)
     end
     if isequal(size(value), canonicalSize)
         outputSize = retainedSize;
+    elseif dimensions.nChannels==1 && isequal(size(value),canonicalSize(2:4))
+        outputSize = retainedSize(2:4);
     elseif isequal(size(value), squeezedSize)
         outputSize = local_squeezed_size(retainedSize);
     else
@@ -626,11 +628,22 @@ for fieldIndex = 1:numel(names)
     value = reshape(value, canonicalSize);
     TF.(name) = reshape(value(:, :, :, keepTrials), outputSize);
 end
+TF = hnf_event_grid(TF,TF.times,TF.times,find(keepTrials),[]);
 if isfield(TF, 'behavior') && ~isempty(TF.behavior)
     TF.behavior = TF.behavior(keepTrials);
 end
 if isfield(TF, 'trlvec') && ~isempty(TF.trlvec)
     TF.trlvec = TF.trlvec(keepTrials);
+end
+for field = {'trial_subjectindex','trial_fileindex','trial_subid','trial_condindex','trial_condlabel','trialinfo'}
+    name = field{1};
+    if ~isfield(TF,name), continue; end
+    values = TF.(name);
+    if istable(values) && height(values)==numel(keepTrials)
+        TF.(name) = values(keepTrials,:);
+    elseif isvector(values) && numel(values)==numel(keepTrials)
+        TF.(name) = values(keepTrials);
+    end
 end
 TF.ntrls = nnz(keepTrials);
 end
@@ -896,7 +909,8 @@ end
 canonicalSize = [nChannels, nFrequencies, nTimes, nTrials];
 squeezedSize = local_squeezed_size(canonicalSize);
 storedSize = size(TF.power);
-validCanonicalShape = isequal(storedSize, canonicalSize);
+validCanonicalShape = isequal(storedSize, canonicalSize) || ...
+    (nChannels==1 && isequal(storedSize,canonicalSize(2:4)));
 validSqueezedShape = isequal(storedSize, squeezedSize);
 
 if validCanonicalShape == false && validSqueezedShape == false
