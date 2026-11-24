@@ -172,7 +172,14 @@ function paths = nf_installed_package(nfRoot, d)
 % which -all includes shadowed installations. Require the probes to belong
 % to one complete installation; matching unrelated files is insufficient.
 paths = {};
-found = which(d.probes{1}, '-all');
+if exist('OCTAVE_VERSION','builtin')
+    % Octave's which ignores '-all'. The load-path primitive also finds
+    % shadowed providers and native Octave implementations.
+    probe = d.probes{1};
+    found = file_in_loadpath({[probe '.m'],[probe '.oct'],[probe '.' mexext]},'all');
+else
+    found = which(d.probes{1}, '-all');
+end
 if ischar(found), found = cellstr(found); end
 found = found(~cellfun(@(p) isempty(p) || nf_under(p, nfRoot) || nf_in_backup(p, nfRoot), found));
 paths = nf_provider_for_files(found, d);
@@ -285,11 +292,17 @@ end
 
 function yes = nf_has_function(folder, name)
 base = fullfile(folder, name);
-yes = isfile([base '.m']) || isfile([base '.p']) || isfile([base '.' mexext]);
+yes = isfile([base '.m']) || isfile([base '.' mexext]);
+if exist('OCTAVE_VERSION','builtin')
+    yes = yes || isfile([base '.oct']);
+else
+    yes = yes || isfile([base '.p']);
+end
 end
 
 
 function folder = nf_user_folder()
+if exist('OCTAVE_VERSION','builtin'), folder = pwd; return; end
 folders = strsplit(userpath, pathsep);
 folder = pwd;
 for k = 1:numel(folders)
@@ -302,7 +315,7 @@ function paths = nf_prior_providers(root, eeglabRoot)
 % Discover previous external selections without temporarily activating code.
 % Cached providers are found separately and can be reused without network.
 paths = {};
-file = fullfile(root, 'dependencies', '_nf_local', 'runtime.mat');
+file = nf_runtime_file(root);
 if ~isfile(file), return; end
 try
     saved = load(file, 'config');
@@ -340,6 +353,9 @@ function found = nf_profile_probes(root, catalog)
 % Scan userpath, not the entire user's home or MATLAB's installation tree.
 anchors = arrayfun(@(d) [d.probes{1} '.m'], catalog, 'UniformOutput', false);
 found = repmat({{}}, size(catalog));
+% Octave has no MATLAB userpath. Existing providers on its load path,
+% cached selections and explicit folder selection are checked separately.
+if exist('OCTAVE_VERSION','builtin'), return; end
 folders = strsplit(userpath, pathsep);
 for k = 1:numel(folders)
     folder = folders{k};

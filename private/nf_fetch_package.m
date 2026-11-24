@@ -6,7 +6,12 @@ unpacked = fullfile(stage, 'unpacked');
 if isfile(archive) || isfolder(unpacked)
     error('NeuroFreq:StageCollision', 'The temporary download directory is already occupied.');
 end
-websave(archive, nf_https(url), weboptions('Timeout', 180));
+url = nf_https(url);
+if exist('OCTAVE_VERSION','builtin')
+    urlwrite(url,archive);
+else
+    websave(archive, url, weboptions('Timeout', 180));
+end
 zipFile = javaObject('java.util.zip.ZipFile', archive);
 closeZip = onCleanup(@() zipFile.close());
 entries = zipFile.entries();

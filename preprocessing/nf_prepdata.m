@@ -92,33 +92,68 @@ end
 
 % Fractional detrending and Hilbert coefficients need floating-point storage.
 if ~isfloat(dEEG), dEEG = double(dEEG); end
-%begin preparation
-for eloc=1:nChan
+% Center in the original precision, exactly as the reference routine does.
+% Then project in double and return to the input precision before applying the
+% Hilbert transform across time, in one epoch-sized batch to bound FFT memory.
+useNative = center==1 && detrend==1 && ...
+    (isa(dEEG,'double') || isa(dEEG,'single')) && isreal(dEEG) && ~issparse(dEEG) && ...
+    nTimes >= 3 && ndims(dEEG) <= 3 && ...
+    isequal([size(dEEG,1) size(dEEG,2) size(dEEG,3)], [nChan nTimes nTrls]) && ...
+    exist('hnf_prep_traces_mex','file') == 3 && ...
+    (~exist('hnf_mex_available','file') || hnf_mex_available('hnf_prep_traces_mex')) && ...
+    all(isfinite(dEEG(:))) && max(abs(dEEG(:))) <= realmax('double')/(4*double(nTimes));
+if useNative
+    weights = [];
+    if taper==1, weights = tukeywin(nTimes,.1); end
     for trl=1:nTrls
-        %one stream of data
-        data = squeeze(dEEG(eloc,:,trl));
-        if center==1
-            %center it
-            data = data-mean(data);
+        % Assigning the first analytic epoch promotes the entire output to
+        % complex. The unread epochs still contain their original real input.
+        epoch = real(dEEG(:,:,trl));
+        epoch = bsxfun(@minus,epoch,mean(epoch,2));
+        try
+            epoch = hnf_prep_traces_mex(double(epoch), weights);
+        catch err
+            if trl ~= 1 || ~exist('hnf_mex_load_error','file') || ~hnf_mex_load_error(err)
+                rethrow(err);
+            end
+            useNative = false;
+            break
         end
-        if detrend==1
-            %remove quadratic trends
-            ind = 0:nTimes-1;
-            r = polyfit(ind,data,min(2,nTimes-1));
-            fit = polyval(r,ind);
-            data = data-fit;
-        end
-        if taper==1
-            %cosine square taper
-            w = tukeywin(numel(data),.1);
-            data = data(:).*w(:);
-        end
-        if analytic==1
-            data = hilbert(data);
-        end
-        %put it back in dEEG
-        dEEG(eloc,:,trl) = data;
+        if isa(dEEG,'single'), epoch = single(epoch); end
+        if analytic==1, epoch = hilbert(epoch,[],2); end
+        dEEG(:,:,trl) = epoch;
     end
+end
+if ~useNative
+    %begin preparation
+    for eloc=1:nChan
+        for trl=1:nTrls
+            %one stream of data
+            data = squeeze(dEEG(eloc,:,trl));
+            if center==1
+                %center it
+                data = data-mean(data);
+            end
+            if detrend==1
+                %remove quadratic trends
+                ind = 0:nTimes-1;
+                r = polyfit(ind,data,min(2,nTimes-1));
+                fit = polyval(r,ind);
+                data = data-fit;
+            end
+            if taper==1
+                %cosine square taper
+                w = tukeywin(numel(data),.1);
+                data = data(:).*w(:);
+            end
+            if analytic==1
+                data = hilbert(data);
+            end
+            %put it back in dEEG
+            dEEG(eloc,:,trl) = data;
+        end
+    end
+
 end
 
 %finalize output

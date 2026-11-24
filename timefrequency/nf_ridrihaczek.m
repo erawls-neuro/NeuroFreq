@@ -53,22 +53,35 @@ bins = ifftshift(-floor(nTimes/2):ceil(nTimes/2)-1);
 normalized = 2*bins/nTimes;
 kernel = exp(-((normalized.' * normalized)/cwkernel).^2);
 shift = mod(bsxfun(@plus,bins.',0:nTimes-1),nTimes)+1;
+useNativeFold = nfft ~= nTimes && isa(kernel,'double') && exist('hnf_rid_fold_mex','file')==3 && ...
+        exist('hnf_mex_available','file')==2 && hnf_mex_available('hnf_rid_fold_mex');
 for sensor = 1:nChan
     for trial = 1:nTrls
         x = reshape(double(data(sensor,:,trial)),1,[]);
         % NF's phase convention uses conj(x(t))*x(t+lag). With an open
         % kernel the native result is X(f)*conj(x(t))*exp(+i*2*pi*f*t).
         products = bsxfun(@times,x(shift),conj(x));
-        ambiguity = ifft(products,[],2).*kernel;
-        if nfft == nTimes
-            folded = ambiguity;
-        else
-            % Accumulate signed lags modulo the requested FFT length.
-            % This works for coarser as well as finer frequency grids.
-            folded = complex(zeros(nfft,nTimes));
-            for lag = 1:nTimes
-                row = mod(bins(lag),nfft)+1;
-                folded(row,:) = folded(row,:)+ambiguity(lag,:);
+        ambiguity = ifft(products,[],2);
+        if useNativeFold
+            try
+                folded = hnf_rid_fold_mex(ambiguity,kernel,double(nfft));
+            catch err
+                if ~hnf_mex_load_error(err), rethrow(err); end
+                useNativeFold = false;
+            end
+        end
+        if ~useNativeFold
+            if nfft == nTimes
+                folded = ambiguity.*kernel;
+            else
+                % Accumulate signed lags modulo the requested FFT length.
+                % This works for coarser as well as finer frequency grids.
+                ambiguity = ambiguity.*kernel;
+                folded = complex(zeros(nfft,nTimes));
+                for lag = 1:nTimes
+                    row = mod(bins(lag),nfft)+1;
+                    folded(row,:) = folded(row,:)+ambiguity(lag,:);
+                end
             end
         end
         distribution = fft2(folded);

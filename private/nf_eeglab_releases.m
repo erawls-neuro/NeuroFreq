@@ -8,6 +8,7 @@ if isempty(records) || (now-fetched)*86400 > 300
     url = ['https://sccn.ucsd.edu/eeglab/plugin_uploader/' ...
            'plugin_getcountall_nowiki_json.php?type=update&upload=0'];
     fresh = webread(url,weboptions('Timeout',20,'ContentType','json'));
+    if ischar(fresh), fresh = jsondecode(fresh); end
     if ~isstruct(fresh) || ~all(isfield(fresh,{'plugin','curversion','link'}))
         error('NeuroFreq:EEGLABCatalog','Unexpected response from the SCCN release catalog.');
     end

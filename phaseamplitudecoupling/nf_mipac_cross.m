@@ -93,28 +93,12 @@ for iPhase = 1:nPhaseChan
                 mi_obs_3d = hnf_mi_kernel(phase_samples, power_samples, nbin, use_mex);
                 mi_obs = reshape(mi_obs_3d, [1, nTrial]);
                 
+                out_vals = mi_obs;
                 if nperm > 0
-                    mu = zeros(1, nTrial);
-                    m2 = zeros(1, nTrial);
-                    
-                    for ip = 1:nperm
-                        power_perm = hnf_surr_timeshift_vec(power_samples, [], use_mex);
-                        mi_perm_3d = hnf_mi_kernel(phase_samples, power_perm, nbin, use_mex);
-                        mi_perm = reshape(mi_perm_3d, [1, nTrial]);
-                        
-                        % Update the surrogate mean and centered sum of squares.
-                        delta = mi_perm - mu;
-                        mu = mu + delta ./ ip;
-                        m2 = m2 + delta .* (mi_perm - mu);
-                    end
-                    sd = sqrt(m2 ./ max(1, nperm - 1));
-                    
-                    sd(sd <= 8*eps(abs(mu))) = NaN;
-                    out_vals = (mi_obs - mu) ./ sd;
-                else
-                    out_vals = mi_obs;
+                    out_vals = hnf_pac_permutation_z(phase_samples, power_samples, mi_obs, ...
+                        nperm, 'mi', nbin, use_mex, true);
                 end
-                
+
                 PAC(iPhase, iAmp, f1, f2, :) = reshape(out_vals, [1, 1, 1, 1, nTrial]);
             end
         end

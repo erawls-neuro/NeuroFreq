@@ -510,8 +510,8 @@ for i = 1:numel(list)
     end
 
     try
-        a = char(string(et));
-        b = char(string(t));
+        a = hnf_scalar_text(et);
+        b = hnf_scalar_text(t);
         if strcmpi(a, b)
             tf = true;
             return

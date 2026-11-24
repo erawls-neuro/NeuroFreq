@@ -16,21 +16,22 @@ geometry = nf_geometry_local( ...
     EEG, decomposition.icaChannels, options.referenceChanlocs);
 
 maps = double(EEG.icawinv.');
-mapScale = sqrt(sum(maps .* maps, 2));
+mapScale = hnf_robnorm(maps,2,'includenan');
 if any(~isfinite(mapScale)) || any(mapScale <= 0)
     error('nf_adjust_core:InvalidComponentMaps', ...
         'Every ICA component must have a finite nonzero scalp map.');
 end
 
 mapsL2 = maps ./ mapScale;
-mapMean = mean(maps, 2);
-mapStandardDeviation = std(maps, 0, 2);
+% Z-scores are invariant to the same positive scale used for L2 maps.
+mapMean = mean(mapsL2,2);
+mapStandardDeviation = std(mapsL2,0,2);
 mapZScoreValid = isfinite(mapStandardDeviation) & ...
     mapStandardDeviation > 0;
 mapsZ = nan(size(maps));
 if any(mapZScoreValid)
     mapsZ(mapZScoreValid, :) = ...
-        (maps(mapZScoreValid, :) - mapMean(mapZScoreValid)) ./ ...
+        (mapsL2(mapZScoreValid, :) - mapMean(mapZScoreValid)) ./ ...
         mapStandardDeviation(mapZScoreValid);
 end
 activations = decomposition.activations .* mapScale;
@@ -648,6 +649,9 @@ end
 
 for component = 1:nComponents
     componentActivation = activations(component, :);
+    % Variance ratios and kurtosis are scale-free; bound powers through 4.
+    amplitude = max(abs(componentActivation));
+    if amplitude>0, componentActivation = componentActivation/amplitude; end
     chunks = reshape( ...
         componentActivation(indices), windowSamples, nWindows);
     centered = chunks - mean(chunks, 1);
@@ -1515,6 +1519,10 @@ windowEnergy = sum(window .* window);
 for candidate = 1:nCandidates
     component = candidateIndices(candidate);
     componentActivation = activations(component, :);
+    % Normalize before the FFT, then restore the physical power scale in log space.
+    amplitude = max(abs(componentActivation));
+    if amplitude==0, amplitude=1; end
+    componentActivation = componentActivation/amplitude;
     chunks = reshape( ...
         componentActivation(indices), windowSamples, []);
     chunks = chunks .* window;
@@ -1536,8 +1544,8 @@ for candidate = 1:nCandidates
     powerFloor = max(realmin('double'), ...
         powerScale .* eps('double'));
     meanPower = max(meanPower, powerFloor);
-    linearPower(candidate, :) = meanPower;
-    logPower(candidate, :) = log10(meanPower);
+    logPower(candidate,:) = log10(meanPower)+2*log10(amplitude);
+    linearPower(candidate,:) = (sqrt(meanPower)*amplitude).^2;
 end
 
 periodic.frequencyHz = fitFrequency;

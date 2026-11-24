@@ -1,0 +1,20 @@
+name: MATLAB numerical checks
+on:
+  push:
+    branches: [main, validation/octave-arithmetic]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  numerical-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: matlab-actions/setup-matlab@f9e43010f1ae678f7cfa0542fe2a4f60f7d1ad8d # v3
+        with:
+          release: R2025b
+          products: Signal_Processing_Toolbox Wavelet_Toolbox Statistics_and_Machine_Learning_Toolbox Optimization_Toolbox
+      - uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
+        with:
+          command: addpath(fullfile(pwd,'tests')); nf_run(@test_nf_timefrequency); nf_run(@test_nf_pac); if exist('run_hnf_tests','file'), r=run_hnf_tests; disp(r); assert(all([r.passed])); nf_run(@test_nf_robust_core); nf_run(@test_nf_roblerp); nf_run(@test_nf_compensated_sum); nf_run(@test_nf_statistics_scaling); end

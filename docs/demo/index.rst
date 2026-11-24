@@ -3,7 +3,7 @@ Demo: EEGLAB sample dataset
 
 The repository includes EEGLAB's visual experiment sample and a synthetic
 signal with clean and noise-corrupted versions. After ``nf_install``, run
-either demo from MATLAB:
+either demo from MATLAB or GNU Octave:
 
 .. code-block:: matlab
 
@@ -19,7 +19,13 @@ linear oscillator phase, the second figure shows inter-trial phase
 coherence (ITPC). The Rihaczek distribution has a different phase
 interpretation. The synthetic demo compares both signals at the full time
 scale and in a low-frequency detail view. Its quadratic transforms use the
-same five-second excerpt to limit memory use. CWT requires Wavelet Toolbox.
+same five-second excerpt to limit memory use. MATLAB uses Wavelet Toolbox
+for CWT. Octave calls NeuroFreq's analytic Morlet implementation. The
+synthetic demo uses a signed, integer-lag Wigner–Ville distribution in
+Octave, evaluated once per input sample. Its magnitude and display grids
+differ from the MATLAB ``wvd`` result. When EEGLAB is absent, Octave reads
+the embedded sample data directly and shows measured scalp values as
+colored sensors.
 
 For a single linear transform, this function body runs within
 ``nf_run(@my_analysis)``:

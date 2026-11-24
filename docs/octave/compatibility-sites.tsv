@@ -1,0 +1,1128 @@
+baseline_file	line	API_or_form	occurrence	disposition_key
+demo/timefrequency/demo_EEGLAB.m	5	@compareEEG	dynamic dispatch	dynamic
+demo/timefrequency/demo_EEGLAB.m	9	pop_loadset	call/index	external-provider
+demo/timefrequency/demo_EEGLAB.m	10	pop_select	call/index	external-provider
+demo/timefrequency/demo_EEGLAB.m	19	cwt	which literal	CWT
+demo/timefrequency/demo_EEGLAB.m	45	topoplot	call/index	external-provider
+demo/timefrequency/demo_synthetic.m	4	@compareSignals	dynamic dispatch	dynamic
+demo/timefrequency/demo_synthetic.m	35	cwt	which literal	CWT
+demo/timefrequency/demo_synthetic.m	57	wvd	which literal	viewer/demo
+demo/timefrequency/demo_synthetic.m	58	wvd	call/index	viewer/demo
+fileconversion/nf_icaclean2eeglab.m	35	uigetdir	call/index	dialog
+fileconversion/nf_icaclean2eeglab.m	50	uigetfile	call/index	dialog
+fileconversion/nf_icaclean2eeglab.m	52	readlocs	call/index	external-provider
+fileconversion/nf_icaclean2eeglab.m	53	isstring	call/index	string-predicate
+fileconversion/nf_icaclean2eeglab.m	54	readlocs	call/index	external-provider
+fileconversion/nf_icaclean2eeglab.m	96	pop_importdata	call/index	external-provider
+fileconversion/nf_icaclean2eeglab.m	103	eeg_checkset	call/index	external-provider
+fileconversion/nf_icaclean2eeglab.m	104	eeg_checkset	call/index	external-provider
+fileconversion/nf_icaclean2eeglab.m	109	eeg_checkset	call/index	external-provider
+fileconversion/nf_icaclean2eeglab.m	114	pop_saveset	call/index	external-provider
+helpers/robustarithmetic/hnf_robdiv.m	10	hnf_robdiv_mex	call/index	optional-NF-MEX
+nf_install.m	23	isstring	call/index	string-predicate
+nf_install.m	57	javaObject	call/index	JVM
+nf_install.m	68	usejava	call/index	JVM
+nf_install.m	72	javaObject	call/index	JVM
+nf_install.m	74	javaMethod	call/index	JVM
+nf_install.m	77	javaObject	call/index	JVM
+nf_install.m	122	javaObject	call/index	JVM
+nf_install.m	124	weboptions	call/index	network
+nf_install.m	126	webread	call/index	network
+nf_install.m	129	webread	call/index	network
+nf_install.m	158	usejava	call/index	JVM
+nf_install.m	159	questdlg	call/index	dialog
+nf_install.m	175	javaObject	call/index	JVM
+nf_install.m	180	websave	call/index	network
+nf_install.m	181	weboptions	call/index	network
+nf_install.m	211	javaObject	call/index	JVM
+nf_install.m	230	javaObject	call/index	JVM
+nf_install.m	232	javaMethod	call/index	JVM
+nf_install.m	237	javaMethod	call/index	JVM
+nf_install.m	286	javaObject	call/index	JVM
+nf_install.m	301	javaMethod	call/index	JVM
+nf_install.m	321	javaMethod	call/index	JVM
+nf_install.m	322	javaObject	call/index	JVM
+nf_install.m	341	javaObject	call/index	JVM
+nf_install.m	347	javaObject	call/index	JVM
+nf_install.m	381	javaArray	call/index	JVM
+nf_install.m	382	javaMethod	call/index	JVM
+nf_install.m	382	javaObject	call/index	JVM
+nf_install.m	395	javaObject	call/index	JVM
+nf_install.m	396	javaObject	call/index	JVM
+nf_install.m	424	javaObject	call/index	JVM
+nf_install.m	425	javaObject	call/index	JVM
+nf_run.m	18	isstring	call/index	string-predicate
+nf_run.m	88	eeglab	which literal	external-provider
+nf_run.m	91	eeglab	which literal	external-provider
+nf_run.m	103	target	dynamic dispatch	dynamic
+nf_viewerapp.mlapp	1	matlab.apps.AppBase	class	App-Designer
+nf_viewerapp.mlapp	5	matlab.ui.Figure	class	App-Designer
+nf_viewerapp.mlapp	6	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	7	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	8	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	9	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	10	matlab.ui.container.Panel	class	App-Designer
+nf_viewerapp.mlapp	11	matlab.ui.control.DropDown	class	App-Designer
+nf_viewerapp.mlapp	12	matlab.ui.control.DropDown	class	App-Designer
+nf_viewerapp.mlapp	13	matlab.ui.control.CheckBox	class	App-Designer
+nf_viewerapp.mlapp	14	matlab.ui.control.EditField	class	App-Designer
+nf_viewerapp.mlapp	15	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	16	matlab.ui.control.EditField	class	App-Designer
+nf_viewerapp.mlapp	17	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	18	matlab.ui.control.EditField	class	App-Designer
+nf_viewerapp.mlapp	19	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	20	matlab.ui.container.Panel	class	App-Designer
+nf_viewerapp.mlapp	21	matlab.ui.control.EditField	class	App-Designer
+nf_viewerapp.mlapp	22	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	23	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	24	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	25	matlab.ui.control.EditField	class	App-Designer
+nf_viewerapp.mlapp	26	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	27	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	28	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	29	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	30	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	31	matlab.ui.control.EditField	class	App-Designer
+nf_viewerapp.mlapp	32	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	33	matlab.ui.control.EditField	class	App-Designer
+nf_viewerapp.mlapp	34	matlab.ui.control.Label	class	App-Designer
+nf_viewerapp.mlapp	35	matlab.ui.control.DropDown	class	App-Designer
+nf_viewerapp.mlapp	36	matlab.ui.control.CheckBox	class	App-Designer
+nf_viewerapp.mlapp	37	matlab.ui.container.ButtonGroup	class	App-Designer
+nf_viewerapp.mlapp	38	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	39	matlab.ui.control.Button	class	App-Designer
+nf_viewerapp.mlapp	40	matlab.ui.control.UIAxes	class	App-Designer
+nf_viewerapp.mlapp	41	matlab.ui.control.UIAxes	class	App-Designer
+nf_viewerapp.mlapp	42	matlab.ui.control.UIAxes	class	App-Designer
+nf_viewerapp.mlapp	43	matlab.ui.control.UIAxes	class	App-Designer
+nf_viewerapp.mlapp	337	omitnan	argument	nan-reduction
+nf_viewerapp.mlapp	338	omitnan	argument	nan-reduction
+nf_viewerapp.mlapp	340	omitnan	argument	nan-reduction
+nf_viewerapp.mlapp	341	omitnan	argument	nan-reduction
+nf_viewerapp.mlapp	766	uifigure	call/index	App-Designer
+nf_viewerapp.mlapp	775	uiaxes	call/index	App-Designer
+nf_viewerapp.mlapp	779	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	785	uiaxes	call/index	App-Designer
+nf_viewerapp.mlapp	789	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	795	uiaxes	call/index	App-Designer
+nf_viewerapp.mlapp	803	uiaxes	call/index	App-Designer
+nf_viewerapp.mlapp	811	uibuttongroup	call/index	App-Designer
+nf_viewerapp.mlapp	818	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	819	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	826	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	827	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	841	uicheckbox	call/index	App-Designer
+nf_viewerapp.mlapp	842	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	850	uidropdown	call/index	App-Designer
+nf_viewerapp.mlapp	852	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	860	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	871	uieditfield	call/index	App-Designer
+nf_viewerapp.mlapp	872	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	880	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	891	uieditfield	call/index	App-Designer
+nf_viewerapp.mlapp	892	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	900	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	901	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	908	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	909	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	916	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	917	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	924	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	925	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	932	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	943	uieditfield	call/index	App-Designer
+nf_viewerapp.mlapp	944	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	952	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	953	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	960	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	961	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	968	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	979	uieditfield	call/index	App-Designer
+nf_viewerapp.mlapp	980	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	995	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	1006	uieditfield	call/index	App-Designer
+nf_viewerapp.mlapp	1007	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1015	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	1026	uieditfield	call/index	App-Designer
+nf_viewerapp.mlapp	1027	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1035	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	1046	uieditfield	call/index	App-Designer
+nf_viewerapp.mlapp	1047	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1055	uicheckbox	call/index	App-Designer
+nf_viewerapp.mlapp	1056	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1064	uidropdown	call/index	App-Designer
+nf_viewerapp.mlapp	1066	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1074	uidropdown	call/index	App-Designer
+nf_viewerapp.mlapp	1076	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1084	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	1095	uilabel	call/index	App-Designer
+nf_viewerapp.mlapp	1105	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	1106	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1113	uibutton	call/index	App-Designer
+nf_viewerapp.mlapp	1114	createCallbackFcn	call/index	App-Designer
+nf_viewerapp.mlapp	1135	registerApp	call/index	App-Designer
+nf_viewerapp.mlapp	1138	runStartupFcn	call/index	App-Designer
+phaseamplitudecoupling/hnf_phaseamplitudecoupling/hnf_clcorr_kernel.m	12	hnf_circ_corrcl_mex	call/index	optional-NF-MEX
+phaseamplitudecoupling/hnf_phaseamplitudecoupling/hnf_mi_kernel.m	12	hnf_mi_mex	call/index	optional-NF-MEX
+phaseamplitudecoupling/hnf_phaseamplitudecoupling/hnf_mvl_kernel.m	12	hnf_mvl_mex	call/index	optional-NF-MEX
+phaseamplitudecoupling/hnf_phaseamplitudecoupling/hnf_pac_permutation_z.m	44	hnf_erpac_perm_mex	call/index	optional-NF-MEX
+phaseamplitudecoupling/hnf_phaseamplitudecoupling/hnf_pac_permutation_z.m	46	hnf_pac_shift_scores_mex	call/index	optional-NF-MEX
+phaseamplitudecoupling/hnf_phaseamplitudecoupling/hnf_surr_timeshift_vec.m	87	hnf_surr_timeshift_mex	call/index	optional-NF-MEX
+preprocessing/hnf_preprocessing/hnf_ADJUST.m	120	kurt	call/index	external-provider
+preprocessing/hnf_preprocessing/hnf_MARA_TF.m	22	resample	call/index	signal-package
+preprocessing/hnf_preprocessing/hnf_MARA_TF.m	39	pwelch	call/index	Welch
+preprocessing/hnf_preprocessing/hnf_MARA_TF.m	65	findpeaks	call/index	peaks
+preprocessing/hnf_preprocessing/hnf_MARA_TF.m	72	findpeaks	call/index	peaks
+preprocessing/hnf_preprocessing/hnf_MARA_TF.m	80	findpeaks	call/index	peaks
+preprocessing/hnf_preprocessing/hnf_MARA_TF.m	86	findpeaks	call/index	peaks
+preprocessing/hnf_preprocessing/hnf_spatial_info_eyes.m	75	pdist	call/index	statistics-package
+preprocessing/hnf_preprocessing/hnf_topo2all.m	9	convertlocs	call/index	external-provider
+preprocessing/hnf_preprocessing/nf_adjust_core.m	103	isstring	call/index	string-predicate
+preprocessing/hnf_preprocessing/nf_adjust_core.m	562	isstring	call/index	string-predicate
+preprocessing/hnf_preprocessing/nf_adjust_core.m	746	isstring	call/index	string-predicate
+preprocessing/nf_badchans.m	176	pop_select	call/index	external-provider
+preprocessing/nf_badchans.m	178	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	186	eeg_interp	call/index	external-provider
+preprocessing/nf_badchans.m	191	pop_reref	call/index	external-provider
+preprocessing/nf_badchans.m	195	pop_reref	call/index	external-provider
+preprocessing/nf_badchans.m	197	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	245	string	call/index	types
+preprocessing/nf_badchans.m	246	string	call/index	types
+preprocessing/nf_badchans.m	276	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	307	pop_select	call/index	external-provider
+preprocessing/nf_badchans.m	310	pop_select	call/index	external-provider
+preprocessing/nf_badchans.m	312	pop_reref	call/index	external-provider
+preprocessing/nf_badchans.m	314	pop_select	call/index	external-provider
+preprocessing/nf_badchans.m	315	pop_reref	call/index	external-provider
+preprocessing/nf_badchans.m	322	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	333	channel_properties	call/index	external-provider
+preprocessing/nf_badchans.m	337	channel_properties	which literal	external-provider
+preprocessing/nf_badchans.m	340	min_z	call/index	external-provider
+preprocessing/nf_badchans.m	363	min_z	which literal	external-provider
+preprocessing/nf_badchans.m	401	hurst_exponent	call/index	external-provider
+preprocessing/nf_badchans.m	434	string	call/index	types
+preprocessing/nf_badchans.m	463	pop_select	call/index	external-provider
+preprocessing/nf_badchans.m	464	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	467	clean_flatlines	call/index	external-provider
+preprocessing/nf_badchans.m	479	pop_eegfiltnew	call/index	external-provider
+preprocessing/nf_badchans.m	481	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	486	clean_channels	call/index	external-provider
+preprocessing/nf_badchans.m	530	string	call/index	types
+preprocessing/nf_badchans.m	562	removeTrend	call/index	external-provider
+preprocessing/nf_badchans.m	563	findNoisyChannels	call/index	external-provider
+preprocessing/nf_badchans.m	628	pop_select	call/index	external-provider
+preprocessing/nf_badchans.m	630	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	689	pop_clean_rawdata	call/index	external-provider
+preprocessing/nf_badchans.m	714	happe_detectBadChans	call/index	external-provider
+preprocessing/nf_badchans.m	804	pop_select	call/index	external-provider
+preprocessing/nf_badchans.m	806	eeg_checkset	call/index	external-provider
+preprocessing/nf_badchans.m	829	pop_rejchan	call/index	external-provider
+preprocessing/nf_badchans.m	899	string	call/index	types
+preprocessing/nf_badchans.m	900	string	call/index	types
+preprocessing/nf_badchans.m	1090	isstring	call/index	string-predicate
+preprocessing/nf_badchans.m	1165	isstring	call/index	string-predicate
+preprocessing/nf_badchans.m	1234	convertlocs	call/index	external-provider
+preprocessing/nf_badchans.m	1502	isstring	call/index	string-predicate
+preprocessing/nf_badchans.m	1652	which	call/index	runtime-probe
+preprocessing/nf_badchans.m	1660	isstring	call/index	string-predicate
+preprocessing/nf_badchans.m	1680	contains	call/index	types
+preprocessing/nf_badchans.m	1730	java.security.MessageDigest.getInstance	call/index	JVM
+preprocessing/nf_badchans.m	1755	contains	call/index	types
+preprocessing/nf_badchans.m	1758	getPrepVersion	call/index	external-provider
+preprocessing/nf_badchans.m	1758	string	call/index	types
+preprocessing/nf_badchans.m	1765	eeg_getversion	call/index	external-provider
+preprocessing/nf_badchans.m	1765	string	call/index	types
+preprocessing/nf_badchans.m	1863	isstring	call/index	string-predicate
+preprocessing/nf_badchans.m	1994	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	204	pop_eegfiltnew	call/index	external-provider
+preprocessing/nf_cleanic.m	205	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	222	eeg_regepochs	call/index	external-provider
+preprocessing/nf_cleanic.m	238	pop_epoch	call/index	external-provider
+preprocessing/nf_cleanic.m	264	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	279	pop_select	call/index	external-provider
+preprocessing/nf_cleanic.m	280	pop_select	call/index	external-provider
+preprocessing/nf_cleanic.m	281	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	282	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	312	pop_rejepoch	call/index	external-provider
+preprocessing/nf_cleanic.m	313	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	352	pop_select	call/index	external-provider
+preprocessing/nf_cleanic.m	353	pop_select	call/index	external-provider
+preprocessing/nf_cleanic.m	354	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	355	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	473	pop_subcomp	call/index	external-provider
+preprocessing/nf_cleanic.m	477	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	744	istable	call/index	types
+preprocessing/nf_cleanic.m	745	table2struct	call/index	types
+preprocessing/nf_cleanic.m	837	pop_eegthresh	call/index	external-provider
+preprocessing/nf_cleanic.m	840	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	844	pop_rejspec	call/index	external-provider
+preprocessing/nf_cleanic.m	848	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	935	pop_runamica	call/index	external-provider
+preprocessing/nf_cleanic.m	997	pop_iclabel	call/index	external-provider
+preprocessing/nf_cleanic.m	1017	pop_icflag	call/index	external-provider
+preprocessing/nf_cleanic.m	1058	ADJUST	call/index	external-provider
+preprocessing/nf_cleanic.m	1112	MARA	call/index	external-provider
+preprocessing/nf_cleanic.m	1166	string	call/index	types
+preprocessing/nf_cleanic.m	1183	string	call/index	types
+preprocessing/nf_cleanic.m	1220	component_properties	call/index	external-provider
+preprocessing/nf_cleanic.m	1231	min_z	call/index	external-provider
+preprocessing/nf_cleanic.m	1265	eeg_regepochs	call/index	external-provider
+preprocessing/nf_cleanic.m	1270	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	1313	adjusted_ADJUST	call/index	external-provider
+preprocessing/nf_cleanic.m	1418	eeg_regepochs	call/index	external-provider
+preprocessing/nf_cleanic.m	1425	eeg_checkset	call/index	external-provider
+preprocessing/nf_cleanic.m	1877	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	1883	string	call/index	types
+preprocessing/nf_cleanic.m	1888	string	call/index	types
+preprocessing/nf_cleanic.m	1890	string	call/index	types
+preprocessing/nf_cleanic.m	2178	pop_runamica	exist literal	external-provider
+preprocessing/nf_cleanic.m	2178	runamica15	exist literal	external-provider
+preprocessing/nf_cleanic.m	2197	pop_iclabel	exist literal	external-provider
+preprocessing/nf_cleanic.m	2201	pop_icflag	exist literal	external-provider
+preprocessing/nf_cleanic.m	2220	adjusted_ADJUST	exist literal	external-provider
+preprocessing/nf_cleanic.m	2226	ADJUST	exist literal	external-provider
+preprocessing/nf_cleanic.m	2231	MARA	exist literal	external-provider
+preprocessing/nf_cleanic.m	2243	lsqcurvefit	exist literal	MARA-fit
+preprocessing/nf_cleanic.m	2244	fit	exist literal	MARA-fit
+preprocessing/nf_cleanic.m	2245	fitoptions	exist literal	MARA-fit
+preprocessing/nf_cleanic.m	2246	fittype	exist literal	MARA-fit
+preprocessing/nf_cleanic.m	2247	NonLinearModel	exist literal	MARA-fit
+preprocessing/nf_cleanic.m	2291	ADJUST	exist literal	external-provider
+preprocessing/nf_cleanic.m	2504	which	call/index	runtime-probe
+preprocessing/nf_cleanic.m	2515	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2521	string	call/index	types
+preprocessing/nf_cleanic.m	2598	java.security.MessageDigest.getInstance	call/index	JVM
+preprocessing/nf_cleanic.m	2617	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2626	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2646	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2650	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2695	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2702	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2714	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2726	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	2986	convertlocs	call/index	external-provider
+preprocessing/nf_cleanic.m	3049	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	3066	string	call/index	types
+preprocessing/nf_cleanic.m	3125	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	3134	isstring	call/index	string-predicate
+preprocessing/nf_cleanic.m	3142	isstring	call/index	string-predicate
+preprocessing/nf_correctlatencies.m	59	eeg_checkset	call/index	external-provider
+preprocessing/nf_correctlatencies.m	66	isstring	call/index	string-predicate
+preprocessing/nf_correctlatencies.m	71	isstring	call/index	string-predicate
+preprocessing/nf_eegquality.m	177	exportgraphics	call/index	graphics
+preprocessing/nf_eegquality.m	354	strings	call/index	types
+preprocessing/nf_eegquality.m	360	string	call/index	types
+preprocessing/nf_eegquality.m	362	strlength	call/index	types
+preprocessing/nf_eegquality.m	596	omitnan	argument	nan-reduction
+preprocessing/nf_eegquality.m	614	omitnan	argument	nan-reduction
+preprocessing/nf_eegquality.m	616	omitnan	argument	nan-reduction
+preprocessing/nf_eegquality.m	618	omitnan	argument	nan-reduction
+preprocessing/nf_eegquality.m	619	omitnan	argument	nan-reduction
+preprocessing/nf_eegquality.m	669	omitnan	argument	nan-reduction
+preprocessing/nf_eegquality.m	695	omitnan	argument	nan-reduction
+preprocessing/nf_eegquality.m	798	hnf_qc_percentiles_mex	exist literal	optional-NF-MEX
+preprocessing/nf_eegquality.m	801	hnf_qc_percentiles_mex	call/index	optional-NF-MEX
+preprocessing/nf_eegquality.m	1168	string	call/index	types
+preprocessing/nf_eegquality.m	1795	string	call/index	types
+preprocessing/nf_eegquality.m	1810	contains	call/index	types
+preprocessing/nf_eegquality.m	1901	string	call/index	types
+preprocessing/nf_eegquality.m	2100	unique(...,'stable')	third output	stable-groups
+preprocessing/nf_eegquality.m	2242	string	call/index	types
+preprocessing/nf_eegquality.m	2310	string	call/index	types
+preprocessing/nf_eegquality.m	2463	tiledlayout	call/index	graphics
+preprocessing/nf_eegquality.m	2466	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2467	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2470	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2471	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2474	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2482	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2484	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2490	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2494	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2498	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2507	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2515	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2521	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2527	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2529	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2533	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2534	nexttile	call/index	graphics
+preprocessing/nf_eegquality.m	2800	clim	call/index	graphics
+preprocessing/nf_eegquality.m	2821	topoplot	call/index	external-provider
+preprocessing/nf_eegquality.m	2823	clim	call/index	graphics
+preprocessing/nf_eegquality.m	2840	topoplot	exist literal	external-provider
+preprocessing/nf_eegquality.m	2899	topoplot	call/index	external-provider
+preprocessing/nf_eegquality.m	2902	gobjects	call/index	graphics
+preprocessing/nf_eegquality.m	2931	gobjects	call/index	graphics
+preprocessing/nf_eegquality.m	2964	string	call/index	types
+preprocessing/nf_eegquality.m	2965	string	call/index	types
+preprocessing/nf_eegquality.m	3046	clim	call/index	graphics
+preprocessing/nf_eegquality.m	3187	isstring	call/index	string-predicate
+preprocessing/nf_eegquality.m	3223	isstring	call/index	string-predicate
+preprocessing/nf_eegquality.m	3228	string	call/index	types
+preprocessing/nf_eegquality.m	3302	isstring	call/index	string-predicate
+preprocessing/nf_epochbynumber.m	59	pop_select	call/index	external-provider
+preprocessing/nf_epochbynumber.m	61	eeg_checkset	call/index	external-provider
+preprocessing/nf_epochbynumber.m	88	istable	call/index	types
+preprocessing/nf_epochbynumber.m	89	height	call/index	types
+preprocessing/nf_epochbynumber.m	92	height	call/index	types
+preprocessing/nf_filter.m	59	pop_eegfiltnew	call/index	external-provider
+preprocessing/nf_filter.m	60	eeg_checkset	call/index	external-provider
+preprocessing/nf_filter.m	66	pop_eegfiltnew	call/index	external-provider
+preprocessing/nf_filter.m	68	eeg_checkset	call/index	external-provider
+preprocessing/nf_filter.m	76	pop_eegfiltnew	call/index	external-provider
+preprocessing/nf_filter.m	77	eeg_checkset	call/index	external-provider
+preprocessing/nf_filter.m	82	pop_resample	call/index	external-provider
+preprocessing/nf_filter.m	83	eeg_checkset	call/index	external-provider
+preprocessing/nf_makebehavior.m	55	istable	call/index	types
+preprocessing/nf_makebehavior.m	57	isstring	call/index	string-predicate
+preprocessing/nf_makebehavior.m	63	readtable	call/index	types
+preprocessing/nf_makebehavior.m	65	readtable	call/index	types
+preprocessing/nf_makebehavior.m	104	table2array	call/index	types
+preprocessing/nf_makebehavior.m	147	iscategorical	call/index	types
+preprocessing/nf_makebehavior.m	147	isstring	call/index	string-predicate
+preprocessing/nf_prepdata.m	102	hnf_prep_traces_mex	exist literal	optional-NF-MEX
+preprocessing/nf_prepdata.m	107	tukeywin	call/index	signal-package
+preprocessing/nf_prepdata.m	114	hnf_prep_traces_mex	call/index	optional-NF-MEX
+preprocessing/nf_prepdata.m	123	hilbert	call/index	signal-package
+preprocessing/nf_prepdata.m	146	tukeywin	call/index	signal-package
+preprocessing/nf_prepdata.m	150	hilbert	call/index	signal-package
+preprocessing/nf_preprocess.m	571	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	720	pop_rmbase	call/index	external-provider
+preprocessing/nf_preprocess.m	723	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	787	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	808	getReport	call/index	exceptions
+preprocessing/nf_preprocess.m	911	addCause	call/index	exceptions
+preprocessing/nf_preprocess.m	1176	javaObject	call/index	JVM
+preprocessing/nf_preprocess.m	1386	exportgraphics	call/index	graphics
+preprocessing/nf_preprocess.m	1528	pop_saveset	call/index	external-provider
+preprocessing/nf_preprocess.m	2088	getReport	call/index	exceptions
+preprocessing/nf_preprocess.m	2154	GEDAI	call/index	external-provider
+preprocessing/nf_preprocess.m	2156	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	2183	contains	call/index	types
+preprocessing/nf_preprocess.m	2184	contains	call/index	types
+preprocessing/nf_preprocess.m	2195	clean_asr	call/index	external-provider
+preprocessing/nf_preprocess.m	2202	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	2297	contains	call/index	types
+preprocessing/nf_preprocess.m	2336	prepPipeline	call/index	external-provider
+preprocessing/nf_preprocess.m	2350	string	call/index	types
+preprocessing/nf_preprocess.m	2357	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	2359	getPrepVersion	call/index	external-provider
+preprocessing/nf_preprocess.m	2413	contains	call/index	types
+preprocessing/nf_preprocess.m	2419	wdenoise	literal capability/name	external-wavelet
+preprocessing/nf_preprocess.m	2478	happe_wavThresh	call/index	external-provider
+preprocessing/nf_preprocess.m	2482	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	2597	pop_eegfiltnew	call/index	external-provider
+preprocessing/nf_preprocess.m	2598	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	2603	pop_eegfiltnew	call/index	external-provider
+preprocessing/nf_preprocess.m	2604	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	2683	which	call/index	runtime-probe
+preprocessing/nf_preprocess.m	2751	java.security.MessageDigest.getInstance	call/index	JVM
+preprocessing/nf_preprocess.m	2830	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	2896	GEDAI	which literal	external-provider
+preprocessing/nf_preprocess.m	2915	string	call/index	types
+preprocessing/nf_preprocess.m	2917	string	call/index	types
+preprocessing/nf_preprocess.m	2936	string	call/index	types
+preprocessing/nf_preprocess.m	2937	string	call/index	types
+preprocessing/nf_preprocess.m	3016	pop_epoch	call/index	external-provider
+preprocessing/nf_preprocess.m	3036	eeg_regepochs	call/index	external-provider
+preprocessing/nf_preprocess.m	3049	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	3233	string	call/index	types
+preprocessing/nf_preprocess.m	3234	string	call/index	types
+preprocessing/nf_preprocess.m	3308	string	call/index	types
+preprocessing/nf_preprocess.m	3309	string	call/index	types
+preprocessing/nf_preprocess.m	3366	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	3385	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	3398	string	call/index	types
+preprocessing/nf_preprocess.m	3399	string	call/index	types
+preprocessing/nf_preprocess.m	3427	eeg_interp	call/index	external-provider
+preprocessing/nf_preprocess.m	3429	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	3435	pop_reref	call/index	external-provider
+preprocessing/nf_preprocess.m	3439	pop_reref	call/index	external-provider
+preprocessing/nf_preprocess.m	3441	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	3455	string	call/index	types
+preprocessing/nf_preprocess.m	3456	string	call/index	types
+preprocessing/nf_preprocess.m	3482	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	3557	pop_select	call/index	external-provider
+preprocessing/nf_preprocess.m	3558	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	3582	string	call/index	types
+preprocessing/nf_preprocess.m	3584	string	call/index	types
+preprocessing/nf_preprocess.m	3597	pop_select	call/index	external-provider
+preprocessing/nf_preprocess.m	3598	eeg_checkset	call/index	external-provider
+preprocessing/nf_preprocess.m	3638	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	3641	string	call/index	types
+preprocessing/nf_preprocess.m	3642	string	call/index	types
+preprocessing/nf_preprocess.m	3644	string	call/index	types
+preprocessing/nf_preprocess.m	3772	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	3921	string	call/index	types
+preprocessing/nf_preprocess.m	3922	string	call/index	types
+preprocessing/nf_preprocess.m	4002	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	4418	clean_asr	exist literal	external-provider
+preprocessing/nf_preprocess.m	4434	wdenoise	literal capability/name	external-wavelet
+preprocessing/nf_preprocess.m	4444	GEDAI	exist literal	external-provider
+preprocessing/nf_preprocess.m	4449	GEDAI	nargin literal	external-provider
+preprocessing/nf_preprocess.m	4450	GEDAI	nargout literal	external-provider
+preprocessing/nf_preprocess.m	4460	gpuDeviceCount	literal capability/name	GPU
+preprocessing/nf_preprocess.m	4467	GEDAI	which literal	external-provider
+preprocessing/nf_preprocess.m	4480	pop_runamica	exist literal	external-provider
+preprocessing/nf_preprocess.m	4480	runamica15	exist literal	external-provider
+preprocessing/nf_preprocess.m	4498	pop_iclabel	exist literal	external-provider
+preprocessing/nf_preprocess.m	4740	eeg_getversion	exist literal	external-provider
+preprocessing/nf_preprocess.m	4795	istable	call/index	types
+preprocessing/nf_preprocess.m	4899	istable	call/index	types
+preprocessing/nf_preprocess.m	4900	table2struct	call/index	types
+preprocessing/nf_preprocess.m	4995	convertlocs	call/index	external-provider
+preprocessing/nf_preprocess.m	5192	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5198	string	call/index	types
+preprocessing/nf_preprocess.m	5199	strlength	call/index	types
+preprocessing/nf_preprocess.m	5250	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5265	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5314	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5317	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5438	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5460	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5510	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5515	isstring	call/index	string-predicate
+preprocessing/nf_preprocess.m	5519	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	54	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	55	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	56	strlength	call/index	types
+preprocessing/nf_readpsychopy.m	61	height	call/index	types
+preprocessing/nf_readpsychopy.m	65	width	call/index	types
+preprocessing/nf_readpsychopy.m	72	height	call/index	types
+preprocessing/nf_readpsychopy.m	90	height	call/index	types
+preprocessing/nf_readpsychopy.m	134	height	call/index	types
+preprocessing/nf_readpsychopy.m	135	width	call/index	types
+preprocessing/nf_readpsychopy.m	142	height	call/index	types
+preprocessing/nf_readpsychopy.m	143	width	call/index	types
+preprocessing/nf_readpsychopy.m	174	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	175	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	176	istable	call/index	types
+preprocessing/nf_readpsychopy.m	182	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	183	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	212	istable	call/index	types
+preprocessing/nf_readpsychopy.m	240	detectImportOptions	call/index	types
+preprocessing/nf_readpsychopy.m	244	detectImportOptions	call/index	types
+preprocessing/nf_readpsychopy.m	254	readtable	call/index	types
+preprocessing/nf_readpsychopy.m	263	height	call/index	types
+preprocessing/nf_readpsychopy.m	264	width	call/index	types
+preprocessing/nf_readpsychopy.m	276	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	280	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	281	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	281	strlength	call/index	types
+preprocessing/nf_readpsychopy.m	304	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	320	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	321	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	321	strlength	call/index	types
+preprocessing/nf_readpsychopy.m	326	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	332	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	781	height	call/index	types
+preprocessing/nf_readpsychopy.m	785	width	call/index	types
+preprocessing/nf_readpsychopy.m	911	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	921	iscategorical	call/index	types
+preprocessing/nf_readpsychopy.m	923	string	call/index	types
+preprocessing/nf_readpsychopy.m	934	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	935	string	call/index	types
+preprocessing/nf_readpsychopy.m	949	width	call/index	types
+preprocessing/nf_readpsychopy.m	1020	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	1023	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	1033	iscategorical	call/index	types
+preprocessing/nf_readpsychopy.m	1036	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	1037	string	call/index	types
+preprocessing/nf_readpsychopy.m	1048	ismissing	call/index	types
+preprocessing/nf_readpsychopy.m	1048	isstring	call/index	string-predicate
+preprocessing/nf_readpsychopy.m	1057	table	call/index	types
+preprocessing/nf_readpsychopy.m	1062	width	call/index	types
+preprocessing/nf_readpsychopy.m	1123	height	call/index	types
+preprocessing/nf_thresh.m	282	h_epoch_interp_spl	call/index	external-provider
+preprocessing/nf_thresh.m	306	pop_select	call/index	external-provider
+preprocessing/nf_thresh.m	315	eeg_interp	call/index	external-provider
+preprocessing/nf_thresh.m	326	eeg_checkset	call/index	external-provider
+preprocessing/nf_thresh.m	354	pop_rejepoch	call/index	external-provider
+preprocessing/nf_thresh.m	355	eeg_checkset	call/index	external-provider
+preprocessing/nf_thresh.m	891	pop_eegthresh	call/index	external-provider
+preprocessing/nf_thresh.m	913	pop_rejspec	call/index	external-provider
+preprocessing/nf_thresh.m	1097	epoch_properties	call/index	external-provider
+preprocessing/nf_thresh.m	1121	min_z	call/index	external-provider
+preprocessing/nf_thresh.m	1137	single_epoch_channel_properties	call/index	external-provider
+preprocessing/nf_thresh.m	1148	min_z	call/index	external-provider
+preprocessing/nf_thresh.m	1202	pop_jointprob	call/index	external-provider
+preprocessing/nf_thresh.m	1239	pop_rejkurt	call/index	external-provider
+preprocessing/nf_thresh.m	1513	isstring	call/index	string-predicate
+preprocessing/nf_thresh.m	1560	isstring	call/index	string-predicate
+preprocessing/nf_thresh.m	1816	eeg_checkset	exist literal	external-provider
+preprocessing/nf_thresh.m	1817	eeg_checkset	call/index	external-provider
+preprocessing/nf_thresh.m	1870	which	call/index	runtime-probe
+preprocessing/nf_thresh.m	1875	isstring	call/index	string-predicate
+preprocessing/nf_thresh.m	1897	contains	call/index	types
+preprocessing/nf_thresh.m	1908	contains	call/index	types
+preprocessing/nf_thresh.m	1959	java.security.MessageDigest.getInstance	call/index	JVM
+preprocessing/nf_thresh.m	1977	eeg_getversion	exist literal	external-provider
+preprocessing/nf_thresh.m	1979	eeg_getversion	call/index	external-provider
+preprocessing/nf_thresh.m	2095	isstring	call/index	string-predicate
+preprocessing/nf_thresh.m	2110	isstring	call/index	string-predicate
+preprocessing/nf_thresh.m	2215	istable	call/index	types
+preprocessing/nf_thresh.m	2216	height	call/index	types
+preprocessing/nf_thresh.m	2274	istable	call/index	types
+preprocessing/nf_thresh.m	2275	table2struct	call/index	types
+preprocessing/nf_thresh.m	2301	istable	call/index	types
+preprocessing/nf_thresh.m	2349	convertlocs	exist literal	external-provider
+preprocessing/nf_thresh.m	2361	convertlocs	call/index	external-provider
+preprocessing/nf_thresh.m	2470	isstring	call/index	string-predicate
+preprocessing/nf_thresh.m	2478	isstring	call/index	string-predicate
+private/nf_canonical.m	3	javaObject	call/index	JVM
+private/nf_canonical.m	4	javaObject	call/index	JVM
+private/nf_catalog.m	19	ept_ChN2	literal capability/name	electrodes
+private/nf_catalog.m	32	happe_detectBadChans	literal capability/name	external-provider
+private/nf_catalog.m	32	happe_wavThresh	literal capability/name	external-provider
+private/nf_catalog.m	37	adjusted_ADJUST	literal capability/name	external-provider
+private/nf_catalog.m	47	pop_eegfiltnew	literal capability/name	external-provider
+private/nf_catalog.m	53	clean_asr	literal capability/name	external-provider
+private/nf_catalog.m	53	clean_channels	literal capability/name	external-provider
+private/nf_catalog.m	53	clean_flatlines	literal capability/name	external-provider
+private/nf_catalog.m	53	pop_clean_rawdata	literal capability/name	external-provider
+private/nf_catalog.m	71	findNoisyChannels	literal capability/name	external-provider
+private/nf_catalog.m	71	getPrepVersion	literal capability/name	external-provider
+private/nf_catalog.m	71	prepPipeline	literal capability/name	external-provider
+private/nf_catalog.m	71	removeTrend	literal capability/name	external-provider
+private/nf_catalog.m	74	channel_properties	literal capability/name	external-provider
+private/nf_catalog.m	74	component_properties	literal capability/name	external-provider
+private/nf_catalog.m	74	epoch_properties	literal capability/name	external-provider
+private/nf_catalog.m	75	h_epoch_interp_spl	literal capability/name	external-provider
+private/nf_catalog.m	75	min_z	literal capability/name	external-provider
+private/nf_catalog.m	75	single_epoch_channel_properties	literal capability/name	external-provider
+private/nf_catalog.m	76	hurst_exponent	literal capability/name	external-provider
+private/nf_catalog.m	86	pop_icflag	literal capability/name	external-provider
+private/nf_catalog.m	86	pop_iclabel	literal capability/name	external-provider
+private/nf_catalog.m	88	ADJUST	literal capability/name	external-provider
+private/nf_catalog.m	90	ADJUST	literal capability/name	external-provider
+private/nf_catalog.m	92	MARA	literal capability/name	external-provider
+private/nf_catalog.m	93	MARA	literal capability/name	external-provider
+private/nf_catalog.m	97	pop_runamica	literal capability/name	external-provider
+private/nf_catalog.m	97	runamica15	literal capability/name	external-provider
+private/nf_catalog.m	98	picard	literal capability/name	external-provider
+private/nf_catalog.m	100	picard	literal capability/name	external-provider
+private/nf_catalog.m	101	GEDAI	literal capability/name	external-provider
+private/nf_catalog.m	104	GEDAI	literal capability/name	external-provider
+private/nf_check_features.m	18	butter	literal capability/name	signal-package
+private/nf_check_features.m	18	filtfilt	literal capability/name	signal-package
+private/nf_check_features.m	18	findpeaks	literal capability/name	peaks
+private/nf_check_features.m	18	hilbert	literal capability/name	signal-package
+private/nf_check_features.m	18	mscohere	literal capability/name	Welch
+private/nf_check_features.m	18	pwelch	literal capability/name	Welch
+private/nf_check_features.m	20	cwt	literal capability/name	CWT
+private/nf_check_features.m	20	wdenoise	literal capability/name	external-wavelet
+private/nf_check_features.m	22	classify	literal capability/name	statistics-package
+private/nf_check_features.m	22	fitlme	literal capability/name	LME
+private/nf_check_features.m	22	pdist	literal capability/name	statistics-package
+private/nf_check_features.m	22	robustfit	literal capability/name	IRLS
+private/nf_check_features.m	24	fmincon	literal capability/name	constrained-fit
+private/nf_check_features.m	24	lsqcurvefit	literal capability/name	MARA-fit
+private/nf_check_features.m	26	fit	literal capability/name	MARA-fit
+private/nf_check_features.m	26	fitoptions	literal capability/name	MARA-fit
+private/nf_check_features.m	26	fittype	literal capability/name	MARA-fit
+private/nf_check_features.m	28	gpuDeviceCount	literal capability/name	GPU
+private/nf_check_features.m	28	parpool	literal capability/name	workers
+private/nf_check_features.m	37	license	call/index	runtime-probe
+private/nf_check_features.m	48	ept_ChN2	which literal	electrodes
+private/nf_check_features.m	49	ept_mex_TFCE2D	literal capability/name	EPT
+private/nf_check_features.m	49	ept_mex_TFCE3D	literal capability/name	EPT
+private/nf_check_features.m	52	mexext	identifier	runtime-probe
+private/nf_check_features.m	55	mexext	identifier	runtime-probe
+private/nf_check_features.m	59	pop_iclabel	which literal	external-provider
+private/nf_check_features.m	60	pop_iclabel	which literal	external-provider
+private/nf_check_features.m	61	mex	literal capability/name	compiler
+private/nf_check_features.m	61	mexext	identifier	runtime-probe
+private/nf_check_features.m	62	vl_nnconv	exist literal	ICLabel-binary
+private/nf_check_features.m	63	mexext	identifier	runtime-probe
+private/nf_check_features.m	65	mexext	identifier	runtime-probe
+private/nf_check_features.m	69	runamica15	which literal	external-provider
+private/nf_check_features.m	77	runamica15	which literal	external-provider
+private/nf_check_features.m	88	eeg_checkset	literal capability/name	external-provider
+private/nf_check_features.m	88	pop_resample	literal capability/name	external-provider
+private/nf_check_features.m	88	pop_saveset	literal capability/name	external-provider
+private/nf_check_features.m	88	pop_select	literal capability/name	external-provider
+private/nf_check_features.m	89	convertlocs	literal capability/name	external-provider
+private/nf_check_features.m	89	eeg_interp	literal capability/name	external-provider
+private/nf_check_features.m	89	pop_reref	literal capability/name	external-provider
+private/nf_check_features.m	89	pop_runica	literal capability/name	external-provider
+private/nf_check_features.m	89	pop_subcomp	literal capability/name	external-provider
+private/nf_check_features.m	90	eeg_regepochs	literal capability/name	external-provider
+private/nf_check_features.m	90	pop_eegthresh	literal capability/name	external-provider
+private/nf_check_features.m	90	pop_epoch	literal capability/name	external-provider
+private/nf_check_features.m	90	pop_rejepoch	literal capability/name	external-provider
+private/nf_check_features.m	90	pop_rejspec	literal capability/name	external-provider
+private/nf_check_features.m	90	pop_rmbase	literal capability/name	external-provider
+private/nf_choose.m	5	usejava	call/index	JVM
+private/nf_choose.m	10	questdlg	call/index	dialog
+private/nf_choose.m	13	listdlg	call/index	dialog
+private/nf_configure.m	43	javaObject	call/index	JVM
+private/nf_configure.m	44	javaObject	call/index	JVM
+private/nf_configure.m	45	javaArray	call/index	JVM
+private/nf_configure.m	46	javaMethod	call/index	JVM
+private/nf_configure.m	47	javaMethod	call/index	JVM
+private/nf_configure.m	48	javaMethod	call/index	JVM
+private/nf_dependencies.m	175	which	call/index	runtime-probe
+private/nf_dependencies.m	288	mexext	identifier	runtime-probe
+private/nf_dependencies.m	293	userpath	identifier	runtime-probe
+private/nf_dependencies.m	343	userpath	identifier	runtime-probe
+private/nf_dependencies.m	433	eeglab	which literal	external-provider
+private/nf_dependencies.m	433	plugin_install	which literal	external-provider
+private/nf_dependencies.m	449	plugin_install	call/index	external-provider
+private/nf_eeglab.m	31	javaObject	call/index	JVM
+private/nf_eeglab.m	38	eeglab	which literal	external-provider
+private/nf_eeglab.m	154	javaObject	call/index	JVM
+private/nf_eeglab.m	155	javaObject	call/index	JVM
+private/nf_eeglab.m	255	eeglab_update	which literal	external-provider
+private/nf_eeglab.m	259	usejava	call/index	JVM
+private/nf_eeglab.m	269	eeglab	which literal	external-provider
+private/nf_eeglab_releases.m	10	weboptions	call/index	network
+private/nf_eeglab_releases.m	10	webread	call/index	network
+private/nf_fetch_package.m	9	weboptions	call/index	network
+private/nf_fetch_package.m	9	websave	call/index	network
+private/nf_fetch_package.m	10	javaObject	call/index	JVM
+private/nf_native_abi.m	9	mexext	identifier	runtime-probe
+private/nf_native_build.m	56	mkoctfile	call/index	compiler
+private/nf_native_build.m	69	mex.getCompilerConfigurations	call/index	compiler
+private/nf_native_build.m	89	mexcuda	which literal	compiler
+private/nf_native_build.m	114	javaArray	call/index	JVM
+private/nf_native_build.m	115	javaObject	call/index	JVM
+private/nf_native_build.m	116	javaObject	call/index	JVM
+private/nf_native_build.m	117	javaObject	call/index	JVM
+private/nf_native_build.m	119	javaObject	call/index	JVM
+private/nf_native_build.m	137	mexext	identifier	runtime-probe
+private/nf_native_build.m	153	javaObject	call/index	JVM
+private/nf_native_build.m	194	javaObject	call/index	JVM
+private/nf_native_build.m	195	javaObject	call/index	JVM
+private/nf_native_build.m	196	javaArray	call/index	JVM
+private/nf_native_build.m	197	javaMethod	call/index	JVM
+private/nf_native_build.m	198	javaMethod	call/index	JVM
+private/nf_native_build.m	208	mkoctfile	call/index	compiler
+private/nf_native_build.m	211	mexcuda	call/index	compiler
+private/nf_native_build.m	213	mex	call/index	compiler
+private/nf_native_digest.m	4	javaMethod	call/index	JVM
+private/nf_native_digest.m	7	javaObject	call/index	JVM
+private/nf_native_digest.m	10	javaMethod	call/index	JVM
+private/nf_native_paths.m	42	javaObject	call/index	JVM
+private/nf_native_paths.m	44	mexext	identifier	runtime-probe
+private/nf_native_paths.m	84	javaObject	call/index	JVM
+private/nf_native_paths.m	100	javaMethod	call/index	JVM
+private/nf_native_paths.m	110	javaMethod	call/index	JVM
+private/nf_pick_folder.m	4	usejava	call/index	JVM
+private/nf_pick_folder.m	6	uigetdir	call/index	dialog
+private/nf_viewer_data.m	116	omitnan	argument	nan-reduction
+private/nf_viewer_data.m	121	omitnan	argument	nan-reduction
+private/nf_viewer_scalp.m	12	griddata	call/index	scalp-interp
+private/nf_viewer_scalp.m	14	griddata	call/index	scalp-interp
+setutilities/hnf_setutilities/hnf_eeg_epoch2continuous.m	41	eeg_boundarytype	call/index	external-provider
+setutilities/hnf_setutilities/hnf_eeg_epoch2continuous.m	57	eeg_checkset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	169	pop_runamica	which literal	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	247	unique_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	268	inputgui	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	274	fastif	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	277	parsetxt	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	281	fastif	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	282	fastif	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	294	finputcheck	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	309	eeg_checkset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	314	eeg_eval	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	323	errordlg2	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	335	setdiff_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	340	setdiff_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	352	parfor	identifier	workers
+setutilities/hnf_setutilities/hnf_runica.m	360	pop_saveset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	370	pop_saveset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	377	vararg2str	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	383	eeg_checkset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	384	pop_mergeset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	400	eeg_checkset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	500	runica	which literal	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	501	pop_runica	which literal	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	509	runica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	521	inputgui	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	529	runica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	539	binica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	542	binica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	546	pop_runamica	exist literal	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	548	errordlg2	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	553	pop_runamica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	555	picard	exist literal	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	557	errordlg2	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	566	runpca	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	569	runpca	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	573	picard	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	580	pearson_ica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	582	pearson_ica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	585	egld_ica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	588	tfbss	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	590	tfbss	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	592	jader	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	593	MatlabshibbsR	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	594	eeA	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	595	icaML	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	596	icaMS	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	597	fastica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	604	tica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	605	erica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	606	simbec	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	607	unica	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	608	amuse	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	609	fobi	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	610	evd	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	611	sons	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	612	jadeop	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	613	jade_td_p	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	614	evd24	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	615	sobi	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	616	ng_ol	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	617	acsobiro	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	618	acrsobibpf	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	664	eeg_checkset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	666	eeg_checkset	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	667	eeg_store	call/index	external-provider
+setutilities/hnf_setutilities/hnf_runica.m	672	vararg2str	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	693	readlocs	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	695	readlocs	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	714	intersect_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	736	intersect_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	762	union_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	763	setdiff_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	915	intersect_bc	call/index	external-provider
+setutilities/hnf_setutilities/hnf_topoplot.m	1009	griddata	call/index	scalp-interp
+setutilities/hnf_setutilities/hnf_topoplot.m	1010	griddata	call/index	scalp-interp
+setutilities/nf_aggregate.m	235	isstring	call/index	string-predicate
+setutilities/nf_aggregate.m	250	isstring	call/index	string-predicate
+setutilities/nf_aggregate.m	300	uigetfile	call/index	dialog
+setutilities/nf_aggregate.m	383	contains	call/index	types
+setutilities/nf_aggregate.m	387	contains	call/index	types
+setutilities/nf_aggregate.m	502	isstring	call/index	string-predicate
+setutilities/nf_aggregate.m	504	iscategorical	call/index	types
+setutilities/nf_aggregate.m	505	string	call/index	types
+setutilities/nf_aggregate.m	510	isstring	call/index	string-predicate
+setutilities/nf_aggregate.m	512	iscategorical	call/index	types
+setutilities/nf_aggregate.m	513	string	call/index	types
+setutilities/nf_aggregate.m	896	matlab.lang.makeValidName	call/index	identifiers
+setutilities/nf_aggregate.m	1307	isstring	call/index	string-predicate
+setutilities/nf_aggregate.m	1319	iscategorical	call/index	types
+setutilities/nf_aggregate.m	1320	string	call/index	types
+setutilities/nf_aggregate.m	1360	string	call/index	types
+setutilities/nf_aggregate.m	1430	matlab.lang.makeValidName	call/index	identifiers
+setutilities/nf_aggregate.m	1469	contains	call/index	types
+setutilities/nf_aggregate.m	1483	matlab.lang.makeValidName	call/index	identifiers
+setutilities/nf_checkset.m	33	isstring	call/index	string-predicate
+setutilities/nf_checkset.m	59	isstring	call/index	string-predicate
+setutilities/nf_concat.m	128	string	call/index	types
+setutilities/nf_concat.m	274	istable	call/index	types
+setutilities/nf_concat.m	391	isstring	call/index	string-predicate
+setutilities/nf_concat.m	419	isstring	call/index	string-predicate
+setutilities/nf_concat.m	517	isstring	call/index	string-predicate
+setutilities/nf_concat.m	542	pop_loadset	exist literal	external-provider
+setutilities/nf_concat.m	550	pop_loadset	call/index	external-provider
+setutilities/nf_concat.m	1264	isstring	call/index	string-predicate
+setutilities/nf_concat.m	1382	isstring	call/index	string-predicate
+setutilities/nf_concat.m	1383	isstring	call/index	string-predicate
+setutilities/nf_concat.m	1384	string	call/index	types
+setutilities/nf_concat.m	1635	isstring	call/index	string-predicate
+setutilities/nf_concat.m	1698	isstring	call/index	string-predicate
+setutilities/nf_concat.m	1706	isstring	call/index	string-predicate
+setutilities/nf_concat.m	1725	isstring	call/index	string-predicate
+setutilities/nf_epoch.m	41	isstring	call/index	string-predicate
+setutilities/nf_epoch.m	42	isstring	call/index	string-predicate
+setutilities/nf_epoch.m	43	isstring	call/index	string-predicate
+setutilities/nf_epoch.m	190	isstring	call/index	string-predicate
+setutilities/nf_epoch.m	488	isstring	call/index	string-predicate
+setutilities/nf_epoch.m	513	string	call/index	types
+setutilities/nf_epoch.m	514	string	call/index	types
+setutilities/nf_epoch.m	560	like	argument	array-type
+setutilities/nf_extractpower.m	54	isstring	call/index	string-predicate
+setutilities/nf_extractpower.m	57	isstring	call/index	string-predicate
+setutilities/nf_extractpower.m	63	isstring	call/index	string-predicate
+setutilities/nf_extractpower.m	119	istable	call/index	types
+setutilities/nf_extractpower.m	120	table2struct	call/index	types
+setutilities/nf_extractpower.m	140	isstring	call/index	string-predicate
+setutilities/nf_extractpower.m	227	isstring	call/index	string-predicate
+setutilities/nf_extractpower.m	307	matlab.lang.makeValidName	call/index	identifiers
+setutilities/nf_extractpower.m	324	struct2table	call/index	types
+setutilities/nf_extractpower.m	433	isstring	call/index	string-predicate
+setutilities/nf_extractpower.m	437	isstring	call/index	string-predicate
+setutilities/nf_extractpower.m	454	isstring	call/index	string-predicate
+setutilities/nf_normbase.m	326	like	argument	array-type
+setutilities/nf_normbase.m	370	like	argument	array-type
+setutilities/nf_normbase.m	392	like	argument	array-type
+setutilities/nf_normbase.m	399	like	argument	array-type
+setutilities/nf_normbase.m	729	like	argument	array-type
+setutilities/nf_normbase.m	730	like	argument	array-type
+setutilities/nf_normbase.m	731	like	argument	array-type
+setutilities/nf_normbase.m	1169	like	argument	array-type
+setutilities/nf_normbase.m	1193	like	argument	array-type
+setutilities/nf_normbase.m	1275	like	argument	array-type
+setutilities/nf_normbase.m	1318	like	argument	array-type
+setutilities/nf_normbase.m	2221	isstring	call/index	string-predicate
+setutilities/nf_normbase.m	2651	like	argument	array-type
+setutilities/nf_normbase.m	3162	like	argument	array-type
+setutilities/nf_normbase.m	3164	like	argument	array-type
+setutilities/nf_normbase.m	3287	omitnan	argument	nan-reduction
+setutilities/nf_resample.m	49	contains	call/index	types
+setutilities/nf_resample.m	77	hnf_grid_interp_mex	exist literal	optional-NF-MEX
+setutilities/nf_resample.m	84	hnf_grid_interp_mex	call/index	optional-NF-MEX
+setutilities/nf_rmerp.m	217	like	argument	array-type
+setutilities/nf_rmerp.m	218	like	argument	array-type
+setutilities/nf_rmerp.m	219	like	argument	array-type
+setutilities/nf_rmerp.m	220	like	argument	array-type
+setutilities/nf_rmerp.m	223	like	argument	array-type
+setutilities/nf_rmerp.m	225	like	argument	array-type
+setutilities/nf_rmerp.m	227	like	argument	array-type
+setutilities/nf_rmerp.m	243	like	argument	array-type
+setutilities/nf_rmerp.m	273	like	argument	array-type
+setutilities/nf_rmerp.m	275	like	argument	array-type
+setutilities/nf_rmerp.m	277	like	argument	array-type
+setutilities/nf_rmerp.m	284	like	argument	array-type
+setutilities/nf_rmerp.m	286	like	argument	array-type
+setutilities/nf_rmerp.m	642	height	call/index	types
+setutilities/nf_rmerp.m	642	istable	call/index	types
+setutilities/nf_rmerp.m	1058	isstring	call/index	string-predicate
+setutilities/nf_rmerp.m	1064	ismissing	call/index	types
+setutilities/nf_rmerp.m	1123	isstring	call/index	string-predicate
+setutilities/nf_rmerp.m	1127	ismissing	call/index	types
+setutilities/nf_rmerp.m	1132	strlength	call/index	types
+setutilities/nf_rmerp.m	1137	iscategorical	call/index	types
+setutilities/nf_rmerp.m	1141	isundefined	call/index	types
+setutilities/nf_rmerp.m	1153	string	call/index	types
+setutilities/nf_rmerp.m	1155	strlength	call/index	types
+setutilities/nf_rmerp.m	1188	like	argument	array-type
+setutilities/nf_rmerp.m	1190	like	argument	array-type
+setutilities/nf_rmerp.m	1226	like	argument	array-type
+setutilities/nf_rmerp.m	1282	like	argument	array-type
+setutilities/nf_rmerp.m	1314	like	argument	array-type
+setutilities/nf_rmerp.m	1316	like	argument	array-type
+setutilities/nf_rmerp.m	1318	like	argument	array-type
+setutilities/nf_rmerp.m	1320	like	argument	array-type
+setutilities/nf_rmerp.m	1326	like	argument	array-type
+setutilities/nf_rmerp.m	1372	like	argument	array-type
+setutilities/nf_rmerp.m	1373	like	argument	array-type
+setutilities/nf_rmerp.m	1374	like	argument	array-type
+setutilities/nf_rmerp.m	1415	like	argument	array-type
+setutilities/nf_rmerp.m	1440	like	argument	array-type
+setutilities/nf_rmerp.m	1480	like	argument	array-type
+setutilities/nf_rmerp.m	1534	like	argument	array-type
+setutilities/nf_rmerp.m	1542	like	argument	array-type
+setutilities/nf_rmerp.m	1574	like	argument	array-type
+setutilities/nf_rmerp.m	1596	like	argument	array-type
+setutilities/nf_rmerp.m	1652	like	argument	array-type
+setutilities/nf_rmerp.m	1676	like	argument	array-type
+setutilities/nf_rmerp.m	1678	like	argument	array-type
+setutilities/nf_rmerp.m	1783	contains	call/index	types
+setutilities/nf_select.m	59	isstring	call/index	string-predicate
+setutilities/nf_select.m	200	istable	call/index	types
+setutilities/nf_select.m	201	height	call/index	types
+setutilities/nf_select.m	262	isstring	call/index	string-predicate
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	25	hnf_peak_objective_mex	exist literal	optional-NF-MEX
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	26	hnf_peak_objective_mex	which literal	optional-NF-MEX
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	34	hnf_peak_objective_mex	call/index	optional-NF-MEX
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	41	hnf_peak_objective_mex	handle	optional-NF-MEX
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	63	hnf_peak_objective_mex	call/index	optional-NF-MEX
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	67	fmincon	call/index	constrained-fit
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	92	fmincon	exist literal	constrained-fit
+spectralparameterization/hnf_specparam/hnf_fit_peak_guess.m	92	license	call/index	runtime-probe
+spectralparameterization/nf_tfspecparam.m	321	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	322	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	335	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	336	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	337	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	339	parfor	identifier	workers
+spectralparameterization/nf_tfspecparam.m	340	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	341	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	351	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	352	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	353	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	419	parfor	identifier	workers
+spectralparameterization/nf_tfspecparam.m	420	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	421	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	513	hnf_fixed_spectra_mex	call/index	optional-NF-MEX
+spectralparameterization/nf_tfspecparam.m	521	hnf_fixed_spectra_mex	call/index	optional-NF-MEX
+spectralparameterization/nf_tfspecparam.m	570	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	571	like	argument	array-type
+spectralparameterization/nf_tfspecparam.m	812	height	call/index	types
+spectralparameterization/nf_tfspecparam.m	812	istable	call/index	types
+spectralparameterization/nf_tfspecparam.m	926	contains	call/index	types
+spectralparameterization/nf_tfspecparam.m	955	contains	call/index	types
+statistics/hnf_statistics/hnf_ept_TFCE_corr.m	74	parfor	identifier	workers
+statistics/hnf_statistics/hnf_ept_TFCE_glm.m	43	parfor	identifier	workers
+statistics/hnf_statistics/hnf_ept_TFCE_indsamples.m	101	ept_ChN2	call/index	electrodes
+statistics/hnf_statistics/hnf_ept_TFCE_indsamples_par.m	101	ept_ChN2	call/index	electrodes
+statistics/hnf_statistics/hnf_ept_TFCE_indsamples_par.m	137	hnf_permuted_t_mex	which literal	optional-NF-MEX
+statistics/hnf_statistics/hnf_ept_TFCE_indsamples_par.m	145	parfor	identifier	workers
+statistics/hnf_statistics/hnf_ept_TFCE_lme.m	36	fitlme	exist literal	LME
+statistics/hnf_statistics/hnf_ept_TFCE_lme.m	65	isstring	call/index	string-predicate
+statistics/hnf_statistics/hnf_ept_TFCE_lme.m	111	ept_ChN2	call/index	electrodes
+statistics/hnf_statistics/hnf_ept_TFCE_lme.m	347	parfor	identifier	workers
+statistics/hnf_statistics/hnf_ept_TFCE_lme.m	376	categorical	call/index	types
+statistics/hnf_statistics/hnf_ept_TFCE_lme.m	376	table	call/index	types
+statistics/hnf_statistics/hnf_ept_TFCE_lme.m	383	fitlme	call/index	LME
+statistics/hnf_statistics/hnf_ept_TFCE_onesample.m	98	ept_ChN2	call/index	electrodes
+statistics/hnf_statistics/hnf_ept_TFCE_onesample_par.m	98	ept_ChN2	call/index	electrodes
+statistics/hnf_statistics/hnf_ept_TFCE_onesample_par.m	135	hnf_permuted_t_mex	which literal	optional-NF-MEX
+statistics/hnf_statistics/hnf_ept_TFCE_onesample_par.m	143	parfor	identifier	workers
+statistics/hnf_statistics/hnf_permuted_t_map.m	8	hnf_permuted_t_mex	exist literal	optional-NF-MEX
+statistics/hnf_statistics/hnf_permuted_t_map.m	9	hnf_permuted_t_mex	which literal	optional-NF-MEX
+statistics/hnf_statistics/hnf_permuted_t_map.m	14	hnf_permuted_t_mex	call/index	optional-NF-MEX
+statistics/hnf_statistics/hnf_permuted_t_map.m	16	hnf_permuted_t_mex	call/index	optional-NF-MEX
+statistics/hnf_statistics/hnf_permuted_t_map.m	22	hnf_permuted_t_mex	exist literal	optional-NF-MEX
+statistics/hnf_statistics/hnf_tfce_options.m	22	ept_ChN2	call/index	electrodes
+statistics/hnf_statistics/hnf_tfce_pvalues.m	13	hnf_tfce_tail_mex	call/index	optional-NF-MEX
+statistics/hnf_statistics/hnf_tfce_transformation.m	28	ept_mex_TFCE2D	call/index	EPT
+statistics/hnf_statistics/hnf_tfce_transformation.m	30	ept_mex_TFCE3D	call/index	EPT
+statistics/nf_corr_TFCE.m	34	istable	call/index	types
+statistics/nf_corr_TFCE.m	78	istable	call/index	types
+statistics/nf_corr_TFCE.m	199	istable	call/index	types
+statistics/nf_corr_TFCE.m	277	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_corr_TFCE.m	315	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_corr_TFCE.m	320	matlab.lang.makeUniqueStrings	call/index	identifiers
+statistics/nf_corr_TFCE.m	628	istable	call/index	types
+statistics/nf_glm_TFCE.m	88	istable	call/index	types
+statistics/nf_glm_TFCE.m	160	norminv	call/index	statistics-package
+statistics/nf_glm_TFCE.m	228	istable	call/index	types
+statistics/nf_glm_TFCE.m	313	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_glm_TFCE.m	360	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_glm_TFCE.m	365	matlab.lang.makeUniqueStrings	call/index	identifiers
+statistics/nf_glm_TFCE.m	434	istable	call/index	types
+statistics/nf_glm_TFCE.m	503	norminv	call/index	statistics-package
+statistics/nf_lme_TFCE.m	68	fitlme	exist literal	LME
+statistics/nf_lme_TFCE.m	72	istable	call/index	types
+statistics/nf_lme_TFCE.m	86	isstring	call/index	string-predicate
+statistics/nf_lme_TFCE.m	107	isstring	call/index	string-predicate
+statistics/nf_lme_TFCE.m	147	height	call/index	types
+statistics/nf_lme_TFCE.m	191	string	call/index	types
+statistics/nf_lme_TFCE.m	192	string	call/index	types
+statistics/nf_lme_TFCE.m	287	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_lme_TFCE.m	307	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_lme_TFCE.m	602	isstring	call/index	string-predicate
+statistics/nf_lme_TFCE.m	616	isstring	call/index	string-predicate
+statistics/nf_lme_TFCE.m	647	isstring	call/index	string-predicate
+statistics/nf_lme_TFCE.m	674	string	call/index	types
+statistics/nf_lme_TFCE.m	699	iscategorical	call/index	types
+statistics/nf_lme_TFCE.m	700	grp2idx	call/index	types
+statistics/nf_lme_TFCE.m	704	isstring	call/index	string-predicate
+statistics/nf_lme_TFCE.m	705	categorical	call/index	types
+statistics/nf_lme_TFCE.m	705	grp2idx	call/index	types
+statistics/nf_lme_TFCE.m	710	categorical	call/index	types
+statistics/nf_lme_TFCE.m	710	grp2idx	call/index	types
+statistics/nf_makefactorialdesign.m	167	isstring	call/index	string-predicate
+statistics/nf_makefactorialdesign.m	266	categorical	call/index	types
+statistics/nf_makefactorialdesign.m	266	grp2idx	call/index	types
+statistics/nf_makefactorialdesign.m	281	array2table	call/index	types
+statistics/nf_makefactorialdesign.m	288	addvars	call/index	types
+statistics/nf_makefactorialdesign.m	288	categorical	call/index	types
+statistics/nf_makefactorialdesign.m	290	addvars	call/index	types
+statistics/nf_makefactorialdesign.m	330	istable	call/index	types
+statistics/nf_makefactorialdesign.m	341	struct2table	call/index	types
+statistics/nf_makefactorialdesign.m	346	struct2table	call/index	types
+statistics/nf_makefactorialdesign.m	364	isstring	call/index	string-predicate
+statistics/nf_makefactorialdesign.m	438	isstring	call/index	string-predicate
+statistics/nf_makefactorialdesign.m	448	iscategorical	call/index	types
+statistics/nf_makefactorialdesign.m	449	string	call/index	types
+statistics/nf_makefactorialdesign.m	486	iscategorical	call/index	types
+statistics/nf_makefactorialdesign.m	486	isstring	call/index	string-predicate
+statistics/nf_makefactorialdesign.m	495	omitnan	argument	nan-reduction
+statistics/nf_makefactorialdesign.m	496	omitnan	argument	nan-reduction
+statistics/nf_makefactorialdesign.m	516	omitnan	argument	nan-reduction
+statistics/nf_makefactorialdesign.m	517	omitnan	argument	nan-reduction
+statistics/nf_makefactorialdesign.m	519	omitnan	argument	nan-reduction
+statistics/nf_makefactorialdesign.m	520	omitnan	argument	nan-reduction
+statistics/nf_makefactorialdesign.m	623	isstring	call/index	string-predicate
+statistics/nf_makefactorialdesign.m	644	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_stregress.m	168	istable	call/index	types
+statistics/nf_stregress.m	170	height	call/index	types
+statistics/nf_stregress.m	176	table2array	call/index	types
+statistics/nf_stregress.m	337	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_stregress.m	400	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_stregress.m	619	norminv	call/index	statistics-package
+statistics/nf_stregress.m	648	gcp	call/index	workers
+statistics/nf_stregress.m	648	gcp	exist literal	workers
+statistics/nf_stregress.m	660	parfor	identifier	workers
+statistics/nf_stregress.m	668	robustfit	call/index	IRLS
+statistics/nf_stregress.m	689	robustfit	call/index	IRLS
+statistics/nf_stregress.m	705	corr	call/index	correlation
+statistics/nf_stregress.m	725	gcp	call/index	workers
+statistics/nf_stregress.m	725	gcp	exist literal	workers
+statistics/nf_stregress.m	737	parfor	identifier	workers
+statistics/nf_stregress.m	763	robustfit	call/index	IRLS
+statistics/nf_stregress.m	829	robustfit	call/index	IRLS
+statistics/nf_stregress.m	914	corr	call/index	correlation
+statistics/nf_stregress.m	954	tcdf	call/index	statistics-package
+statistics/nf_stregress.m	1004	tiedrank	call/index	statistics-package
+statistics/nf_tfstats_apply.m	28	isstring	call/index	string-predicate
+statistics/nf_tfstats_apply.m	45	isstring	call/index	string-predicate
+statistics/nf_tfstats_apply.m	54	isstring	call/index	string-predicate
+statistics/nf_tfstats_apply.m	63	isstring	call/index	string-predicate
+statistics/nf_tfstats_apply.m	78	isstring	call/index	string-predicate
+statistics/nf_tfstats_apply.m	86	isstring	call/index	string-predicate
+statistics/nf_tfstats_apply.m	104	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_tfstats_apply.m	135	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_tfstats_apply.m	159	matlab.lang.makeValidName	call/index	identifiers
+statistics/nf_tfstats_apply.m	268	isstring	call/index	string-predicate
+tests/test_nf_install.m	9	javaObject	call/index	JVM
+tests/test_nf_install.m	106	eeglab	call/index	external-provider
+tests/test_nf_install.m	115	eeglab	call/index	external-provider
+tests/test_nf_pac.m	100	hnf_mi_mex	call/index	optional-NF-MEX
+tests/test_nf_pac.m	101	hnf_mi_mex	call/index	optional-NF-MEX
+tests/test_nf_pac.m	102	hnf_mi_mex	call/index	optional-NF-MEX
+tests/test_nf_pac.m	103	hnf_mi_mex	call/index	optional-NF-MEX
+tests/test_nf_pac.m	104	hnf_mvl_mex	call/index	optional-NF-MEX
+tests/test_nf_pac.m	105	hnf_circ_corrcl_mex	call/index	optional-NF-MEX
+tests/test_nf_pac.m	106	hnf_surr_timeshift_mex	call/index	optional-NF-MEX
+tests/test_nf_timefrequency.m	137	name{1}	dynamic dispatch	dynamic
+tests/test_nf_timefrequency.m	183	cwt	exist literal	CWT
+tests/test_nf_timefrequency.m	186	cwt	call/index	CWT
+tests/test_nf_timefrequency.m	196	hnf_lacf2_mex	exist literal	optional-NF-MEX
+tests/test_nf_timefrequency.m	203	hnf_lacf2_mex	call/index	optional-NF-MEX
+tests/test_nf_timefrequency.m	207	hnf_lacf2_mex	call/index	optional-NF-MEX
+tests/test_nf_viewer.m	70	usejava	call/index	JVM
+tests/test_nf_viewer.m	75	nf_viewerapp	nf_run literal	viewer/demo
+timefrequency/hnf_timefrequency/hnf_lacf2.m	18	hnf_lacf2_mex	exist literal	optional-NF-MEX
+timefrequency/hnf_timefrequency/hnf_lacf2.m	21	hnf_lacf2_mex	call/index	optional-NF-MEX
+timefrequency/nf_cpm.m	131	gather	call/index	GPU
+timefrequency/nf_cpm.m	167	like	argument	array-type
+timefrequency/nf_cpm.m	191	like	argument	array-type
+timefrequency/nf_cpm.m	200	like	argument	array-type
+timefrequency/nf_cpm.m	232	like	argument	array-type
+timefrequency/nf_cpm.m	432	gpuArray	call/index	GPU
+timefrequency/nf_cpm.m	451	gather	call/index	GPU
+timefrequency/nf_cpm.m	459	like	argument	array-type
+timefrequency/nf_cpm.m	462	like	argument	array-type
+timefrequency/nf_cpm.m	469	gather	call/index	GPU
+timefrequency/nf_cpm.m	504	classUnderlying	call/index	GPU
+timefrequency/nf_cpm.m	519	gather	call/index	GPU
+timefrequency/nf_cpm.m	646	classUnderlying	call/index	GPU
+timefrequency/nf_cpm.m	664	isstring	call/index	string-predicate
+timefrequency/nf_cwt.m	39	cwt	call/index	CWT
+timefrequency/nf_dcwt.m	47	gather	call/index	GPU
+timefrequency/nf_demodulation.m	50	butter	call/index	signal-package
+timefrequency/nf_demodulation.m	51	zp2sos	call/index	signal-package
+timefrequency/nf_filterhilbert.m	68	butter	call/index	signal-package
+timefrequency/nf_filterhilbert.m	70	butter	call/index	signal-package
+timefrequency/nf_filterhilbert.m	72	butter	call/index	signal-package
+timefrequency/nf_filterhilbert.m	74	zp2sos	call/index	signal-package
+timefrequency/nf_filterhilbert.m	77	hilbert	call/index	signal-package
+timefrequency/nf_ridrihaczek.m	56	hnf_rid_fold_mex	exist literal	optional-NF-MEX
+timefrequency/nf_ridrihaczek.m	67	hnf_rid_fold_mex	call/index	optional-NF-MEX
+timefrequency/nf_stft.m	70	hnf_stft_mex	exist literal	optional-NF-MEX
+timefrequency/nf_stft.m	74	hnf_stft_mex	call/index	optional-NF-MEX
+timefrequency/nf_stransform.m	138	hnf_stockwell_window_mex	exist literal	optional-NF-MEX
+timefrequency/nf_stransform.m	159	hnf_stockwell_window_mex	call/index	optional-NF-MEX
+timefrequency/nf_tftransform.m	120	gather	call/index	GPU
+timefrequency/private/hnf_gpu_execution.m	3	isstring	call/index	string-predicate
+timefrequency/private/hnf_gpu_execution.m	13	gpuDevice	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	16	gpuArray.zeros	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	17	gpuArray.zeros	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	26	gpuArray	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	27	gpuArray	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	28	gpuArray	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	36	like	argument	array-type
+timefrequency/private/hnf_morlet_blocks.m	45	gpuArray	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	53	classUnderlying	call/index	GPU
+timefrequency/private/hnf_morlet_blocks.m	63	gather	call/index	GPU
+timefrequency/private/hnf_tf_input.m	5	classUnderlying	call/index	GPU
+timefrequency/private/hnf_tf_input.m	22	classUnderlying	call/index	GPU
+timefrequency/private/hnf_zero_phase.m	14	hnf_sosfiltfilt_mex	exist literal	optional-NF-MEX
+timefrequency/private/hnf_zero_phase.m	17	hnf_sosfiltfilt_mex	call/index	optional-NF-MEX

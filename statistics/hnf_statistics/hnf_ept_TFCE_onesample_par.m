@@ -123,8 +123,25 @@ maxTFCE = zeros(nPerm,1);
 % Calculate the actual T values of all data
 disp('calculating actual differences')
 % Calculate T-values
-D    = Data{1}-Data{2};
-T_Obs = squeeze(mean(D,1)./(std(D,0,1)./sqrt(nA)));
+D = Data{1}-Data{2};
+if any(isinf(D(:))) && all(isfinite(Data{1}(:))) && all(isfinite(Data{2}(:)))
+    % Opposite-sign finite extremes can overflow the contrast itself.
+    D = (Data{1}./2) - (Data{2}./2);
+    % Restore valid columns, including any subnormal-valued contrasts.
+    raw = Data{1}-Data{2};
+    finite = all(isfinite(raw),1);
+    D(:,finite) = raw(:,finite);
+end
+% MATLAB draws every sign. The optional kernel fuses signed sample
+% reads and the two passes for t, avoiding a full copy at every draw.
+useNative = numel(D) >= 1024 && isreal(D) && ~issparse(D) && ...
+    exist('hnf_mex_available','file') == 2 && hnf_mex_available('hnf_permuted_t_mex');
+% Workers have independent MATLAB search paths and persistent state.
+% Send the approved filename; a worker with a different or missing MEX
+% computes the very same random assignment using the MATLAB formula.
+workerMex = '';
+if useNative, workerMex = which('hnf_permuted_t_mex'); end
+T_Obs = squeeze(hnf_permuted_t_map(D, ones(nA,1), useNative));
 % check for zero T-values (will crash TFCE)
 % TFCE transformation...
 TFCE_Obs = hnf_tfce_transformation(T_Obs,ChN,E_H,flag_ft);
@@ -134,8 +151,7 @@ disp('calculating permutations...');
 parfor i   = 1:nPerm      
     % One independent sign per observation, shared by every spatial sample.
     SignSwitch = 2 * (rand(nA,1) >= 0.5) - 1;
-    nData = SignSwitch.*D;
-    T_Perm = mean(nData,1)./(std(nData,0,1)./sqrt(size(nData,1)));
+    T_Perm = hnf_permuted_t_map(D, SignSwitch, workerMex);
     T_Perm = squeeze(T_Perm);
     % TFCE transformation...
     TFCE_Perm = hnf_tfce_transformation(T_Perm,ChN,E_H,flag_ft);

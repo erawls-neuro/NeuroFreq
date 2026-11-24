@@ -59,8 +59,7 @@ for k = 1:numel(freqs)
     baseband = hnf_zero_phase(sos,gain,3*numel(p),bsxfun(@times,traces,carrier));
     dem = bsxfun(@times, baseband, conj(carrier));
     dem = permute(reshape(dem,nTimes,nChan,nTrls),[2 4 1 3]);
-    power(:,k,:,:) = abs(dem).^2;
-    phase(:,k,:,:) = angle(dem);
+    [power(:,k,:,:),phase(:,k,:,:)] = hnf_powphase(dem);
 end
 tfRes.power = hnf_tf_output(power);
 tfRes.phase = hnf_tf_output(phase);

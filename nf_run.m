@@ -10,7 +10,11 @@ function varargout = nf_run(target, varargin)
 % Inputs and requested outputs are passed through unchanged. On return or
 % error, the caller gets exactly the MATLAB path they had on entry.
 %
-% nf_install records dependency choices in dependencies/_nf_local/runtime.mat.
+% nf_install records dependency choices under dependencies/_nf_local. Octave
+% reads runtime-octave.mat if present and otherwise accepts runtime.mat.
+% In Octave, installed analysis packages are loaded for this call only. To
+% work with a returned table at the prompt, load its package (datatypes or
+% tablicious) there first, or pass the whole pipeline to nf_run.
 % Paths inside NeuroFreq can be stored relative to its root so that moving
 % the toolbox does not break a local installation. Without that file, NF's
 % source folders and the user's current MATLAB dependencies are available.
@@ -31,9 +35,11 @@ end
 root = fileparts(mfilename('fullpath'));
 sourceDirs = nf_source_dirs(root);
 dependencyRoot = fullfile(root, 'dependencies');
-settings = fullfile(dependencyRoot, '_nf_local', 'runtime.mat');
+settings = nf_runtime_file(root);
 eeglabRoot = '';
 providerDirs = {};
+nativeDirs = {};
+nativePolicy = []; % Prior configurations and direct calls keep normal MATLAB lookup.
 if isfile(settings)
     saved = load(settings, 'config');
     if ~isfield(saved, 'config') || ~isfield(saved.config, 'scopePaths') || ...
@@ -43,6 +49,15 @@ if isfile(settings)
     providerDirs = cellfun(@(d) nf_resolve_dir(root, d), ...
         saved.config.scopePaths(:)', 'UniformOutput', false);
     providerDirs = providerDirs(cellfun(@isfolder, providerDirs));
+    if isfield(saved.config,'native')
+        % Someone may explicitly keep an incomplete checkout. Without the
+        % NF policy helper no installer-managed binary should be activated.
+        policyFile = fullfile(root,'phaseamplitudecoupling', ...
+            'hnf_phaseamplitudecoupling','hnf_mex_available.m');
+        if isfile(policyFile)
+            [nativeDirs,nativePolicy] = nf_native_paths(root,saved.config.native);
+        end
+    end
     if ~isempty(saved.config.eeglabRoot)
         eeglabRoot = nf_resolve_dir(root, saved.config.eeglabRoot);
         if ~isfile(fullfile(eeglabRoot, 'eeglab.m'))
@@ -54,18 +69,27 @@ if isfile(settings)
 end
 
 original = path;
+restore = onCleanup(@() path(original)); %#ok<NASGU>
+if exist('OCTAVE_VERSION','builtin')
+    nf_octave_packages();
+end
 % A dormant cached copy must stay dormant even if the user previously
 % added the entire NF tree using genpath. Only the selected provider
 % directories below are reintroduced.
-priorDirs = nf_prior_dirs(original, pwd, dependencyRoot, eeglabRoot);
+priorDirs = nf_prior_dirs(path, pwd, dependencyRoot, eeglabRoot);
 if nf_under(pwd, dependencyRoot) && ~any(cellfun(@(d) nf_same_file(pwd, d), providerDirs))
     error('NeuroFreq:ConflictingCurrentFolder', ...
         'Change out of the inactive dependency folder %s before running NeuroFreq.', pwd);
 end
-% The path is restored even if a dependency changes it during execution.
-restore = onCleanup(@() path(original)); %#ok<NASGU>
-scope = unique([sourceDirs, providerDirs, priorDirs], 'stable');
+scope = unique([nativeDirs,sourceDirs,providerDirs,priorDirs(:)'], 'stable');
 path(strjoin(scope, pathsep));
+
+if isstruct(nativePolicy)
+    % Capture the actual function handle before any pipeline changes path.
+    gate = @hnf_mex_available;
+    previousPolicy = gate('scope',nativePolicy);
+    restorePolicy = onCleanup(@() gate('scope',previousPolicy)); %#ok<NASGU>
+end
 
 if ~isempty(eeglabRoot) && ~nf_same_file(which('eeglab'), fullfile(eeglabRoot, 'eeglab.m'))
     error('NeuroFreq:ShadowedEEGLAB', ...
@@ -109,9 +133,9 @@ function keep = nf_prior_dirs(pathText, cwd, dependencyRoot, eeglabRoot)
 % Partial installations can expose popfunc or plugins without eeglab.m on
 % the path. Check each enclosing directory, then add back only explicitly
 % selected providers. Cache this scan for repeated calls from a pipeline.
-persistent previousPath previousCwd previousEEG previousKeep
+persistent previousPath previousCwd previousDeps previousEEG previousKeep
 if isequal(pathText, previousPath) && isequal(cwd, previousCwd) && ...
-        isequal(eeglabRoot, previousEEG)
+        isequal(dependencyRoot, previousDeps) && isequal(eeglabRoot, previousEEG)
     keep = previousKeep;
     return
 end
@@ -135,6 +159,7 @@ end
 keep = entries(allowed);
 previousPath = pathText;
 previousCwd = cwd;
+previousDeps = dependencyRoot;
 previousEEG = eeglabRoot;
 previousKeep = keep;
 

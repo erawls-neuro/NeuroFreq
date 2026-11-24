@@ -18,7 +18,15 @@ function ys = hnf_expo_function(freqs, params, logFreqs)
         logFreqs = log(freqs);
     end
 
-    frequencyPower = exp(params(3) .* logFreqs);
-    ys = params(1) - log10(abs(params(2)) + frequencyPower);
+    % Evaluate log(knee + f^exponent) directly on the log scale.
+    % For a zero knee this is exactly the fixed power law.
+    logPower = params(3).*logFreqs;
+    if params(2) == 0
+        logSum = logPower;
+    else
+        logKnee = log(abs(params(2)));
+        logSum = max(logKnee,logPower) + log1p(exp(-abs(logKnee-logPower)));
+    end
+    ys = params(1) - logSum./log(10);
 
 end

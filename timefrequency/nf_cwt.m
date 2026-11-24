@@ -1,10 +1,11 @@
 function tfRes = nf_cwt(data,Fs,verbose)
-% NF_CWT    Calculates time-frequency of an input dataset (1/2/3D) using matlab built-in function cwt.m.
+% NF_CWT  Analytic Morlet time-frequency transform of a 1D, 2D or 3D dataset.
 %
 % GENERAL
 % -------
-% Calculates time-frequency of an input dataset (1/2/3D) using matlab 
-% built-in function cwt.m.
+% MATLAB uses Wavelet Toolbox cwt(...,'amor',Fs). Octave uses the
+% NeuroFreq analytic Morlet bank, with ten voices per octave and symmetric
+% extension of each epoch. Inspect freqs and cwtBackend when combining runs.
 % 
 % Expected dimensions: channel (1), time samples (2), trials/segments (3;
 % optional). 
@@ -31,20 +32,35 @@ narginchk(2,3);
 data = hnf_tf_input(data, Fs);
 if nargin < 3 || isempty(verbose), verbose = 0; end
 [nChan,nTimes,nTrls] = size(data);
+if exist('OCTAVE_VERSION','builtin')
+    transform = @hnf_octave_amor;
+    tfRes.cwtBackend = 'NeuroFreq analytic Morlet';
+else
+    transform = @(x,rate) cwt(x,'amor',rate);
+    tfRes.cwtBackend = 'MATLAB Wavelet Toolbox';
+end
 for trial = 1:nTrls
     for sensor = 1:nChan
         % CWT chooses scales and reflects boundaries for an individual
         % epoch. Concatenating trials changes both the scales and the data
         % available at either edge. Page 1 is positive rotation for complex x.
-        [coefficients, f] = cwt(single(data(sensor,:,trial)), 'amor', Fs);
+        epoch = data(sensor,:,trial);
+        % Ordinary EEG uses the established single-precision transform.
+        % Preserve finite double range for traces outside single precision.
+        maxValue = max(max(abs(real(epoch))),max(abs(imag(epoch))));
+        if maxValue > realmax('single')/(2*nTimes) || (maxValue > 0 && maxValue < realmin('single'))
+            epoch = double(epoch);
+        else
+            epoch = single(epoch);
+        end
+        [coefficients, f] = transform(epoch, Fs);
         if trial == 1 && sensor == 1
             freqs = flipud(f(:)).';
             power = zeros(nChan,numel(f),nTimes,nTrls);
             phase = power;
         end
         coefficients = flipud(coefficients(:,:,1));
-        power(sensor,:,:,trial) = abs(coefficients).^2;
-        phase(sensor,:,:,trial) = angle(coefficients);
+        [power(sensor,:,:,trial),phase(sensor,:,:,trial)] = hnf_powphase(coefficients);
     end
 end
 tfRes.power = hnf_tf_output(power);

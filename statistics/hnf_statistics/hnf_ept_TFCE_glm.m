@@ -12,6 +12,10 @@ X = double(X);
 if n ~= size(Y,1) || ~isreal(Y) || ~isreal(X) || any(~isfinite(Y(:))) || any(~isfinite(X(:)))
     error('NeuroFreq:InvalidGLM', 'Supply finite real observations with matching design rows.');
 end
+% Fit in column-equilibrated units. The permutation design, t statistics
+% and tested null are invariant to these positive changes of units.
+[X,xScale] = hnf_stats_scale(X);
+[Y,yScale] = hnf_stats_scale(Y);
 df = n - k;
 if df <= 0 || rank(X) ~= k
     error('NeuroFreq:InvalidGLM', 'Coefficient tests require an estimable full-rank design and residual degrees of freedom.');
@@ -20,8 +24,8 @@ end
 [Q,R] = qr(X,0);
 inverse = R \ Q';
 B = inverse * Y;
-seFactor = sqrt(sum(inverse.^2,2));
-rmse = sqrt(sum((Y-X*B).^2,1) / df);
+seFactor = hnf_robnorm(inverse,2,'includenan');
+rmse = hnf_robrms(Y-X*B,1,'includenan') * sqrt(n/df);
 T = B ./ (seFactor .* rmse);
 dims = size(data1);
 shape = [k dims(2:end)];
@@ -50,6 +54,7 @@ for j = 1:k
     end
     p(j,:) = hnf_tfce_pvalues(enhanced(j,:), null(:,j));
 end
+B = hnf_stats_restore_beta(B,yScale,xScale);
 Results = struct('Beta',reshape(B,shape),'Obs',reshape(T,shape), ...
     'TFCE_Obs',reshape(enhanced,shape),'maxTFCE',sort(null,1), ...
     'P_Values',reshape(p,shape),'df',df);
@@ -63,7 +68,7 @@ else
     y = fitted + residual(randperm(n),:);
 end
 b = inverse*y;
-rmse = sqrt(sum((y-X*b).^2,1)/df);
+rmse = hnf_robrms(y-X*b,1,'includenan') * sqrt(n/df);
 map = enhance(b(j,:) ./ (seFactor*rmse), dims, neighbours, eh, grid);
 maxVal = max(abs(map(:)));
 end

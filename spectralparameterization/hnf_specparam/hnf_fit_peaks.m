@@ -1,8 +1,9 @@
 function [modelParams, peakFunction, usedBounds] = hnf_fit_peaks( ...
     freqs, flatIter, maxNPeaks, peakThreshold, minPeakHeight, ...
-    widthLimits, guessWeight, useOptimizationToolbox, peakType)
+    widthLimits, guessWeight, useOptimizationToolbox, peakType, approvedPeakKernel)
 % HNF_FIT_PEAKS Detect candidate peaks and jointly optimize their parameters.
 
+if nargin < 10, approvedPeakKernel = []; end
 if nargin < 9, peakType = 'gaussian'; end
 if strcmp(peakType,'cauchy')
     peakFunction = @hnf_cauchy;
@@ -92,7 +93,7 @@ if isempty(guessParams)
     modelParams = zeros(0, 3);
 else
     [modelParams, usedBounds] = hnf_fit_peak_guess(guessParams, freqs, flatSpec, ...
-        guessWeight, widthLimits, useOptimizationToolbox, peakType);
+        guessWeight, widthLimits, useOptimizationToolbox, peakType, approvedPeakKernel);
 end
 
 end

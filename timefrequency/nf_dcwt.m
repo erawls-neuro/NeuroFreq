@@ -1,4 +1,4 @@
-function tfRes = nf_dcwt(data,Fs,freqs,cycles,verbose)
+function tfRes = nf_dcwt(data,Fs,freqs,cycles,verbose,executionEnvironment)
 % NF_DCWT    Calculates time-frequency of an input dataset (1/2/3D) using Morlet wavelets
 %
 % GENERAL
@@ -35,7 +35,16 @@ function tfRes = nf_dcwt(data,Fs,freqs,cycles,verbose)
 % 5) verbose: print verbose output? 0 or 1, defaults to 0
 %
 
-narginchk(2,5);
+% 6) executionEnvironment: 'auto' follows the input, 'gpu' also accepts
+%    host input, and 'cpu' returns host maps. Power and phase from a host
+%    input stay on the host. A gpuArray input normally retains GPU maps.
+narginchk(2,6);
+if nargin < 6 || isempty(executionEnvironment), executionEnvironment = 'auto'; end
+[useGPU, device, unavailable] = hnf_gpu_execution(data,executionEnvironment);
+if ~isempty(unavailable)
+    warning('nf_dcwt:GPUUnavailable','GPU unavailable; evaluating Morlet transform on CPU. %s',unavailable);
+end
+if isa(data,'gpuArray') && ~useGPU, data = gather(data); end
 data = hnf_tf_input(data, Fs);
 if nargin < 3 || isempty(freqs), freqs = 1:floor(Fs/2); end
 if nargin < 4 || isempty(cycles), cycles = [3 8]; end
@@ -57,21 +66,33 @@ end
 half = ceil(Fs*max(cycles./freqs));
 lag = (-half:half)/Fs;
 nfft = 2^nextpow2(nTimes+2*half);
-X = fft(data, nfft, 2);
-power = zeros(nChan,numel(freqs),nTimes,nTrls);
-phase = power;
-for k = 1:numel(freqs)
-    sigma = cycles(k)/(2*pi*freqs(k));
-    wavelet = exp(2i*pi*freqs(k)*lag) .* exp(-0.5*(lag/sigma).^2);
-    H = fft(wavelet,nfft);
-    % Unit peak gain is a real scaling; dividing by a complex FFT bin
-    % would rotate every estimated phase by an arbitrary constant.
-    H = H/max(abs(H));
-    coefficients = ifft(bsxfun(@times,X,H), [], 2);
-    coefficients = coefficients(:,half+(1:nTimes),:);
-    power(:,k,:,:) = reshape(abs(coefficients).^2,nChan,1,nTimes,nTrls);
-    phase(:,k,:,:) = reshape(angle(coefficients),nChan,1,nTimes,nTrls);
+if useGPU
+    freeBytes = double(device.AvailableMemory);
+    if isa(data,'gpuArray')
+        % The API returns two double maps with the input's device residency.
+        freeBytes = freeBytes - 16*nChan*numel(freqs)*nTimes*nTrls;
+    end
+    budget = min(192*1024^2,.20*freeBytes);
+    [power,phase] = hnf_morlet_blocks(data,freqs,cycles,lag,half,nfft,budget,true);
+else
+    X = fft(data, nfft, 2);
+    power = zeros(nChan,numel(freqs),nTimes,nTrls);
+    phase = power;
+    for k = 1:numel(freqs)
+        sigma = cycles(k)/(2*pi*freqs(k));
+        wavelet = exp(2i*pi*freqs(k)*lag) .* exp(-0.5*(lag/sigma).^2);
+        H = fft(wavelet,nfft);
+        % Unit peak gain is a real scaling; dividing by a complex FFT bin
+        % would rotate every estimated phase by an arbitrary constant.
+        H = H/max(abs(H));
+        coefficients = ifft(bsxfun(@times,X,H), [], 2);
+        coefficients = coefficients(:,half+(1:nTimes),:);
+        [p,a] = hnf_powphase(coefficients);
+        power(:,k,:,:) = reshape(p,nChan,1,nTimes,nTrls);
+        phase(:,k,:,:) = reshape(a,nChan,1,nTimes,nTrls);
+    end
 end
+if useGPU, tfRes.executionEnvironment = 'gpu'; else, tfRes.executionEnvironment = 'cpu'; end
 tfRes.power = hnf_tf_output(power);
 tfRes.phase = hnf_tf_output(phase);
 tfRes.freqs = freqs;

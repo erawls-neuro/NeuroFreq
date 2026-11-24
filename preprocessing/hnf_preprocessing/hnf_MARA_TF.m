@@ -22,7 +22,7 @@ end
 data = resample(data.',up,down).';
 %compute ICA activation and standardize variance to 1
 icacomps = (EEG.icaweights * EEG.icasphere * data)';
-icacomps = icacomps./repmat(std(icacomps,0,1),length(icacomps(:,1)),1);
+icacomps = icacomps./hnf_robstd(icacomps,0,1,'includenan');
 icacomps = icacomps';
 %creating a matrix to help us check for peaks in data
 change=[0 linspace(-1,1,50)];
@@ -36,7 +36,20 @@ resids_pxx_matrix = zeros(length(icacomps(:,1)),50);
 for ic=1:length(icacomps(:,1))
     % One-second Welch windows and a 1-Hz frequency grid.
     % Requires the actual sample rate fs to be an integer >= 100 Hz.
-    [pxx,freq] = pwelch(icacomps(ic,:), fs, 0, fs, fs, 'onesided');
+    if exist('OCTAVE_VERSION','builtin')
+        % MATLAB scalar-window pwelch uses a symmetric Hamming window and
+        % retains DC. The Octave signal-package default removes the mean.
+        segmentCount = floor(size(icacomps,2)/fs);
+        if segmentCount==0, error('hnf_MARA_TF:Length','Welch estimation requires at least one second of data.'); end
+        segments = reshape(icacomps(ic,1:fs*segmentCount),fs,[]);
+        window = hamming(fs);
+        power = abs(fft(segments.*window)).^2 / (fs*sum(window.^2));
+        pxx = mean(power(1:fs/2+1,:),2);
+        pxx(2:end-1) = 2*pxx(2:end-1);
+        freq = (0:fs/2)';
+    else
+        [pxx,freq] = pwelch(icacomps(ic,:), fs, 0, fs, fs, 'onesided');
+    end
     % Retain 0–50 Hz and log-transform the linear PSD once.
     logpxx = log10(pxx(1:51)).';
     freq = freq(1:51).';
@@ -62,14 +75,14 @@ for ic=1:length(icacomps(:,1))
     resids_pxx_matrix(ic,1:50) = resids_pxx;
     % Checking for bumps between 5 and 15 Hz
     % look for peaks with the residual values
-    [pks, ~, widths, proms] = findpeaks(resids_pxx(4:16),4:16); %looks for peaks 5-15 Hz (1 less and more so any bumps at 5 or 15 are caught)
+    [pks, ~, widths, proms] = hnf_mara_peaks(resids_pxx(4:16),4:16); %looks for peaks 5-15 Hz (1 less and more so any bumps at 5 or 15 are caught)
     for numPeaks = 1:length(pks) %in case we have mult. peaks
         if (proms(numPeaks) > 0.3 && pks(numPeaks)>1 && widths(numPeaks) > 0.9) %conservative
             components_with_bumps = [components_with_bumps ic]; %#ok <AGROW>
         end
     end
     % look for peaks with the NON-residual values
-    [pks, ~, ~, proms] = findpeaks(pxx(5:17),5:17); %looks for peaks 5-15 Hz (1 less and more so any bumps at 5 or 15 are caught)
+    [pks, ~, ~, proms] = hnf_mara_peaks(pxx(5:17),5:17); %looks for peaks 5-15 Hz (1 less and more so any bumps at 5 or 15 are caught)
     for numPeaks = 1:length(pks) %in case we have mult. peaks
         if (proms(numPeaks) > 0.15) %conservative
             components_with_bumps_2 = [components_with_bumps_2 ic]; %#ok <AGROW>
@@ -77,13 +90,13 @@ for ic=1:length(icacomps(:,1))
     end
     % Checking for plateaus between 5 and 15 Hz for first 7 components
     if ic < 8
-        [pks, ~, ~, proms] = findpeaks(resids_pxx(4:16),4:16);
+        [pks, ~, ~, proms] = hnf_mara_peaks(resids_pxx(4:16),4:16);
         for numPeaks = 1:length(pks) %in case we have mult. peaks
             if (proms(numPeaks) > 0.15 && pks(numPeaks)>1) %conservative
                 components_with_plats = [components_with_plats ic]; %#ok <AGROW>
             end
         end
-        [pks, ~, ~, proms] = findpeaks(pxx(5:17)+(10*change(5:17)),5:17);
+        [pks, ~, ~, proms] = hnf_mara_peaks(pxx(5:17)+(10*change(5:17)),5:17);
         for numPeaks = 1:length(pks) %in case we have mult. peaks
             if (proms(numPeaks) > 0.05) %conservative
                 components_with_plats_2 = [components_with_plats_2 ic]; %#ok <AGROW>

@@ -1,8 +1,9 @@
-function report = nf_install()
+function report = nf_install(varargin)
 % NF_INSTALL  Check this NeuroFreq installation and configure its dependencies.
 %
 %   nf_install
 %   report = nf_install
+%   report = nf_install('Native','off')  % use MATLAB implementations only
 %
 % Run from the NeuroFreq folder, or call nf_install with that folder on the
 % MATLAB path. This function uses its own location to identify the installation.
@@ -18,6 +19,10 @@ function report = nf_install()
 % The package list, EEGLAB logic and update transaction live in private/.
 % To add a dependency, start with private/nf_catalog.m.
 
+options = inputParser;
+addParameter(options,'Native','auto',@(s) ischar(s) || (isstring(s) && isscalar(s)));
+parse(options,varargin{:});
+nativeMode = validatestring(options.Results.Native,{'auto','off'});
 root = fileparts(mfilename('fullpath'));
 fprintf('\nNeuroFreq installer\n  %s\n\n', root);
 lock = nf_install_lock(root); %#ok<NASGU> % released on success, error or Ctrl+C
@@ -26,7 +31,7 @@ lock = nf_install_lock(root); %#ok<NASGU> % released on success, error or Ctrl+C
 [status, detail] = nf_check_repository(root);
 report = struct('root', root, 'repository', status, 'detail', detail, ...
     'eeglab', '', 'dependencies', {cell(0, 2)}, 'features', [], ...
-    'configured', false, 'pathSaved', false);
+    'configured', false, 'pathSaved', false, 'nativeMode',nativeMode,'native',{cell(0,3)});
 fprintf('%s\n', detail);
 if strcmp(status, 'updated')
     % MATLAB may still have this version of nf_install in memory. Finish with
@@ -62,7 +67,7 @@ function release = nf_install_lock(root)
 % Keep its small, reusable file in tempdir, outside the compared distribution.
 if ~usejava('jvm')
     error('NeuroFreq:InstallerJVM', ...
-        'Start MATLAB with its JVM enabled, then run nf_install again.');
+        'The installer requires a Java-enabled MATLAB or Octave with a JRE. Core functions can also be called directly with nf_run.');
 end
 key = char(javaObject('java.io.File',root).getCanonicalPath());
 if ispc, key = lower(key); end
@@ -89,9 +94,9 @@ function saved = nf_offer_savepath(root)
 saved = false;
 % savepath writes the user's entire current pathdef. Make that operation
 % explicit. Choosing the session-only option still saves the NF configuration.
-answer = nf_choose(['Keep this MATLAB path for future sessions? Saving writes ' ...
-    'the entire current MATLAB path, including the NeuroFreq root.'], ...
-    'Save MATLAB path?', {'Save path', 'This session only'}, 'This session only');
+answer = nf_choose(['Keep this path for future sessions? Saving records ' ...
+    'your current search path, including the NeuroFreq root.'], ...
+    'Save path?', {'Save path', 'This session only'}, 'This session only');
 if strcmp(answer, 'Save path')
     saved = savepath == 0;
     if ~saved
@@ -119,9 +124,11 @@ try
     options = weboptions('ContentType', 'json', 'Timeout', 45, ...
         'UserAgent', 'NeuroFreq MATLAB installer');
     head = webread([api '/commits?per_page=1'], options);
+    if ischar(head), head = jsondecode(head); end
     if iscell(head), head = head{1}; end
     revision = head(1).sha;
     tree = webread([api '/git/trees/' head(1).commit.tree.sha '?recursive=1'], options);
+    if ischar(tree), tree = jsondecode(tree); end
     if tree.truncated || ~strcmp(tree.sha, head(1).commit.tree.sha)
         error('NeuroFreq:IncompleteTree', 'GitHub did not return the complete requested tree.');
     end
@@ -150,7 +157,8 @@ if ~hasInstaller
 end
 % Confirm locally even if the private installer helpers are missing.
 choice = 'Keep this copy';
-if usejava('desktop') && usejava('awt')
+if (usejava('desktop') && usejava('awt')) || ...
+        (exist('OCTAVE_VERSION','builtin') && isguirunning())
     choice = questdlg(question,'Update NeuroFreq?','Update','Keep this copy','Keep this copy');
 end
 if ~strcmp(choice,'Update')
@@ -172,8 +180,13 @@ try
     end
     cleanup = onCleanup(@() nf_repo_remove_stage(scratch)); %#ok<NASGU>
     fprintf('Downloading and verifying NeuroFreq %s ...\n', revision(1:12));
-    archive = websave(fullfile(scratch,'NeuroFreq.zip'), [api '/zipball/' revision], ...
-        weboptions('Timeout',120,'UserAgent','NeuroFreq MATLAB installer'));
+    archive = fullfile(scratch,'NeuroFreq.zip');
+    url = [api '/zipball/' revision];
+    if exist('OCTAVE_VERSION','builtin')
+        urlwrite(url,archive);
+    else
+        websave(archive,url,weboptions('Timeout',120,'UserAgent','NeuroFreq MATLAB installer'));
+    end
     nf_repo_unpack(archive,scratch);
     folders = dir(scratch);
     folders = folders([folders.isdir] & ~ismember({folders.name},{'.','..'}));

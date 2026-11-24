@@ -380,11 +380,11 @@ nm = d.name;
 
 hasSep = false;
 
-if contains(nm, '/') == 1
+if ~isempty(strfind(nm, '/'))
     hasSep = true;
 end
 
-if contains(nm, '\') == 1
+if ~isempty(strfind(nm, '\'))
     hasSep = true;
 end
 
@@ -501,16 +501,16 @@ if isfield(tf, 'conds') == 1
 
     if isstring(tf.conds) == 1
         tf.conds = cellstr(tf.conds(:));
-    elseif iscategorical(tf.conds) == 1
-        tf.conds = cellstr(string(tf.conds(:)));
+    elseif isa(tf.conds, 'categorical') == 1
+        tf.conds = cellstr(tf.conds(:));
     elseif iscell(tf.conds) == 1
 
         for k = 1:numel(tf.conds)
 
             if isstring(tf.conds{k}) == 1
                 tf.conds{k} = char(tf.conds{k});
-            elseif iscategorical(tf.conds{k}) == 1
-                tf.conds{k} = char(string(tf.conds{k}));
+            elseif isa(tf.conds{k}, 'categorical') == 1
+                tf.conds{k} = char(cellstr(tf.conds{k}));
             end
 
         end
@@ -1316,8 +1316,8 @@ for iC = 1:numel(candidates)
             end
         end
 
-        if iscategorical(v) == 1
-            subid = char(string(v(1)));
+        if isa(v, 'categorical') == 1
+            subid = char(cellstr(v(1)));
             break
         end
     end
@@ -1357,7 +1357,7 @@ else
     end
 end
 
-sub = char(string(sub));
+sub = hnf_scalar_text(sub);
 sub = strtrim(sub);
 
 if isempty(sub) == 1
@@ -1466,7 +1466,7 @@ for i = 1:numel(fn)
         continue
     end
 
-    if contains(lower(name), 'power') == 0 && contains(lower(name), 'phase') == 0
+    if isempty(strfind(lower(name), 'power')) && isempty(strfind(lower(name), 'phase'))
         continue
     end
 

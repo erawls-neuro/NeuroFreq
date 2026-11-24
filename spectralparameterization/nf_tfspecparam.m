@@ -45,7 +45,8 @@ function TF = nf_tfspecparam(TF, varargin)
 %   'peakThreshold' : noise SD threshold for detection (default 2.0)
 %   'peakType'      : 'gaussian'|'cauchy' (default 'gaussian')
 %   'threshAfter'   : re-threshold when no optim (default 1)
-%   'optim'         : use Optimization Toolbox if available (default 1)
+%   'optim'         : enable constrained peak fitting (default 1). Octave uses
+%                     optim fmincon or core sqp. Octave parfor runs serially.
 %   'FoD'           : 'fit' returns model fit; 'data' returns modeled data (default 'data')
 %
 
@@ -126,6 +127,18 @@ if isempty(opt.maxPeaks)
 end
 
 fitOptions = nf_compact_options_local(opt);
+% A MATLAB worker can see binaries absent from the client's scoped build.
+% Send the approved paths with the sliced input even when a path is empty.
+frequencyCache.approvedKneeKernel = '';
+fitOptions.approvedPeakKernel = '';
+if exist('hnf_mex_available','file') == 2
+    if hnf_mex_available('hnf_knee_loss_mex')
+        frequencyCache.approvedKneeKernel = which('hnf_knee_loss_mex');
+    end
+    if hnf_mex_available('hnf_peak_objective_mex')
+        fitOptions.approvedPeakKernel = which('hnf_peak_objective_mex');
+    end
+end
 
 if ~(strcmpi(TF.scale, 'linear') || strcmpi(TF.scale, 'log10'))
     error('nf_tfspecparam:TFScaleWrong','TF.scale must be ''linear'' or ''log10''.');
@@ -501,6 +514,70 @@ function [ap_log, osc_log, specparam, badTrials] = ...
     predictorSumSquares, C, T, R, dataPrototype, ...
     returnFit, storeParameters)
 
+[F, ~] = size(spectra);
+useNative = numel(spectra) >= 65536 && (isa(spectra,'single') || isa(spectra,'double')) && isreal(spectra) && ...
+    ~issparse(spectra) && exist('hnf_mex_available','file') == 2 && ...
+    hnf_mex_available('hnf_fixed_spectra_mex');
+if useNative
+    args = {spectra, predictor, predictorCentered, mean(predictor), ...
+        predictorSumSquares, double(returnFit)};
+    try
+        if storeParameters
+            [apFlat, oscFlat, badSlice, summary] = hnf_fixed_spectra_mex(args{:});
+            offsetFlat = summary(1,:);
+            exponentFlat = summary(2,:);
+            maeFlat = summary(3,:);
+            rsqFlat = summary(4,:);
+            pkNFlat = zeros(size(badSlice));
+            pkNFlat(badSlice) = NaN;
+        else
+            [apFlat, oscFlat, badSlice] = hnf_fixed_spectra_mex(args{:});
+        end
+    catch err
+        if ~hnf_mex_load_error(err), rethrow(err); end
+        useNative = false;
+    end
+end
+if ~useNative
+    [apFlat, oscFlat, badSlice, offsetFlat, exponentFlat, maeFlat, rsqFlat, pkNFlat] = ...
+        nf_fixed_arrays_matlab_local(spectra, predictor, predictorCentered, ...
+        predictorSumSquares, dataPrototype, returnFit, storeParameters);
+end
+clear spectra args
+
+ap_log = permute( ...
+    reshape(apFlat, [F C T R]), ...
+    [2 1 3 4]);
+clear apFlat
+osc_log = permute( ...
+    reshape(oscFlat, [F C T R]), ...
+    [2 1 3 4]);
+clear oscFlat
+
+badBySeries = reshape(badSlice, [C * T R]);
+badTrials = any(badBySeries, 1);
+
+if storeParameters == true
+    specparam = struct();
+    specparam.rsquare = reshape(rsqFlat, [C T R]);
+    specparam.mae = reshape(maeFlat, [C T R]);
+    specparam.ap_offset = reshape(offsetFlat, [C T R]);
+    specparam.ap_knee = nan(C, T, R);
+    specparam.ap_exponent = reshape(exponentFlat, [C T R]);
+    specparam.pk_n = reshape(pkNFlat, [C T R]);
+    specparam.pk_f = nan(C, 0, T, R);
+    specparam.pk_aLog10 = nan(C, 0, T, R);
+    specparam.pk_sd = nan(C, 0, T, R);
+else
+    specparam = struct();
+end
+
+end
+
+function [apFlat, oscFlat, badSlice, offsetFlat, exponentFlat, maeFlat, rsqFlat, pkNFlat] = ...
+    nf_fixed_arrays_matlab_local(spectra, predictor, predictorCentered, ...
+    predictorSumSquares, dataPrototype, returnFit, storeParameters)
+% Block the MATLAB implementation to bound temporary storage on large TF data.
 [F, nSpectra] = size(spectra);
 
 apFlat = nan(F, nSpectra, 'like', dataPrototype);
@@ -536,6 +613,12 @@ if any(goodSlice) == true
         blockIndices = goodIndices(blockStart:blockStop);
 
         blockSpectra = double(spectra(:, blockIndices));
+        scale = max(abs(blockSpectra),[],1);
+        extreme = scale > 1e75 | (scale > 0 & scale < 1e-75);
+        scale(~extreme) = 1;
+        if any(extreme)
+            blockSpectra(:,extreme) = blockSpectra(:,extreme)./scale(extreme);
+        end
         responseMean = mean(blockSpectra, 1);
         responseCentered = blockSpectra - responseMean;
 
@@ -555,70 +638,33 @@ if any(goodSlice) == true
         end
 
         if returnFit == true
-            apFlat(:, blockIndices) = apFit;
+            apFlat(:, blockIndices) = apFit.*scale;
             oscFlat(:, blockIndices) = 0;
         else
-            apFlat(:, blockIndices) = blockSpectra;
-            oscFlat(:, blockIndices) = residual;
+            apFlat(:, blockIndices) = spectra(:,blockIndices);
+            oscFlat(:, blockIndices) = residual.*scale;
         end
 
         if storeParameters == true
-            offsetFlat(blockIndices) = offset;
-            exponentFlat(blockIndices) = exponent;
-            maeFlat(blockIndices) = mean(abs(residual), 1);
+            offsetFlat(blockIndices) = offset.*scale;
+            exponentFlat(blockIndices) = exponent.*scale;
+            maeFlat(blockIndices) = mean(abs(residual), 1).*scale;
             pkNFlat(blockIndices) = 0;
 
             observedSumSquares = sum( ...
                 responseCentered .* responseCentered, 1);
-            fittedSumSquares = ...
-                exponent .* exponent .* predictorSumSquares;
-            denominator = observedSumSquares .* fittedSumSquares;
-            numerator = exponent .* predictorResponseProduct;
-
-            validRSquare = denominator > 0;
+            % For one-predictor OLS, R² is corr(x,y)². Zero fitted
+            % variance retains the established undefined result.
+            validRSquare = observedSumSquares > 0 & exponent ~= 0;
             rSquare = nan(1, numel(blockIndices));
-            rSquare(validRSquare) = ...
-                numerator(validRSquare) ...
-                ./ sqrt(denominator(validRSquare));
+            rSquare(validRSquare) = predictorResponseProduct(validRSquare) ...
+                ./ sqrt(predictorSumSquares) ./ sqrt(observedSumSquares(validRSquare));
             rSquare(validRSquare) = ...
                 rSquare(validRSquare) .* rSquare(validRSquare);
 
             rsqFlat(blockIndices) = rSquare;
         end
     end
-end
-
-clear blockSpectra
-clear responseCentered
-clear apFit
-clear residual
-clear spectra
-
-ap_log = permute( ...
-    reshape(apFlat, [F C T R]), ...
-    [2 1 3 4]);
-clear apFlat
-osc_log = permute( ...
-    reshape(oscFlat, [F C T R]), ...
-    [2 1 3 4]);
-clear oscFlat
-
-badBySeries = reshape(badSlice, [C * T R]);
-badTrials = any(badBySeries, 1);
-
-if storeParameters == true
-    specparam = struct();
-    specparam.rsquare = reshape(rsqFlat, [C T R]);
-    specparam.mae = reshape(maeFlat, [C T R]);
-    specparam.ap_offset = reshape(offsetFlat, [C T R]);
-    specparam.ap_knee = nan(C, T, R);
-    specparam.ap_exponent = reshape(exponentFlat, [C T R]);
-    specparam.pk_n = reshape(pkNFlat, [C T R]);
-    specparam.pk_f = nan(C, 0, T, R);
-    specparam.pk_aLog10 = nan(C, 0, T, R);
-    specparam.pk_sd = nan(C, 0, T, R);
-else
-    specparam = struct();
 end
 
 end
@@ -778,7 +824,7 @@ for i = 1:numel(names)
     if ismember(name,{'epoch','event'}), continue; end
     if strcmp(name,'behavior') || strcmp(name,'trialinfo') || ...
             startsWith(name,'trial_') || strcmp(name,'trlerp')
-        if istable(val) && height(val)==nOld
+        if isa(val,'table') && size(val,1)==nOld
             TF.(name) = val(keepIdx,:);
         elseif isvector(val) && numel(val)==nOld
             TF.(name) = val(keepIdx);
@@ -892,7 +938,7 @@ for i = 1:numel(fn)
     val = TF.(name);
 
     if isnumeric(val)
-        if contains(lower(name), 'power')
+        if ~isempty(strfind(lower(name), 'power'))
             powFields{end + 1, 1} = name; %#ok
         end
     end
@@ -921,7 +967,7 @@ for i = 1:numel(fn)
     val = TF.(name);
 
     if isnumeric(val)
-        if contains(lower(name), 'power')
+        if ~isempty(strfind(lower(name), 'power'))
             pow{end + 1, 1} = name; %#ok
         else
             other{end + 1, 1} = name; %#ok

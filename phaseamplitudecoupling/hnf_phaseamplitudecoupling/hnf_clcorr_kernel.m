@@ -7,10 +7,11 @@ end
 alpha_d = double(alpha);
 x_d     = double(x);
 
-if use_mex && exist('hnf_circ_corrcl_mex', 'file') == 3
+if use_mex && hnf_mex_available('hnf_circ_corrcl_mex')
     try
         [rho, pval] = hnf_circ_corrcl_mex(alpha_d, x_d);
-    catch
+    catch failure
+        if ~hnf_mex_load_error(failure), rethrow(failure); end
         warning('clcorr_kernel: unable to use mex version of circ_corrcl; using native MATLAB version (slower).');
         [rho, pval] = hnf_circ_corrcl_vec(alpha_d, x_d);
     end

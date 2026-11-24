@@ -23,4 +23,12 @@ We obtain the following result:
 .. image:: fig_cwt_synthetic.png
   :width: 600
 
-Note that the CWT returns log-spaced frequencies, and has good resolution at low frequencies.
+GNU Octave uses NeuroFreq's FFT-based analytic Morlet bank. Each trial is
+reflected at its endpoints before convolution. The bank has ten voices per
+octave and a 10% response at Nyquist in its highest band. Frequencies are
+returned in ascending Hz. For a complex signal the returned phase follows
+positive rotation. The output field ``cwtBackend`` identifies the
+implementation. Before combining MATLAB and Octave runs, compare
+``TF.freqs`` and check agreement on a representative epoch, particularly
+near the edges. The Octave implementation uses an analytic estimate of
+wavelet spread to choose its lowest frequency.

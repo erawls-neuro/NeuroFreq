@@ -7,6 +7,8 @@ originalPath = path;
 restore = onCleanup(@() path(originalPath)); %#ok<NASGU>
 if nargin < 2, root = fileparts(fileparts(mfilename('fullpath'))); end
 if nargin < 3, eeglabRoot = ''; end
+octave = exist('OCTAVE_VERSION','builtin') ~= 0;
+if octave, packages = nf_octave_packages(); end
 core = nf_eeglab_paths(eeglabRoot);
 providers = [nf_source_dirs(root), selectedPaths(:)', core];
 addpath(providers{:}, '-begin');
@@ -28,12 +30,25 @@ products = {
     'Parallel Computing Toolbox', 'Distrib_Computing_Toolbox', {'gpuDeviceCount','parpool'}, ...
         'Parallel estimation and GEDAI v1.7 (including its CPU mode)'
     };
+if octave
+    % Probe the entry points that Octave implementations actually use.
+    % An installed package alone does not establish support for a call signature.
+    products = {
+        'Signal processing', '', {'butter','filtfilt','hilbert','mscohere','pwelch','findpeaks'}, ...
+            'Signal package routines used by preprocessing and analysis'
+        'Optimization', '', {'fmincon','lsqcurvefit'}, 'Constrained optimization'
+        'Table data', '', {'table','categorical','struct2table'}, 'Table operations from datatypes or Tablicious'
+        'Octave viewer', '', {'nf_viewerapp'}, 'Figure-based viewer for nf_run(''nf_viewerapp'',...)'
+        };
+end
 rows = cell(size(products,1),3);
 for i = 1:size(products,1)
     probes = products{i,3};
     absent = probes(cellfun(@(name) isempty(which(name)), probes));
     if ~isempty(absent)
         status = ['Missing functions: ' strjoin(absent, ', ')];
+    elseif octave
+        status = 'Entry points found.';
     elseif ~license('test',products{i,2})
         status = 'Functions found; the MATLAB license test did not pass.';
     else
@@ -42,20 +57,13 @@ for i = 1:size(products,1)
     rows(i,:) = {products{i,1},status,products{i,4}};
 end
 
-% EPT ships C sources and binaries for selected systems. Preserve the
-% sources on every platform, and flag the specific MEX files MATLAB cannot
-% load on this architecture. The installer does not invoke a compiler.
-if ~isempty(which('ept_ChN2'))
-    names = {'ept_mex_TFCE2D','ept_mex_TFCE3D'};
-    missing = names(cellfun(@(n) exist(n,'file') ~= 3, names));
-    if isempty(missing)
-        status = ['Found both .' mexext ' binaries.'];
-    else
-        status = sprintf('Missing .%s: %s. For the pinned vendor C sources, use mex -compatibleArrayDims where supported, or build sources updated to use mwSize dimensions.', ...
-            mexext,strjoin(missing,', '));
-    end
-    rows(end+1,:) = {'EPT-TFCE native binaries',status,'TFCE cluster enhancement'};
-end
+if octave, rows = [packages; rows]; end
+
+% A shared signed integrator serves both runtimes. EPT still supplies the
+% optional automatic neighbour graph for electrode montages.
+probes = {'hnf_tfce_integrate'};
+rows(end+1,:) = {'TFCE enhancement',nf_probe_result(probes(cellfun(@(n) isempty(which(n)),probes))), ...
+    'Native or interpreted integration; automatic multi-channel neighbours require ept_ChN2'};
 if ~isempty(which('pop_iclabel'))
     icRoot = fileparts(which('pop_iclabel'));
     binary = fullfile(icRoot,'matconvnet','matlab','mex',['vl_nnconv.' mexext]);

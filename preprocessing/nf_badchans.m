@@ -242,8 +242,8 @@ EEG.etc.nf_badchans = info;
 end
 
 function [EEG, restored] = nf_restore_channel_order(EEG, originalLocations)
-expected = lower(string({originalLocations.labels}));
-current = lower(string({EEG.chanlocs.labels}));
+expected = hnf_lower_labels({originalLocations.labels});
+current = hnf_lower_labels({EEG.chanlocs.labels});
 [present, order] = ismember(expected, current);
 if any(~present) || numel(current) ~= numel(expected)
     error('nf_badchans:MontageRestorationFailed', ...
@@ -378,7 +378,10 @@ if numel(usableIndices) < 2
         'interchannel correlations.']);
 end
 
-correlationMatrix = abs(corrcoef(channelData(usableIndices, :)'));
+% Preserve FASTER's Pearson matrix, including its constant-column NaNs.
+% Scale column-wise before the Gram matrix to avoid overflow for finite ICA gains.
+correlationMatrix = abs(hnf_robcorr(channelData(usableIndices,:).', ...
+    struct('constant','nan','nonfinite','propagate')));
 meanCorrelation = nan(EEG.nbchan, 1);
 meanCorrelation(usableIndices) = mean(correlationMatrix, 2);
 if any(zeroMask)
@@ -431,7 +434,7 @@ nf_require_vendor_signature('clean_flatlines', 3, 1);
 nf_require_vendor_signature('clean_channels', 7, 2);
 cleanRawRoots = cellfun(@fileparts, ...
     {vendorContract.functions.path}, 'UniformOutput', false);
-if numel(unique(lower(string(cleanRawRoots)))) ~= 1
+if numel(unique(hnf_lower_labels(cleanRawRoots))) ~= 1
     error('nf_badchans:MixedCleanRawDataInstall', ...
         ['clean_flatlines and clean_channels resolved from different ' ...
         'clean_rawdata installations. Remove the mixed or shadowed copy.']);
@@ -527,7 +530,7 @@ nf_require_vendor_signature('removeTrend', 2, 2);
 nf_require_vendor_signature('findNoisyChannels', 2, 1);
 prepRoots = cellfun(@fileparts, ...
     {vendorContract.functions.path}, 'UniformOutput', false);
-if numel(unique(lower(string(prepRoots)))) ~= 1
+if numel(unique(hnf_lower_labels(prepRoots))) ~= 1
     error('nf_badchans:MixedPREPInstall', ...
         ['removeTrend and findNoisyChannels resolved from different PREP ' ...
         'installations. Remove the mixed or shadowed installation.']);
@@ -896,8 +899,8 @@ if numel(beforeOriginalIndices) ~= beforeEEG.nbchan
     error('nf_badchans:InternalChannelMappingError', ...
         'The channel map entering %s was inconsistent.', stage);
 end
-beforeLabels = lower(string(nf_channel_labels(beforeEEG.chanlocs)));
-afterLabels = lower(string(nf_channel_labels(afterEEG.chanlocs)));
+beforeLabels = hnf_lower_labels(nf_channel_labels(beforeEEG.chanlocs));
+afterLabels = hnf_lower_labels(nf_channel_labels(afterEEG.chanlocs));
 [present, locations] = ismember(afterLabels, beforeLabels);
 if any(~present) || numel(unique(locations)) ~= numel(locations)
     error('nf_badchans:VendorChannelMappingError', ...
@@ -1618,7 +1621,7 @@ for index = 1:numel(functionNames)
         functionName, acceptedTokens{index}, provider);
     records(index).name = functionName;
     records(index).path = functionPath;
-    records(index).sha256 = nf_file_sha256(functionPath);
+    records(index).sha256 = hnf_file_sha256(functionPath);
     if isempty(records(index).sha256)
         error('nf_badchans:VendorHashFailed', ...
             ['Could not calculate a SHA-256 hash for %s at %s. ' ...
@@ -1649,7 +1652,7 @@ end
 
 function functionPath = nf_resolve_vendor_function( ...
     functionName, acceptedTokens, provider)
-resolved = which(functionName, '-all');
+resolved = hnf_which_all(functionName);
 if isempty(resolved)
     error('nf_badchans:MissingVendorDependency', ...
         '%s requires an installed %s.m vendor entry point.', ...
@@ -1677,7 +1680,7 @@ normalizedPath = lower(strrep(functionPath, '\', '/'));
 matchesProvider = false;
 for index = 1:numel(acceptedTokens)
     matchesProvider = matchesProvider || ...
-        contains(normalizedPath, lower(acceptedTokens{index}));
+        ~isempty(strfind(normalizedPath, lower(acceptedTokens{index})));
 end
 if ~matchesProvider
     error('nf_badchans:UnverifiedVendorDependency', ...
@@ -1717,25 +1720,6 @@ if ~isfinite(inputArity) || ~isfinite(outputArity) || ...
 end
 end
 
-function hash = nf_file_sha256(filePath)
-hash = '';
-fileId = fopen(filePath, 'rb');
-if fileId < 0
-    return
-end
-fileCleanup = onCleanup(@() fclose(fileId));
-bytes = fread(fileId, Inf, '*uint8');
-clear fileCleanup
-try
-    digestEngine = java.security.MessageDigest.getInstance('SHA-256');
-    digestEngine.update(typecast(bytes, 'int8'));
-    digest = typecast(digestEngine.digest(), 'uint8');
-    hash = lower(reshape(dec2hex(digest, 2).', 1, []));
-catch
-    hash = '';
-end
-end
-
 function release = nf_infer_release(filePath)
 normalizedPath = strrep(filePath, '\', '/');
 expression = [ ...
@@ -1752,17 +1736,17 @@ end
 
 function version = nf_provider_version(provider, records)
 version = '';
-if contains(lower(provider), 'prep') && ...
+if ~isempty(strfind(lower(provider), 'prep')) && ...
         nf_function_available('getPrepVersion')
     try
-        version = char(string(getPrepVersion()));
+        version = hnf_scalar_text(getPrepVersion());
     catch
         version = '';
     end
 elseif strcmpi(provider, 'EEGLAB') && ...
         nf_function_available('eeg_getversion')
     try
-        version = char(string(eeg_getversion()));
+        version = hnf_scalar_text(eeg_getversion());
     catch
         version = '';
     end

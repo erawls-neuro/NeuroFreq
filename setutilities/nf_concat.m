@@ -125,7 +125,7 @@ opts.chanMode = normalize_mode_string(opts.chanMode);
 opts.behaviorTrialMode = normalize_mode_string(opts.behaviorTrialMode);
 opts.dataFields = normalize_field_list(opts.dataFields, 'dataFields');
 opts.behaviorTrialFields = normalize_field_list(opts.behaviorTrialFields, 'behaviorTrialFields');
-opts.matVariable = char(string(opts.matVariable));
+opts.matVariable = hnf_scalar_text(opts.matVariable);
 
 if strcmp(opts.timeMode, 'intersection')
     opts.timeMode = 'intersect';
@@ -271,7 +271,7 @@ for i=1:numel(fields)
             error('nf_concat:MissingTrialRows','%s missing from %s.',key,keptSources{r});
         end
         val = TFkept{r}.(key);
-        if isvector(val) && ~istable(val), val=val(:); end
+        if isvector(val) && ~isa(val, 'table'), val=val(:); end
         if size(val,1)~=nTrialsByRun(r)
             error('nf_concat:TrialRows','%s needs one row per trial in %s.',key,keptSources{r});
         end
@@ -1381,7 +1381,7 @@ end
 
 if ischar(a) || isstring(a)
     if ischar(b) || isstring(b)
-        if strcmp(char(string(a)), char(string(b)))
+        if strcmp(hnf_scalar_text(a), hnf_scalar_text(b))
             tf = true;
         end
     end

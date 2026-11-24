@@ -33,7 +33,15 @@ if isnumeric(data1) == 0 || isnumeric(data2) == 0 || isnumeric(subID) == 0
     error('hnf_ept_TFCE_lme:BadArgs', 'data1, data2, and subID must be numeric.');
 end
 
-if exist('fitlme', 'file') ~= 2
+if exist('OCTAVE_VERSION','builtin')
+    if exist('fitlmematrix','file') == 2
+        backend = 'Octave statistics fitlmematrix';
+    else
+        backend = 'R lme4 lmer';
+    end
+elseif exist('fitlme', 'file') == 2
+    backend = 'MATLAB fitlme';
+else
     error('hnf_ept_TFCE_lme:NoFitLME', 'fitlme not found. Requires Statistics and Machine Learning Toolbox.');
 end
 
@@ -123,6 +131,11 @@ Dmat = reshape(DataX, [nObs, prod(siTail)]);
 
 [Regs2, fixedNames, permInfo] = local_prepare_design(Regs, subID, fixedNamesIn);
 
+% Normalize extreme physical units before optimization. Positive column
+% scaling preserves both full and diagonal random-effects structures.
+[Regs2,xScale] = hnf_stats_scale(Regs2);
+[Dmat,yScale] = hnf_stats_scale(Dmat);
+
 % Fit observed beta + t maps
 disp('fitting observed mixed-effects models...')
 [B_Obs, T_Obs] = local_lme_stats_mass( ...
@@ -133,8 +146,9 @@ disp('fitting observed mixed-effects models...')
     randomSlopes, ...
     fitMethod, ...
     uncorrelated, ...
-    par );
+    par, backend );
 
+B_Obs = hnf_stats_restore_beta(B_Obs,yScale,xScale);
 B_Obs = reshape(B_Obs, [size(B_Obs, 1), siTail]);
 T_Obs = reshape(T_Obs, [size(T_Obs, 1), siTail]);
 
@@ -162,7 +176,7 @@ for iPerm = 1:nPerm
         randomSlopes, ...
         fitMethod, ...
         uncorrelated, ...
-        par );
+        par, backend );
 
     T_Perm = reshape(T_Perm, [size(T_Perm, 1), siTail]);
 
@@ -196,6 +210,7 @@ end
 P_Values = reshape(P_Values, size(TFCE_Obs));
 
 % Output
+Results.fitBackend = backend;
 Results.Obs = T_Obs;
 Results.Beta = B_Obs;
 Results.TFCE_Obs = TFCE_Obs;
@@ -213,8 +228,6 @@ end
 
 function [Regs2, fixedNames, permInfo] = local_prepare_design(Regs, subID, fixedNamesIn)
 
-tol = 1e-12;
-
 if isempty(fixedNamesIn) == 0
     if iscell(fixedNamesIn) == 0
         error('hnf_ept_TFCE_lme:BadFixedNames', 'fixedNames must be a cell array of strings.');
@@ -230,8 +243,8 @@ for j = 1:size(Regs, 2)
 
     col = Regs(:, j);
 
-    if all(abs(col - col(1)) < tol)
-        if abs(col(1) - 1) < tol
+    if all(col == col(1))
+        if col(1) == 1
             keepCols(j) = false;
         end
     end
@@ -270,7 +283,7 @@ for j = 1:size(Regs2, 2)
         v = Regs2(idx, j);
 
         if numel(v) > 1
-            if std(v) > tol
+            if any(v ~= v(1))
                 isBetween = false;
                 break
             end
@@ -334,7 +347,12 @@ else
 end
 end
 
-function [B, T] = local_lme_stats_mass(Dmat, Regs, subID, fixedNames, randomSlopes, fitMethod, uncorrelated, par)
+function [B, T] = local_lme_stats_mass(Dmat, Regs, subID, fixedNames, randomSlopes, fitMethod, uncorrelated, par, backend)
+
+if ~strcmp(backend,'MATLAB fitlme')
+    [B,T] = hnf_lme_octave(Dmat,Regs,subID,randomSlopes,fitMethod,uncorrelated,backend);
+    return
+end
 
 nVox = size(Dmat, 2);
 nFix = size(Regs, 2);

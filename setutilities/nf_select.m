@@ -197,7 +197,7 @@ if epochSelectionRequested == true
     end
 
     if isfield(TFout, 'trialinfo')
-        if istable(TFout.trialinfo)
+        if isa(TFout.trialinfo, 'table')
             if height(TFout.trialinfo) == nEpoch
                 TFout.trialinfo = TFout.trialinfo(epochKeep, :);
             end

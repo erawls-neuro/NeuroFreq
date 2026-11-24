@@ -30,6 +30,14 @@ if any(~isfinite(predictor)) || any(~isfinite(response))
     return
 end
 
+% Only exceptional magnitudes require rescaling. OLS commutes with
+% scalar rescaling of y. Normalize before centering to protect its sums.
+scale = max(abs(response));
+if scale > 1e75 || (scale > 0 && scale < 1e-75)
+    response = response/scale;
+else
+    scale = 1;
+end
 responseMean = mean(response);
 responseCentered = response - responseMean;
 
@@ -40,7 +48,7 @@ end
 exponent = sum(predictorCentered .* responseCentered) ./ predictorSumSquares;
 offset = responseMean - exponent .* predictorMean;
 
-aperiodicParams = [offset exponent];
+aperiodicParams = scale*[offset exponent];
 fullRank = true;
 
 end

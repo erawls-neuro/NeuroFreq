@@ -3,7 +3,9 @@ function tfce = nf_lme_TFCE(dataX, designTab, varargin)
 %
 % DESIGN (TABLE ONLY)
 % -------------------
-% - designTab MUST be a table.
+% - designTab MUST be a table (Octave datatypes or Tablicious).
+% - Octave uses statistics fitlmematrix when present, else Rscript with lme4.
+%   The optional R backend fits all map locations serially per design.
 % - designTab MUST include a subject ID column (auto-detected or via 'subjectField').
 % - All other fixed effects MUST be numeric/logical Nx1 columns.
 % - Applies the same LME+TFCE model to EVERY TOP-LEVEL power field: power*, pow_*
@@ -65,11 +67,11 @@ flag_ft = [];
 % -----------------------------
 % Basic checks
 % -----------------------------
-if exist('fitlme', 'file') ~= 2
+if ~exist('OCTAVE_VERSION','builtin') && exist('fitlme', 'file') ~= 2
     error('nf_lme_TFCE:NoFitLME', 'fitlme not found. Requires Statistics and Machine Learning Toolbox.');
 end
 
-if istable(designTab) == 0
+if isa(designTab,'table') == 0
     error('nf_lme_TFCE:BadDesign', 'designTab must be a table (table-only design is enforced).');
 end
 
@@ -418,6 +420,7 @@ r.nperm = nperm;
 r.par = par;
 
 r.fitMethod = fitMethod;
+r.fitBackend = tfc.fitBackend;
 r.uncorrelated = uncorrelated;
 r.randomSlopes = randomSlopesIdx;
 r.flag_ft = flag_ft;
@@ -671,7 +674,7 @@ end
 if isempty(subjField) == 1
 
     candidates = {'subid','subject','subjectid','participant','participantid'};
-    match = find(ismember(lower(string(vars)),candidates));
+    match = find(ismember(cellfun(@lower,vars,'UniformOutput',false),candidates));
     if isempty(match), match = find(strcmpi(vars,'id')); end
     if numel(match)>1
         error('nf_lme_TFCE:AmbiguousSubjects','Multiple subject identifiers found; specify subjectField.');
@@ -696,18 +699,8 @@ if isnumeric(col) == 1 || islogical(col) == 1
     return
 end
 
-if iscategorical(col) == 1
-    subID = double(grp2idx(col));
-    return
-end
-
-if isstring(col) == 1
-    subID = double(grp2idx(categorical(col)));
-    return
-end
-
-if iscell(col) == 1
-    subID = double(grp2idx(categorical(col)));
+if isa(col,'categorical') || isstring(col) || iscellstr(col)
+    subID = hnf_subject_codes(col);
     return
 end
 
@@ -760,8 +753,6 @@ end
 
 function [Y2, names2, dropped] = local_drop_constant_predictors(Y, names)
 
-tol = 1e-12;
-
 keep = true(1, size(Y, 2));
 dropped = {};
 
@@ -769,7 +760,7 @@ for j = 1:size(Y, 2)
 
     col = Y(:, j);
 
-    if all(abs(col - col(1)) < tol)
+    if all(col == col(1))
         keep(j) = false;
         dropped{end + 1, 1} = names{j}; %#ok<AGROW>
     end

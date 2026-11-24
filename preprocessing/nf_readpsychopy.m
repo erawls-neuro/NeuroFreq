@@ -173,7 +173,7 @@ validCharacterInput = ischar(value) && ...
     (isrow(value) || isempty(value));
 validStringInput = isstring(value) && isscalar(value) && ...
     ~ismissing(value);
-valid = istable(value) || validCharacterInput || validStringInput;
+valid = isa(value, 'table') || validCharacterInput || validStringInput;
 end
 
 function valid = nf_valid_text_scalar(value)
@@ -209,7 +209,7 @@ valid = isnumeric(value) && isreal(value) && isscalar(value) && ...
 end
 
 function [raw, source] = nf_read_input(inputData)
-if istable(inputData)
+if isa(inputData, 'table')
     raw = inputData;
     source = '<MATLAB table>';
     return
@@ -231,6 +231,11 @@ if ~any(strcmp(extension, supported))
         'and LOG files are not rectangular trial tables.'], extension);
 end
 
+if exist('OCTAVE_VERSION','builtin')
+    raw = hnf_octave_readtable(fileName);
+    source = fileName;
+    return
+end
 fileOptions = {};
 if strcmp(extension,'.tsv')
     % MATLAB does not infer a delimited text file from this extension.
@@ -273,12 +278,12 @@ end
 function present = nf_value_present(value)
 rowCount = size(value, 1);
 if isnumeric(value) || islogical(value)
-    missing = ismissing(value);
+    missing = isnan(value);
     present = any(reshape(~missing,rowCount,[]),2);
     return
 end
 if isstring(value)
-    presentValues = ~ismissing(value) & strlength(strtrim(value)) > 0;
+    presentValues = ~ismissing(value) & ~cellfun(@isempty,strtrim(cellstr(value)));
     present = any(presentValues, 2);
     return
 end
@@ -318,12 +323,12 @@ if ischar(value)
     return
 end
 if isstring(value)
-    validText = ~ismissing(value) & strlength(strtrim(value)) > 0;
+    validText = ~ismissing(value) & ~cellfun(@isempty,strtrim(cellstr(value)));
     present = any(validText(:));
     return
 end
 if isnumeric(value) || islogical(value)
-    missing = ismissing(value);
+    missing = isnan(value);
     present = any(~missing(:));
     return
 end
@@ -918,9 +923,9 @@ if ischar(value)
     numeric = str2double(cellstr(value));
     return
 end
-if iscategorical(value)
+if isa(value, 'categorical')
     if size(value, 2) == 1
-        numeric = str2double(string(value));
+        numeric = str2double(cellstr(value));
     end
     return
 end
@@ -932,7 +937,7 @@ if iscell(value) && size(value, 2) == 1
         elseif islogical(item) && isscalar(item)
             numeric(rowIndex) = double(item);
         elseif ischar(item) || (isstring(item) && isscalar(item))
-            numeric(rowIndex) = str2double(string(item));
+            numeric(rowIndex) = str2double(char(item));
         end
     end
 end
@@ -1030,11 +1035,11 @@ if ischar(value)
     texts = {value(rowIndex, :)};
     return
 end
-if iscategorical(value)
+if isa(value, 'categorical')
     rowValue = value(rowIndex, :);
     for itemIndex = 1:numel(rowValue)
         if ~ismissing(rowValue(itemIndex))
-            texts{end + 1} = char(string(rowValue(itemIndex))); %#ok<AGROW>
+            texts{end + 1} = char(cellstr(rowValue(itemIndex))); %#ok<AGROW>
         end
     end
     return

@@ -21,6 +21,8 @@ The installer compares the files in this folder with the latest commit on NeuroF
 
 The Command Window shows which features use each package, which copy was found, and where any download went. You can point to an existing installation, keep a dependency copy with NeuroFreq, or skip a feature you do not use. For an older EEGLAB release, you can keep it, launch its updater, or install an NF-only release. Packages managed by the installer live in `dependencies/_nf_local/`. A network failure or skipped package appears in the report so you can rerun setup later.
 
+By default the installer builds NeuroFreq's optional MEX kernels with your selected compiler. It reuses matching builds on later runs and reports each result in `report.native`. When a kernel cannot be built, the corresponding function uses its MATLAB implementation. Run `nf_install('Native','off')` to select MATLAB implementations throughout `nf_run`. GPU-array processing uses MATLAB's Parallel Computing Toolbox independently of these CPU builds.
+
 Only the top-level NeuroFreq folder needs to stay on the MATLAB path. To run one function with the dependencies you selected, or to run an existing analysis function that contains ordinary `nf_*` calls, use:
 
 ```matlab

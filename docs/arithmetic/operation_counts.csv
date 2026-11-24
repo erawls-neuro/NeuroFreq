@@ -1,0 +1,1946 @@
+language,construct,operation,family,disposition,sites
+MATLAB,assignment,=,assignment,retain structure,18139
+MATLAB,index,(all),index,retain structure,6088
+MATLAB,constructor,[],constructor,retain structure,2687
+MATLAB,unary,~,predicate/logical,retain predicate,2476
+MATLAB,binary,==,predicate/logical,retain predicate,1993
+MATLAB,reshape,:,reshape,retain structure,1901
+MATLAB,binary,&&,predicate/logical,retain predicate,1830
+MATLAB,call,error,nonnumeric API,retain interface,1665
+MATLAB,binary,||,predicate/logical,retain predicate,1594
+MATLAB,call,numel,size/axis,retain structure,1438
+MATLAB,call,isempty,nonnumeric API,retain interface,1406
+MATLAB,range,:,range,retain structure,1371
+MATLAB,constructor,{},constructor,retain structure,1283
+MATLAB,call,size,size/axis,retain structure,1015
+MATLAB,binary,<,predicate/logical,retain predicate,859
+MATLAB,call,isfield,nonnumeric API,retain interface,838
+MATLAB,call,strcmp,nonnumeric API,retain interface,803
+C,index,(all),index,retain structure,791
+MATLAB,call/index,(all),other call/index,unresolved at static analysis,728
+MATLAB,unary,-,addition/subtraction,retain formula,702
+MATLAB,call,any,numeric predicate,retain structure,695
+MATLAB,binary,>,predicate/logical,retain predicate,685
+MATLAB,call,struct,nonnumeric API,retain interface,675
+MATLAB,call,isfinite,numeric predicate,retain structure,593
+MATLAB app,assignment,=,assignment,retain structure,589
+MATLAB,binary,*,multiplication,retain formula,558
+MATLAB,binary,-,addition/subtraction,retain formula,528
+MATLAB,binary,~=,predicate/logical,retain predicate,527
+MATLAB,binary,+,addition/subtraction,retain formula,446
+MATLAB,call,assert,nonnumeric API,retain interface,417
+MATLAB,call,isnumeric,numeric predicate,retain structure,388
+MATLAB,call,abs,elementwise numeric,retain numerical primitive,381
+MATLAB,call,reshape,size/axis,retain structure,342
+C,assignment,=,assignment,retain structure,335
+MATLAB,call,zeros,size/axis,retain structure,329
+MATLAB,call,max,reduction,retain numerical primitive,328
+MATLAB,call,strcmpi,nonnumeric API,retain interface,319
+MATLAB,binary,+,index arithmetic,retain index arithmetic,311
+MATLAB,call,isscalar,nonnumeric API,retain interface,303
+MATLAB,call,double,elementwise numeric,retain numerical primitive,302
+MATLAB,binary,.*,multiplication,retain formula,297
+MATLAB,binary,&,predicate/logical,retain predicate,289
+MATLAB,call,addParameter,nonnumeric API,retain interface,280
+MATLAB,binary,>=,predicate/logical,retain predicate,257
+MATLAB,numeric constant,NaN,numeric constant,retain primitive,244
+MATLAB,binary,*,arithmetic,test/reference,239
+C,binary,||,predicate/logical,retain predicate,233
+C,binary,*,multiplication,retain formula,225
+MATLAB,call,isreal,numeric predicate,retain structure,220
+MATLAB,call,sum,reduction,retain numerical primitive,216
+MATLAB,binary,/,division/solve,retain; review domain,215
+MATLAB,call,isequal,numeric predicate,retain structure,212
+MATLAB,call,find,size/axis,retain structure,210
+MATLAB,binary,-,arithmetic,test/reference,207
+MATLAB,call,char,nonnumeric API,retain interface,205
+MATLAB,call,fullfile,nonnumeric API,retain interface,205
+MATLAB,transpose,',transpose,retain primitive,204
+MATLAB,call,exist,nonnumeric API,retain interface,202
+MATLAB,binary,<=,predicate/logical,retain predicate,200
+C,binary,<,predicate/logical,retain predicate,192
+MATLAB,call,isstruct,nonnumeric API,retain interface,189
+MATLAB,binary,./,division/solve,retain; review domain,188
+MATLAB,call,all,numeric predicate,retain structure,177
+MATLAB,call,ischar,nonnumeric API,retain interface,177
+MATLAB,call,fprintf,nonnumeric API,retain interface,167
+MATLAB,unary,-,arithmetic,test/reference,162
+MATLAB,transpose,.',transpose,retain primitive,153
+C,unary,++,addition/subtraction,retain formula,149
+C,binary,!=,predicate/logical,retain predicate,146
+MATLAB,call,min,reduction,retain numerical primitive,143
+MATLAB,call,length,size/axis,retain structure,141
+MATLAB,call,mean,reduction,retain numerical primitive,138
+MATLAB,call,bsxfun,higher-order API,retain interface,133
+MATLAB,call,nan,size/axis,retain structure,132
+MATLAB,call,sprintf,nonnumeric API,retain interface,131
+MATLAB,call,lower,nonnumeric API,retain interface,128
+MATLAB,call,ismember,size/axis,retain structure,127
+MATLAB,binary,/,division/solve,retain scale,123
+MATLAB,call,isstring,nonnumeric API,retain interface,123
+MATLAB,binary,|,predicate/logical,retain predicate,120
+MATLAB,call,max,reduction,helper primitive,120
+MATLAB,binary,/,arithmetic,test/reference,118
+MATLAB,call,fieldnames,nonnumeric API,retain interface,118
+MATLAB,call,unique,size/axis,retain structure,115
+MATLAB,call,isa,nonnumeric API,retain interface,114
+C,binary,-,addition/subtraction,retain formula,113
+MATLAB app,index,(all),index,retain structure,113
+MATLAB app,call/index,(all),other call/index,unresolved at static analysis,111
+C,binary,/,division/solve,retain; review domain,110
+C,unary,!,predicate/logical,retain predicate,110
+MATLAB,call,round,elementwise numeric,retain numerical primitive,110
+MATLAB,numeric constant,Inf,numeric constant,retain primitive,109
+MATLAB,call,false,nonnumeric API,retain interface,108
+MATLAB app,constructor,[],constructor,retain structure,108
+MATLAB,binary,.^,power,retain; review domain,107
+MATLAB,call,sqrt,elementwise numeric,retain numerical primitive,106
+C,binary,+,addition/subtraction,retain formula,103
+MATLAB,call,cell,nonnumeric API,retain interface,103
+C,call,mexErrMsgIdAndTxt,API/handle,retain interface,102
+MATLAB,binary,./,arithmetic,helper primitive,101
+MATLAB,call,isnan,numeric predicate,retain structure,101
+MATLAB,call,logical,numeric conversion/axis,retain numerical primitive,101
+MATLAB,binary,+,arithmetic,helper primitive,99
+MATLAB,binary,+,arithmetic,test/reference,92
+MATLAB,call,cellfun,higher-order API,retain interface,91
+MATLAB,call,fileparts,nonnumeric API,retain interface,90
+MATLAB,binary,*,arithmetic,helper primitive,89
+MATLAB,binary,.*,arithmetic,helper primitive,87
+MATLAB,call,strtrim,nonnumeric API,retain interface,87
+MATLAB,numeric constant,pi,numeric constant,retain primitive,87
+MATLAB,call,disp,nonnumeric API,retain interface,85
+MATLAB,call,real,elementwise numeric,helper primitive,85
+MATLAB,call,repmat,size/axis,retain structure,85
+MATLAB,call,abs,elementwise numeric,helper primitive,83
+MATLAB,call,ones,size/axis,retain structure,83
+C,predicate,?:,predicate/logical,retain predicate,82
+MATLAB,binary,-,arithmetic,helper primitive,81
+C,call,mxGetPr,API/handle,retain interface,80
+MATLAB,call,nnz,size/axis,retain structure,77
+MATLAB,call,exp,elementwise numeric,retain numerical primitive,76
+MATLAB,call,class,nonnumeric API,retain interface,75
+MATLAB,call,sort,size/axis,retain structure,68
+C,binary,>,predicate/logical,retain predicate,67
+C,binary,+,index arithmetic,retain index arithmetic,65
+MATLAB,call,iscell,nonnumeric API,retain interface,65
+C,binary,+=,addition/subtraction,retain formula,64
+MATLAB,binary,-,index arithmetic,retain index arithmetic,64
+MATLAB,call,ndims,size/axis,retain structure,64
+MATLAB,call,onCleanup,nonnumeric API,retain interface,61
+MATLAB,call,cast,elementwise numeric,helper primitive,60
+MATLAB,call,log,elementwise numeric,retain numerical primitive,60
+MATLAB,call,real,elementwise numeric,retain numerical primitive,60
+MATLAB,call,cellstr,nonnumeric API,retain interface,59
+MATLAB,call,warning,nonnumeric API,retain interface,59
+MATLAB,call,islogical,nonnumeric API,retain interface,58
+MATLAB app,call,get,nonnumeric API,retain interface,58
+MATLAB,call,isvector,nonnumeric API,retain interface,57
+C,binary,&&,predicate/logical,retain predicate,53
+MATLAB,call,floor,elementwise numeric,retain numerical primitive,52
+MATLAB,call,isinf,numeric predicate,retain structure,52
+MATLAB,call,validateattributes,nonnumeric API,retain interface,52
+C,call,mxGetNumberOfElements,API/handle,retain interface,51
+MATLAB,call,clear,nonnumeric API,retain interface,51
+C,binary,==,predicate/logical,retain predicate,50
+MATLAB,call,regexp,nonnumeric API,retain interface,50
+MATLAB,call,which,nonnumeric API,retain interface,49
+MATLAB,call,set,nonnumeric API,retain interface,48
+MATLAB,call,permute,size/axis,retain structure,47
+MATLAB,call,squeeze,size/axis,retain structure,47
+MATLAB,local call,nf_is_text,local dispatch,inspect callee,47
+MATLAB,numeric constant,eps,numeric constant,retain primitive,47
+C,call,mxIsComplex,API/handle,retain interface,46
+MATLAB,call,strjoin,nonnumeric API,retain interface,46
+MATLAB,call,sum,reduction,helper primitive,46
+MATLAB,call,norm,reduction,retain numerical primitive,45
+MATLAB app,call,set,nonnumeric API,retain interface,45
+MATLAB,call,diag,size/axis,retain structure,44
+MATLAB,call,imag,elementwise numeric,helper primitive,44
+MATLAB app,binary,*,multiplication,retain formula,43
+MATLAB app,reshape,:,reshape,retain structure,43
+C,pointer,*,pointer,retain primitive,41
+MATLAB,call,diff,reduction,retain numerical primitive,41
+MATLAB,call,hnf_lower_labels,NeuroFreq dispatch,inspect callee,41
+MATLAB,call,isfile,nonnumeric API,retain interface,40
+C,call,mxFree,API/handle,retain interface,39
+C,call,fabs,reduction,retain numerical primitive,38
+C,call,mxIsDouble,API/handle,retain interface,38
+C,call,mxIsSparse,API/handle,retain interface,38
+MATLAB,call,hnf_mex_available,NeuroFreq dispatch,inspect callee,38
+MATLAB,call,javaObject,nonnumeric API,retain interface,38
+C,call,mxIsFinite,numeric predicate,retain structure,37
+MATLAB,call,num2str,nonnumeric API,retain interface,37
+MATLAB,call,hnf_robmean,robust helper,delegate,36
+MATLAB,call,log10,elementwise numeric,retain numerical primitive,36
+MATLAB,call,rethrow,nonnumeric API,retain interface,36
+MATLAB,call,issparse,numeric predicate,retain structure,35
+MATLAB,call,regexprep,nonnumeric API,retain interface,35
+MATLAB,unary,-,arithmetic,helper primitive,35
+C,binary,*,index arithmetic,retain index arithmetic,34
+MATLAB,binary,/,arithmetic,helper primitive,34
+MATLAB,call,cos,elementwise numeric,retain numerical primitive,33
+MATLAB,call,rmfield,nonnumeric API,retain interface,33
+MATLAB,local call,assertClose,local dispatch,inspect callee,33
+C,call,mxGetNumberOfDimensions,API/handle,retain interface,32
+MATLAB app,call,num2str,nonnumeric API,retain interface,32
+C,call,mxCalloc,API/handle,retain interface,31
+C,type/pointer,double,type/pointer,retain structure,31
+MATLAB,handle,rdivide,elementwise numeric,retain numerical primitive,31
+MATLAB,call,min,reduction,helper primitive,29
+MATLAB,call,rng,random sampling,retain interface,29
+MATLAB,handle,nf_is_scalar_struct,NeuroFreq dispatch,inspect callee,29
+MATLAB,local call,close_to,local dispatch,inspect callee,29
+MATLAB,local call,nf_is_logical_scalar,local dispatch,inspect callee,29
+R,assignment,<-,assignment,retain structure,29
+MATLAB,call,eps,elementwise numeric,retain numerical primitive,28
+MATLAB,call,median,reduction,retain numerical primitive,28
+MATLAB,call,single,elementwise numeric,retain numerical primitive,28
+MATLAB,binary,./,division/solve,retain scale,27
+MATLAB,call,imag,elementwise numeric,retain numerical primitive,27
+MATLAB,call,mod,elementwise numeric,retain numerical primitive,27
+MATLAB,local call,local_pack_cpm_field,local dispatch,inspect callee,27
+MATLAB,local call,local_reshape_output,local dispatch,inspect callee,27
+MATLAB app,binary,-,addition/subtraction,retain formula,27
+MATLAB app,call,min,reduction,retain numerical primitive,27
+MATLAB,binary,^,power,retain; review domain,26
+MATLAB,call,linspace,elementwise numeric,retain numerical primitive,26
+MATLAB,handle,minus,elementwise numeric,retain numerical primitive,26
+MATLAB,local call,nf_nonfatal_warning,local dispatch,inspect callee,26
+MATLAB,local call,nf_set_default,local dispatch,inspect callee,26
+C,call,mxGetM,API/handle,retain interface,25
+MATLAB,binary,.*,arithmetic,test/reference,25
+MATLAB,call,hnf_la_scalar,NeuroFreq dispatch,inspect callee,25
+MATLAB,call,mkdir,nonnumeric API,retain interface,25
+MATLAB,call,sqrt,elementwise numeric,helper primitive,25
+MATLAB,local call,nf_get_numeric_scalar,local dispatch,inspect callee,25
+C++,index,(all),index,retain structure,24
+MATLAB,binary,.^,arithmetic,helper primitive,24
+MATLAB,call,complex,elementwise numeric,retain numerical primitive,24
+MATLAB,call,log,elementwise numeric,helper primitive,24
+MATLAB,call,std,reduction,retain numerical primitive,24
+MATLAB app,call,numel,size/axis,retain structure,24
+MATLAB app,local call,update_topomap,local dispatch,inspect callee,24
+C,call,mxGetN,API/handle,retain interface,23
+MATLAB,call,dir,nonnumeric API,retain interface,23
+MATLAB,call,eps,elementwise numeric,helper primitive,23
+MATLAB,call,hnf_mex_load_error,NeuroFreq dispatch,inspect callee,23
+MATLAB,call,strncmpi,nonnumeric API,retain interface,23
+MATLAB,local call,nf_make_channel_category,local dispatch,inspect callee,23
+MATLAB app,call,str2double,nonnumeric API,retain interface,23
+MATLAB,call,addRequired,nonnumeric API,retain interface,22
+MATLAB,call,hnf_robdiv,robust helper,delegate,22
+MATLAB,call,hnf_robols,robust helper,delegate,22
+MATLAB,call,isfolder,nonnumeric API,retain interface,22
+MATLAB,call,parse,nonnumeric API,retain interface,22
+MATLAB,call,path,nonnumeric API,retain interface,22
+MATLAB,call,strfind,nonnumeric API,retain interface,22
+MATLAB,call,title,nonnumeric API,retain interface,22
+MATLAB,call,true,nonnumeric API,retain interface,22
+C++,assignment,=,assignment,retain structure,21
+MATLAB,call,double,elementwise numeric,helper primitive,21
+MATLAB,call,fix,elementwise numeric,retain numerical primitive,21
+MATLAB,call,hnf_robstd,robust helper,delegate,21
+MATLAB,call,ismatrix,nonnumeric API,retain interface,21
+MATLAB app,local call,update_tfmap,local dispatch,inspect callee,21
+MATLAB app,unary,-,addition/subtraction,retain formula,21
+MATLAB,call,addpath,nonnumeric API,retain interface,20
+MATLAB,call,fft,numerical algorithm,retain algorithm,20
+MATLAB,call,intersect,size/axis,retain structure,20
+MATLAB,call,mfilename,nonnumeric API,retain interface,20
+MATLAB,call,realmax,elementwise numeric,helper primitive,20
+MATLAB,handle,isstruct,nonnumeric API,retain interface,20
+MATLAB,local call,local_text_scalar,local dispatch,inspect callee,20
+MATLAB,numeric constant,realmax,numeric constant,retain primitive,20
+MATLAB app,call,abs,elementwise numeric,retain numerical primitive,20
+C,type/pointer,size_t,type/pointer,retain structure,19
+MATLAB,binary,*,index arithmetic,retain index arithmetic,19
+MATLAB,call,bitget,numeric conversion/axis,retain numerical primitive,19
+MATLAB,call,nf_canonical,NeuroFreq dispatch,inspect callee,19
+MATLAB,call,setdiff,size/axis,retain structure,19
+MATLAB,call,strrep,nonnumeric API,retain interface,19
+MATLAB,call,axis,nonnumeric API,retain interface,18
+MATLAB,call,datestr,nonnumeric API,retain interface,18
+MATLAB,call,isequaln,numeric predicate,retain structure,18
+MATLAB,call,nf_under,NeuroFreq dispatch,inspect callee,18
+MATLAB,call,sin,elementwise numeric,retain numerical primitive,18
+MATLAB,handle,nf_is_positive_scalar,NeuroFreq dispatch,inspect callee,18
+MATLAB,local call,nf_get_numeric_field,local dispatch,inspect callee,18
+MATLAB,local call,nf_require_positive,local dispatch,inspect callee,18
+MATLAB app,binary,&&,predicate/logical,retain predicate,18
+C,binary,>=,predicate/logical,retain predicate,17
+MATLAB,call,cast,elementwise numeric,retain numerical primitive,17
+MATLAB,call,cd,nonnumeric API,retain interface,17
+MATLAB,call,get,nonnumeric API,retain interface,17
+MATLAB,call,hnf_robrms,robust helper,delegate,17
+MATLAB,local call,entry,local dispatch,inspect callee,17
+MATLAB,local call,nf_function_available,local dispatch,inspect callee,17
+MATLAB app,call,size,size/axis,retain structure,17
+MATLAB app,unary,~,predicate/logical,retain predicate,17
+C,call,log,elementwise numeric,retain numerical primitive,16
+MATLAB,call,angle,elementwise numeric,retain numerical primitive,16
+MATLAB,call,hnf_robsum,robust helper,delegate,16
+MATLAB,call,hnf_tf_output,NeuroFreq dispatch,inspect callee,16
+MATLAB,call,hnf_tfce_transformation,NeuroFreq dispatch,inspect callee,16
+MATLAB,call,var,reduction,retain numerical primitive,16
+MATLAB,handle,times,elementwise numeric,retain numerical primitive,16
+MATLAB,local call,checkClose,local dispatch,inspect callee,16
+C,binary,/,division/solve,retain scale,15
+C,call,floor,elementwise numeric,retain numerical primitive,15
+C,call,mxGetScalar,API/handle,retain interface,15
+C,call,sqrt,elementwise numeric,retain numerical primitive,15
+MATLAB,call,complex,elementwise numeric,helper primitive,15
+MATLAB,call,diary,nonnumeric API,retain interface,15
+MATLAB,call,fileread,nonnumeric API,retain interface,15
+MATLAB,call,height,size/axis,retain structure,15
+MATLAB,call,hnf_permuted_t_map,NeuroFreq dispatch,inspect callee,15
+MATLAB,call,hnf_robnormtail,robust helper,delegate,15
+MATLAB,call,isfloat,numeric predicate,retain structure,15
+MATLAB,call,log2,elementwise numeric,helper primitive,15
+MATLAB,handle,minus,elementwise numeric,helper primitive,15
+MATLAB,handle,rdivide,elementwise numeric,helper primitive,15
+MATLAB,local call,nf_is_positive_scalar,local dispatch,inspect callee,15
+MATLAB,local call,writeText,local dispatch,inspect callee,15
+MATLAB app,binary,+,addition/subtraction,retain formula,15
+MATLAB app,binary,||,predicate/logical,retain predicate,15
+MATLAB app,call,isfinite,numeric predicate,retain structure,15
+MATLAB app,call,max,reduction,retain numerical primitive,15
+C,call,mxCreateDoubleMatrix,API/handle,retain interface,14
+C,call,mxGetDimensions,API/handle,retain interface,14
+C,pointer,&,predicate/logical,retain predicate,14
+MATLAB,binary,./,arithmetic,test/reference,14
+MATLAB,call,ceil,elementwise numeric,retain numerical primitive,14
+MATLAB,call,eye,size/axis,retain structure,14
+MATLAB,call,hnf_robcov,robust helper,delegate,14
+MATLAB,call,hnf_robmoments,robust helper,delegate,14
+MATLAB,call,hnf_robnorm,robust helper,delegate,14
+MATLAB,call,orderfields,nonnumeric API,retain interface,14
+MATLAB,call,plot3,nonnumeric API,retain interface,14
+MATLAB,call,prod,reduction,retain numerical primitive,14
+MATLAB,call,randperm,random sampling,retain interface,14
+MATLAB,handle,isempty,nonnumeric API,retain interface,14
+MATLAB,local call,local_issue_warning,local dispatch,inspect callee,14
+C,type/pointer,mwSize,type/pointer,retain structure,13
+MATLAB,binary,.^,arithmetic,test/reference,13
+MATLAB,local call,elem_assertError,local dispatch,inspect callee,13
+MATLAB,local call,nf_assert_new_artifact,local dispatch,inspect callee,13
+MATLAB,local call,nf_check_job_log,local dispatch,inspect callee,13
+MATLAB,local call,nf_get_logical_field,local dispatch,inspect callee,13
+MATLAB,local call,nf_is_increasing_pair,local dispatch,inspect callee,13
+MATLAB app,range,:,range,retain structure,13
+C,binary,-=,addition/subtraction,retain formula,12
+C,call,fmax,reduction,retain numerical primitive,12
+C++,binary,||,predicate/logical,retain predicate,12
+MATLAB,call,fclose,nonnumeric API,retain interface,12
+MATLAB,call,hnf_la_check,NeuroFreq dispatch,inspect callee,12
+MATLAB,call,hnf_scalar_text,NeuroFreq dispatch,inspect callee,12
+MATLAB,call,ismissing,nonnumeric API,retain interface,12
+MATLAB,call,pow2,numeric conversion/axis,helper primitive,12
+MATLAB,call,regexpi,nonnumeric API,retain interface,12
+MATLAB,call,str2double,nonnumeric API,retain interface,12
+MATLAB,call,xlabel,nonnumeric API,retain interface,12
+MATLAB,call,ylabel,nonnumeric API,retain interface,12
+MATLAB,handle,nf_is_text,NeuroFreq dispatch,inspect callee,12
+MATLAB,local call,local_report,local dispatch,inspect callee,12
+MATLAB,local call,nf_get_array_field,local dispatch,inspect callee,12
+MATLAB,local call,nf_get_text_field,local dispatch,inspect callee,12
+MATLAB,local call,nf_mask_mean_local,local dispatch,inspect callee,12
+C,binary,<=,predicate/logical,retain predicate,11
+C,call,mxCreateNumericArray,API/handle,retain interface,11
+C,call,mxGetComplexDoubles,API/handle,retain interface,11
+C,call,mxGetData,API/handle,retain interface,11
+C,call,mxGetDoubles,API/handle,retain interface,11
+C,call,mxGetPi,API/handle,retain interface,11
+MATLAB,call,conj,elementwise numeric,retain numerical primitive,11
+MATLAB,call,fopen,nonnumeric API,retain interface,11
+MATLAB,call,hnf_robpinv,robust helper,delegate,11
+MATLAB,call,hnf_robpower,robust helper,delegate,11
+MATLAB,call,isrow,nonnumeric API,retain interface,11
+MATLAB,call,load,nonnumeric API,retain interface,11
+MATLAB,call,narginchk,nonnumeric API,retain interface,11
+MATLAB,call,nf_run,NeuroFreq dispatch,inspect callee,11
+MATLAB,call,sign,elementwise numeric,helper primitive,11
+MATLAB,call,typecast,numeric conversion/axis,retain numerical primitive,11
+MATLAB,call,uint8,elementwise numeric,retain numerical primitive,11
+MATLAB,call,validatestring,nonnumeric API,retain interface,11
+MATLAB,local call,local_masked_mean,local dispatch,inspect callee,11
+MATLAB,local call,nf_merge_known_options,local dispatch,inspect callee,11
+MATLAB app,binary,>,predicate/logical,retain predicate,11
+R,index,(all),index,retain structure,11
+C,binary,%,division/solve,retain; review domain,10
+C,binary,-,index arithmetic,retain index arithmetic,10
+C,binary,/=,division/solve,retain; review domain,10
+C,call,mxGetNaN,API/handle,retain interface,10
+MATLAB,binary,^,arithmetic,test/reference,10
+MATLAB,call,full,size/axis,retain structure,10
+MATLAB,call,hnf_mi_vec,NeuroFreq dispatch,inspect callee,10
+MATLAB,call,hnf_robchol,robust helper,delegate,10
+MATLAB,call,hnf_roblogsumexp,robust helper,delegate,10
+MATLAB,call,hnf_stats_scale,NeuroFreq dispatch,inspect callee,10
+MATLAB,call,hnf_tf_grid,NeuroFreq dispatch,inspect callee,10
+MATLAB,call,nf_viewer_data,NeuroFreq dispatch,inspect callee,10
+MATLAB,call,startsWith,nonnumeric API,retain interface,10
+MATLAB,call,strsplit,nonnumeric API,retain interface,10
+MATLAB,call,subplot,nonnumeric API,retain interface,10
+MATLAB,handle,nf_is_positive_integer,NeuroFreq dispatch,inspect callee,10
+MATLAB,local call,assertThrows,local dispatch,inspect callee,10
+MATLAB,local call,must_error,local dispatch,inspect callee,10
+MATLAB,local call,nf_diary_property,local dispatch,inspect callee,10
+MATLAB,local call,nf_vendor_contract,local dispatch,inspect callee,10
+MATLAB app,binary,==,predicate/logical,retain predicate,10
+MATLAB app,call,axis,nonnumeric API,retain interface,10
+MATLAB app,call,strcmp,nonnumeric API,retain interface,10
+MATLAB app,call,uibutton,nonnumeric API,retain interface,10
+C,call,mxIsEmpty,API/handle,retain interface,9
+MATLAB,call,eig,factorization/solve,retain algorithm,9
+MATLAB,call,hnf_roblogdet,robust helper,delegate,9
+MATLAB,call,hnf_tf_input,NeuroFreq dispatch,inspect callee,9
+MATLAB,call,plot,nonnumeric API,retain interface,9
+MATLAB,call,rank,factorization/solve,retain algorithm,9
+MATLAB,call,rmdir,nonnumeric API,retain interface,9
+MATLAB,call,scatter3,nonnumeric API,retain interface,9
+MATLAB,call,sign,elementwise numeric,retain numerical primitive,9
+MATLAB,handle,local_is_text_scalar,API/handle,retain interface,9
+MATLAB,local call,musterror,local dispatch,inspect callee,9
+MATLAB,local call,nf_absolute_path,local dispatch,inspect callee,9
+MATLAB,local call,nf_positive_setting,local dispatch,inspect callee,9
+MATLAB,local call,nf_valid_eeglab,local dispatch,inspect callee,9
+MATLAB,local call,nf_validate_channel_indices,local dispatch,inspect callee,9
+MATLAB,numeric constant,realmin,numeric constant,retain primitive,9
+MATLAB app,call,ones,size/axis,retain structure,9
+MATLAB app,call,uilabel,nonnumeric API,retain interface,9
+C,call,cos,elementwise numeric,retain numerical primitive,8
+C,call,isfinite,numeric predicate,retain structure,8
+C,call,sin,elementwise numeric,retain numerical primitive,8
+MATLAB,call,delete,nonnumeric API,retain interface,8
+MATLAB,call,exp,elementwise numeric,helper primitive,8
+MATLAB,call,gather,numeric conversion/axis,retain numerical primitive,8
+MATLAB,call,hnf_la_rescale,NeuroFreq dispatch,inspect callee,8
+MATLAB,call,hnf_pac_permutation_z,NeuroFreq dispatch,inspect callee,8
+MATLAB,call,hnf_robexp,robust helper,delegate,8
+MATLAB,call,hnf_roblerp,robust helper,delegate,8
+MATLAB,call,hnf_robsoftmax,robust helper,delegate,8
+MATLAB,call,hnf_stats_zscore,NeuroFreq dispatch,inspect callee,8
+MATLAB,call,hnf_tfce_clusters_mex,native kernel,native delegation,8
+MATLAB,call,ifft,numerical algorithm,retain algorithm,8
+MATLAB,call,int2str,nonnumeric API,retain interface,8
+MATLAB,call,nf_native_digest,NeuroFreq dispatch,inspect callee,8
+MATLAB,call,nf_pac,NeuroFreq dispatch,inspect callee,8
+MATLAB,call,nf_tftransform,NeuroFreq dispatch,inspect callee,8
+MATLAB,call,rand,random sampling,retain interface,8
+MATLAB,call,svd,factorization/solve,retain algorithm,8
+MATLAB,local call,local_max_abs,local dispatch,inspect callee,8
+MATLAB,local call,local_resolve_axis,local dispatch,inspect callee,8
+MATLAB,local call,nf_delete_partial_artifact,local dispatch,inspect callee,8
+MATLAB,local call,nf_em_threshold_local,local dispatch,inspect callee,8
+MATLAB,local call,nf_package_paths,local dispatch,inspect callee,8
+MATLAB,local call,nf_preset_values,local dispatch,inspect callee,8
+MATLAB,local call,nf_set_eeg_behavior,local dispatch,inspect callee,8
+MATLAB,local call,nf_to_cellstr,local dispatch,inspect callee,8
+MATLAB app,call,double,elementwise numeric,retain numerical primitive,8
+MATLAB app,call,isscalar,nonnumeric API,retain interface,8
+MATLAB app,constructor,{},constructor,retain structure,8
+MATLAB app,transpose,',transpose,retain primitive,8
+C,call,mxMalloc,API/handle,retain interface,7
+C++,binary,*,multiplication,retain formula,7
+C++,unary,!,predicate/logical,retain predicate,7
+MATLAB,call,arrayfun,higher-order API,retain interface,7
+MATLAB,call,cat,size/axis,retain structure,7
+MATLAB,call,copyfile,nonnumeric API,retain interface,7
+MATLAB,call,flipud,size/axis,retain structure,7
+MATLAB,call,fminsearch,numerical algorithm,retain algorithm,7
+MATLAB,call,hnf_aux_options,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,hnf_file_sha256,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,hnf_la_scale,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,hnf_robprob,robust helper,delegate,7
+MATLAB,call,hnf_robwhiten,robust helper,delegate,7
+MATLAB,call,hnf_robzscore,robust helper,delegate,7
+MATLAB,call,hnf_specparam_frequency_cache,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,hnf_tfce_integrate,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,hnf_tfce_pvalues,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,hold,other call/index,unresolved at static analysis,7
+MATLAB,call,log2,elementwise numeric,retain numerical primitive,7
+MATLAB,call,nf_choose,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,nf_stft,NeuroFreq dispatch,inspect callee,7
+MATLAB,call,pinv,factorization/solve,retain algorithm,7
+MATLAB,call,qr,factorization/solve,retain algorithm,7
+MATLAB,call,realmin,elementwise numeric,helper primitive,7
+MATLAB,call,strncmp,nonnumeric API,retain interface,7
+MATLAB,call,surface,nonnumeric API,retain interface,7
+MATLAB,call,tempname,nonnumeric API,retain interface,7
+MATLAB,call,width,size/axis,retain structure,7
+MATLAB,handle,lower,nonnumeric API,retain interface,7
+MATLAB,handle,nf_is_logical_scalar,NeuroFreq dispatch,inspect callee,7
+MATLAB,local call,grid,local dispatch,inspect callee,7
+MATLAB,local call,local_epsilon,local dispatch,inspect callee,7
+MATLAB,local call,nf_clear_eeg_behavior,local dispatch,inspect callee,7
+MATLAB,local call,nf_detach_ica_for_epoching,local dispatch,inspect callee,7
+MATLAB,local call,nf_plot_message,local dispatch,inspect callee,7
+MATLAB,local call,nf_restore_ica_after_epoching,local dispatch,inspect callee,7
+MATLAB,local call,nf_row_pair,local dispatch,inspect callee,7
+MATLAB,local call,nf_validate_eeg,local dispatch,inspect callee,7
+MATLAB app,binary,<,predicate/logical,retain predicate,7
+MATLAB app,binary,<=,predicate/logical,retain predicate,7
+MATLAB app,call,uieditfield,nonnumeric API,retain interface,7
+C,call,exp,elementwise numeric,retain numerical primitive,6
+C,call,hypot,reduction,retain numerical primitive,6
+C,macro invocation,WINDOW_SEPARATE,native kernel,native delegation,6
+C,type/pointer,const double *,type/pointer,retain structure,6
+C++,binary,<,predicate/logical,retain predicate,6
+MATLAB,call,bitor,numeric conversion/axis,retain numerical primitive,6
+MATLAB,call,chol,factorization/solve,retain algorithm,6
+MATLAB,call,classUnderlying,numeric conversion/axis,retain numerical primitive,6
+MATLAB,call,close,nonnumeric API,retain interface,6
+MATLAB,call,cov,factorization/solve,retain algorithm,6
+MATLAB,call,deblank,nonnumeric API,retain interface,6
+MATLAB,call,display,nonnumeric API,retain interface,6
+MATLAB,call,fix,elementwise numeric,helper primitive,6
+MATLAB,call,fwrite,nonnumeric API,retain interface,6
+MATLAB,call,hnf_aux_real,NeuroFreq dispatch,inspect callee,6
+MATLAB,call,hnf_circ_corrcl_vec,NeuroFreq dispatch,inspect callee,6
+MATLAB,call,hnf_event_grid,NeuroFreq dispatch,inspect callee,6
+MATLAB,call,hnf_la_opts,NeuroFreq dispatch,inspect callee,6
+MATLAB,call,hnf_mi_mex,native kernel,native delegation,6
+MATLAB,call,hnf_robcorr,robust helper,delegate,6
+MATLAB,call,hnf_robquantile,robust helper,delegate,6
+MATLAB,call,hnf_robunit,robust helper,delegate,6
+MATLAB,call,hnf_scaled_length,robust helper,delegate,6
+MATLAB,call,hnf_stats_check_observations,NeuroFreq dispatch,inspect callee,6
+MATLAB,call,realmin,elementwise numeric,retain numerical primitive,6
+MATLAB,call,table,nonnumeric API,retain interface,6
+MATLAB,call,usejava,nonnumeric API,retain interface,6
+MATLAB,handle,max,reduction,helper primitive,6
+MATLAB,handle,min,reduction,helper primitive,6
+MATLAB,handle,nf_is_increasing_pair,NeuroFreq dispatch,inspect callee,6
+MATLAB,local call,local_count_invalid_cpm_output,local dispatch,inspect callee,6
+MATLAB,local call,local_default_names,local dispatch,inspect callee,6
+MATLAB,local call,local_force_obs_dim_first,local dispatch,inspect callee,6
+MATLAB,local call,local_masked_sample_stats,local dispatch,inspect callee,6
+MATLAB,local call,local_table_to_numeric_matrix,local dispatch,inspect callee,6
+MATLAB,local call,nf_add_severity,local dispatch,inspect callee,6
+MATLAB,local call,nf_channel_labels,local dispatch,inspect callee,6
+MATLAB,local call,nf_class_reason_local,local dispatch,inspect callee,6
+MATLAB,local call,nf_get_label_field,local dispatch,inspect callee,6
+MATLAB,local call,nf_has_topography,local dispatch,inspect callee,6
+MATLAB,local call,nf_has_xyz,local dispatch,inspect callee,6
+MATLAB,local call,nf_mask_variance_local,local dispatch,inspect callee,6
+MATLAB,local call,nf_normalize_behavior_array,local dispatch,inspect callee,6
+MATLAB,local call,nf_normalize_name,local dispatch,inspect callee,6
+MATLAB,local call,nf_numeric_vector,local dispatch,inspect callee,6
+MATLAB,local call,nf_plot_topography,local dispatch,inspect callee,6
+MATLAB,local call,nf_repo_inside,local dispatch,inspect callee,6
+MATLAB,local call,nf_require_functions,local dispatch,inspect callee,6
+MATLAB,local call,nf_seconds_to_samples,local dispatch,inspect callee,6
+MATLAB,local call,nf_vendor_function_contract,local dispatch,inspect callee,6
+MATLAB,unary,-,index arithmetic,retain index arithmetic,6
+MATLAB app,call,any,numeric predicate,retain structure,6
+MATLAB app,call,isempty,nonnumeric API,retain interface,6
+MATLAB app,call,length,size/axis,retain structure,6
+MATLAB app,call,lower,nonnumeric API,retain interface,6
+MATLAB app,call,plot3,nonnumeric API,retain interface,6
+C,call,dense_real_double,other call/index,unresolved at static analysis,5
+C,call,fmin,reduction,retain numerical primitive,5
+C,call,memcpy,other call/index,unresolved at static analysis,5
+C,call,mxGetClassID,API/handle,retain interface,5
+C++,unary,++,addition/subtraction,retain formula,5
+MATLAB,call,accumarray,nonnumeric API,retain interface,5
+MATLAB,call,colorbar,nonnumeric API,retain interface,5
+MATLAB,call,evalc,higher-order API,retain interface,5
+MATLAB,call,floor,elementwise numeric,helper primitive,5
+MATLAB,call,gpuArray,numeric conversion/axis,retain numerical primitive,5
+MATLAB,call,hnf_EM,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hnf_ept_TFCE_corr,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hnf_ept_TFCE_glm,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hnf_la_hermitian,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hnf_mara_peaks,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hnf_mvl_vec,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hnf_robustfit,robust helper,delegate,5
+MATLAB,call,hnf_specparam_fit_compact,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hnf_stats_corr,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,hypot,reduction,retain numerical primitive,5
+MATLAB,call,linsolve,factorization/solve,retain algorithm,5
+MATLAB,call,log1p,elementwise numeric,helper primitive,5
+MATLAB,call,nf_cwt,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,nf_dcwt,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,nf_eeglab_paths,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,nf_filterhilbert,NeuroFreq dispatch,inspect callee,5
+MATLAB,call,nonzeros,numeric conversion/axis,retain numerical primitive,5
+MATLAB,call,optimset,numerical algorithm,retain algorithm,5
+MATLAB,call,patch,nonnumeric API,retain interface,5
+MATLAB,handle,plus,elementwise numeric,retain numerical primitive,5
+MATLAB,local call,eeg,local dispatch,inspect callee,5
+MATLAB,local call,interpolate,local dispatch,inspect callee,5
+MATLAB,local call,local_log10_aggregate,local dispatch,inspect callee,5
+MATLAB,local call,nf_append_job_log_text,local dispatch,inspect callee,5
+MATLAB,local call,nf_assert_vendor_directory,local dispatch,inspect callee,5
+MATLAB,local call,nf_clear_ica,local dispatch,inspect callee,5
+MATLAB,local call,nf_dataset_summary,local dispatch,inspect callee,5
+MATLAB,local call,nf_detector_field,local dispatch,inspect callee,5
+MATLAB,local call,nf_eeg_checkset_if_available,local dispatch,inspect callee,5
+MATLAB,local call,nf_ensure_event_fields,local dispatch,inspect callee,5
+MATLAB,local call,nf_expand_local_mask,local dispatch,inspect callee,5
+MATLAB,local call,nf_merge_option_struct,local dispatch,inspect callee,5
+MATLAB,local call,nf_native_contract,local dispatch,inspect callee,5
+MATLAB,local call,nf_number_text,local dispatch,inspect callee,5
+MATLAB,local call,nf_pop_epoch_events,local dispatch,inspect callee,5
+MATLAB,local call,nf_require_unique_labels,local dispatch,inspect callee,5
+MATLAB,local call,nf_require_vendor_signature,local dispatch,inspect callee,5
+MATLAB,local call,nf_selected_data,local dispatch,inspect callee,5
+MATLAB app,binary,/,division/solve,retain scale,5
+MATLAB app,call,cla,nonnumeric API,retain interface,5
+MATLAB app,call,isfield,nonnumeric API,retain interface,5
+MATLAB app,call,linspace,elementwise numeric,retain numerical primitive,5
+MATLAB app,call,round,elementwise numeric,retain numerical primitive,5
+C,call,add,other call/index,unresolved at static analysis,4
+C,type/pointer,double *,type/pointer,retain structure,4
+C,unary,-,addition/subtraction,retain formula,4
+C++,binary,!=,predicate/logical,retain predicate,4
+C++,type/pointer,double,type/pointer,retain structure,4
+MATLAB,binary,\,division/solve,retain; review domain,4
+MATLAB,call,atan2,elementwise numeric,retain numerical primitive,4
+MATLAB,call,butter,numerical algorithm,retain algorithm,4
+MATLAB,call,cla,nonnumeric API,retain interface,4
+MATLAB,call,dec2hex,numeric conversion/axis,retain numerical primitive,4
+MATLAB,call,feval,higher-order API,retain interface,4
+MATLAB,call,griddata,numerical algorithm,retain algorithm,4
+MATLAB,call,hilbert,numerical algorithm,retain algorithm,4
+MATLAB,call,hnf_aux_dim,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_ept_TFCE_corr_par,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_ept_TFCE_glm_par,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_expo_function,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_gen_aperiodic,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_peak_objective_mex,native kernel,native delegation,4
+MATLAB,call,hnf_peak_values,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_robfisher,robust helper,delegate,4
+MATLAB,call,hnf_roblog,robust helper,delegate,4
+MATLAB,call,hnf_robrank,robust helper,delegate,4
+MATLAB,call,hnf_robsqrt,robust helper,delegate,4
+MATLAB,call,hnf_specparam_peak_model,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_stats_layout,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_stats_trial_grid,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_topo2all,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,hnf_which_all,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,ifftshift,numeric conversion/axis,retain numerical primitive,4
+MATLAB,call,ind2sub,size/axis,retain structure,4
+MATLAB,call,interp1,numerical algorithm,retain algorithm,4
+MATLAB,call,log1p,elementwise numeric,retain numerical primitive,4
+MATLAB,call,median,reduction,helper primitive,4
+MATLAB,call,nextpow2,elementwise numeric,retain numerical primitive,4
+MATLAB,call,nf_demodulation,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,nf_install,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,nf_native_inputs,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,nf_ridrihaczek,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,nf_runtime_file,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,nf_tfstats_apply,NeuroFreq dispatch,inspect callee,4
+MATLAB,call,norm,reduction,helper primitive,4
+MATLAB,call,randi,random sampling,retain interface,4
+MATLAB,call,randn,random sampling,retain interface,4
+MATLAB,call,rcond,factorization/solve,retain algorithm,4
+MATLAB,call,realmax,elementwise numeric,retain numerical primitive,4
+MATLAB,call,repelem,size/axis,retain structure,4
+MATLAB,call,sparse,size/axis,retain structure,4
+MATLAB,call,union,size/axis,retain structure,4
+MATLAB,call/index,(all),API/handle,retain interface,4
+MATLAB,handle,fileparts,nonnumeric API,retain interface,4
+MATLAB,handle,nf_increasing_pair_local,NeuroFreq dispatch,inspect callee,4
+MATLAB,handle,nf_is_nonnegative_integer,NeuroFreq dispatch,inspect callee,4
+MATLAB,handle,nf_valid_logical_scalar,NeuroFreq dispatch,inspect callee,4
+MATLAB,handle,numel,size/axis,retain structure,4
+MATLAB,local call,disk,local dispatch,inspect callee,4
+MATLAB,local call,last_axis,local dispatch,inspect callee,4
+MATLAB,local call,local_baseline_subtract,local dispatch,inspect callee,4
+MATLAB,local call,local_collect_top_level_tf_numeric,local dispatch,inspect callee,4
+MATLAB,local call,local_cpm_log10_power,local dispatch,inspect callee,4
+MATLAB,local call,local_default_slice_labels,local dispatch,inspect callee,4
+MATLAB,local call,local_empty_caution,local dispatch,inspect callee,4
+MATLAB,local call,local_finalize,local dispatch,inspect callee,4
+MATLAB,local call,local_finish_raw_log10,local dispatch,inspect callee,4
+MATLAB,local call,local_is_text_scalar,local dispatch,inspect callee,4
+MATLAB,local call,local_represent_ratio,local dispatch,inspect callee,4
+MATLAB,local call,local_require_field,local dispatch,inspect callee,4
+MATLAB,local call,local_resolve_channels,local dispatch,inspect callee,4
+MATLAB,local call,local_resolve_epoch_axis,local dispatch,inspect callee,4
+MATLAB,local call,nf_alert_item,local dispatch,inspect callee,4
+MATLAB,local call,nf_build_windows,local dispatch,inspect callee,4
+MATLAB,local call,nf_clear_rejection_fields,local dispatch,inspect callee,4
+MATLAB,local call,nf_common_average,local dispatch,inspect callee,4
+MATLAB,local call,nf_complete_private_eeglab,local dispatch,inspect callee,4
+MATLAB,local call,nf_dataset_description,local dispatch,inspect callee,4
+MATLAB,local call,nf_eeglab_version,local dispatch,inspect callee,4
+MATLAB,local call,nf_empty_detector_metric,local dispatch,inspect callee,4
+MATLAB,local call,nf_expand_setting_vector,local dispatch,inspect callee,4
+MATLAB,local call,nf_extract_provenance,local dispatch,inspect callee,4
+MATLAB,local call,nf_force_channel_trial_matrix,local dispatch,inspect callee,4
+MATLAB,local call,nf_get_channel_rejection_matrix,local dispatch,inspect callee,4
+MATLAB,local call,nf_is_nonempty_file,local dispatch,inspect callee,4
+MATLAB,local call,nf_is_nonnegative_scalar,local dispatch,inspect callee,4
+MATLAB,local call,nf_is_positive_integer,local dispatch,inspect callee,4
+MATLAB,local call,nf_job_diary_status,local dispatch,inspect callee,4
+MATLAB,local call,nf_merge_channel_categories,local dispatch,inspect callee,4
+MATLAB,local call,nf_paths_equal,local dispatch,inspect callee,4
+MATLAB,local call,nf_prep_channel_category,local dispatch,inspect callee,4
+MATLAB,local call,nf_probe_result,local dispatch,inspect callee,4
+MATLAB,local call,nf_repo_move,local dispatch,inspect callee,4
+MATLAB,local call,nf_reported_channel_indices,local dispatch,inspect callee,4
+MATLAB,local call,nf_require_fraction,local dispatch,inspect callee,4
+MATLAB,local call,nf_same_file,local dispatch,inspect callee,4
+MATLAB,local call,nf_subset_trial_metadata,local dispatch,inspect callee,4
+MATLAB,local call,nf_valid_counter_values,local dispatch,inspect callee,4
+MATLAB,local call,nf_was_default,local dispatch,inspect callee,4
+MATLAB,local call,nf_zscore_vec_local,local dispatch,inspect callee,4
+MATLAB,local call,offset_struct_field,local dispatch,inspect callee,4
+MATLAB,local call,redraw,local dispatch,inspect callee,4
+MATLAB,local call,reference,local dispatch,inspect callee,4
+MATLAB,local call,specparam_ap_search_options_local,local dispatch,inspect callee,4
+MATLAB app,binary,.^,power,retain; review domain,4
+MATLAB app,binary,/,division/solve,retain; review domain,4
+MATLAB app,binary,>=,predicate/logical,retain predicate,4
+MATLAB app,call,find,size/axis,retain structure,4
+MATLAB app,call,ind2sub,size/axis,retain structure,4
+MATLAB app,call,isnumeric,numeric predicate,retain structure,4
+MATLAB app,call,mean,reduction,retain numerical primitive,4
+MATLAB app,call,plot,nonnumeric API,retain interface,4
+MATLAB app,call,title,nonnumeric API,retain interface,4
+MATLAB app,transpose,.',transpose,retain primitive,4
+C,call,atan2,elementwise numeric,retain numerical primitive,3
+C,call,mxCreateNumericMatrix,API/handle,retain interface,3
+C,call,mxDestroyArray,API/handle,retain interface,3
+C,call,qsort,other call/index,unresolved at static analysis,3
+C,call,realDouble,other call/index,unresolved at static analysis,3
+C,call,real_dense_double,other call/index,unresolved at static analysis,3
+C,type/pointer,float,type/pointer,retain structure,3
+C,type/pointer,mwIndex,type/pointer,retain structure,3
+C,type/pointer,mwSize *,type/pointer,retain structure,3
+C++,binary,+,addition/subtraction,retain formula,3
+C++,binary,/,division/solve,retain; review domain,3
+C++,binary,==,predicate/logical,retain predicate,3
+C++,call,mexErrMsgIdAndTxt,API/handle,retain interface,3
+C++,call,mxIsDouble,API/handle,retain interface,3
+MATLAB,binary,/,index arithmetic,retain index arithmetic,3
+MATLAB,binary,\,arithmetic,helper primitive,3
+MATLAB,binary,^,arithmetic,helper primitive,3
+MATLAB,call,ceil,elementwise numeric,helper primitive,3
+MATLAB,call,circshift,numeric conversion/axis,retain numerical primitive,3
+MATLAB,call,contour,nonnumeric API,retain interface,3
+MATLAB,call,erfcinv,elementwise numeric,retain numerical primitive,3
+MATLAB,call,fliplr,size/axis,retain structure,3
+MATLAB,call,getappdata,nonnumeric API,retain interface,3
+MATLAB,call,help,other call/index,unresolved at static analysis,3
+MATLAB,call,hnf_clcorr_kernel,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_error_model_constr,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_knee_loss_mex,native kernel,native delegation,3
+MATLAB,call,hnf_lacf2,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_lacf2_mex,native kernel,native delegation,3
+MATLAB,call,hnf_mi_kernel,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_mvl_kernel,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_phase_at_sample,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_positive_floor,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_rid_grid,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_robclip,robust helper,delegate,3
+MATLAB,call,hnf_robeig,robust helper,delegate,3
+MATLAB,call,hnf_robentropy,robust helper,delegate,3
+MATLAB,call,hnf_robsolve,robust helper,delegate,3
+MATLAB,call,hnf_simple_ap_fit,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_subject_codes,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hnf_wvd,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,hypot,reduction,helper primitive,3
+MATLAB,call,meshgrid,numeric conversion/axis,retain numerical primitive,3
+MATLAB,call,nchoosek,elementwise numeric,retain numerical primitive,3
+MATLAB,call,nf_checkset,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,nf_cpm,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,nf_desktop,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,nf_eegquality,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,nf_glm_TFCE,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,nf_source_dirs,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,nf_stransform,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,nf_viewer_scalp,NeuroFreq dispatch,inspect callee,3
+MATLAB,call,pow2,numeric conversion/axis,retain numerical primitive,3
+MATLAB,call,prod,reduction,helper primitive,3
+MATLAB,call,scatter,nonnumeric API,retain interface,3
+MATLAB,call,vertcat,size/axis,retain structure,3
+MATLAB,call,zscore,elementwise numeric,retain numerical primitive,3
+MATLAB,call/index,(all),size/axis,retain structure,3
+MATLAB,handle,and,API/handle,retain interface,3
+MATLAB,handle,nf_is_limits_or_empty,NeuroFreq dispatch,inspect callee,3
+MATLAB,handle,nf_is_text_or_empty,NeuroFreq dispatch,inspect callee,3
+MATLAB,handle,nf_logical_scalar_local,NeuroFreq dispatch,inspect callee,3
+MATLAB,handle,pickBin,API/handle,retain interface,3
+MATLAB,handle,plus,elementwise numeric,helper primitive,3
+MATLAB,handle,strtrim,nonnumeric API,retain interface,3
+MATLAB,handle,times,elementwise numeric,helper primitive,3
+MATLAB,local call,any_field_present,local dispatch,inspect callee,3
+MATLAB,local call,append_nf_input,local dispatch,inspect callee,3
+MATLAB,local call,center,local dispatch,inspect callee,3
+MATLAB,local call,compiler_banner,local dispatch,inspect callee,3
+MATLAB,local call,concatenate_struct_parts,local dispatch,inspect callee,3
+MATLAB,local call,content_stamp,local dispatch,inspect callee,3
+MATLAB,local call,elem_realcompsum,local dispatch,inspect callee,3
+MATLAB,local call,get_ntrls_from_data,local dispatch,inspect callee,3
+MATLAB,local call,is_neurofreq_like,local dispatch,inspect callee,3
+MATLAB,local call,local_assert_nonzero_spread,local dispatch,inspect callee,3
+MATLAB,local call,local_chan_labels,local dispatch,inspect callee,3
+MATLAB,local call,local_classical_zscore,local dispatch,inspect callee,3
+MATLAB,local call,local_cond_labels,local dispatch,inspect callee,3
+MATLAB,local call,local_cpm_db_ratio,local dispatch,inspect callee,3
+MATLAB,local call,local_cpm_ratio,local dispatch,inspect callee,3
+MATLAB,local call,local_cpm_spread_is_resolved,local dispatch,inspect callee,3
+MATLAB,local call,local_empty_cpm_baseline_diagnostic,local dispatch,inspect callee,3
+MATLAB,local call,local_epoch_fields,local dispatch,inspect callee,3
+MATLAB,local call,local_get_subid_value,local dispatch,inspect callee,3
+MATLAB,local call,local_linear_power_log10,local dispatch,inspect callee,3
+MATLAB,local call,local_output_layout,local dispatch,inspect callee,3
+MATLAB,local call,local_precision,local dispatch,inspect callee,3
+MATLAB,local call,local_realmin,local dispatch,inspect callee,3
+MATLAB,local call,local_represent_cpm_ratio,local dispatch,inspect callee,3
+MATLAB,local call,local_run_lme_once,local dispatch,inspect callee,3
+MATLAB,local call,local_sanitize_cpm_transformed_output,local dispatch,inspect callee,3
+MATLAB,local call,local_size_text,local dispatch,inspect callee,3
+MATLAB,local call,local_squeezed_size,local dispatch,inspect callee,3
+MATLAB,local call,local_stable_mean,local dispatch,inspect callee,3
+MATLAB,local call,local_stat_labels,local dispatch,inspect callee,3
+MATLAB,local call,nf_all_have_xyz,local dispatch,inspect callee,3
+MATLAB,local call,nf_clear_stat_fields,local dispatch,inspect callee,3
+MATLAB,local call,nf_compact_history,local dispatch,inspect callee,3
+MATLAB,local call,nf_emit_job_log_text,local dispatch,inspect callee,3
+MATLAB,local call,nf_empty_overlap_info,local dispatch,inspect callee,3
+MATLAB,local call,nf_empty_provenance,local dispatch,inspect callee,3
+MATLAB,local call,nf_epoch_repair_requirements,local dispatch,inspect callee,3
+MATLAB,local call,nf_extract_release,local dispatch,inspect callee,3
+MATLAB,local call,nf_filter_support,local dispatch,inspect callee,3
+MATLAB,local call,nf_find_package_in_children,local dispatch,inspect callee,3
+MATLAB,local call,nf_in_backup,local dispatch,inspect callee,3
+MATLAB,local call,nf_is_trial_counter,local dispatch,inspect callee,3
+MATLAB,local call,nf_nonfinite_channel_mask,local dispatch,inspect callee,3
+MATLAB,local call,nf_normalize_channel_action,local dispatch,inspect callee,3
+MATLAB,local call,nf_normalize_epoch_channel_action,local dispatch,inspect callee,3
+MATLAB,local call,nf_normalize_interpolation_method,local dispatch,inspect callee,3
+MATLAB,local call,nf_normalize_locations,local dispatch,inspect callee,3
+MATLAB,local call,nf_percentile,local dispatch,inspect callee,3
+MATLAB,local call,nf_powerfront_local,local dispatch,inspect callee,3
+MATLAB,local call,nf_provider_for_files,local dispatch,inspect callee,3
+MATLAB,local call,nf_reject_unknown_fields,local dispatch,inspect callee,3
+MATLAB,local call,nf_repo_compare,local dispatch,inspect callee,3
+MATLAB,local call,nf_report_options,local dispatch,inspect callee,3
+MATLAB,local call,nf_require_band,local dispatch,inspect callee,3
+MATLAB,local call,nf_require_continuous,local dispatch,inspect callee,3
+MATLAB,local call,nf_require_text,local dispatch,inspect callee,3
+MATLAB,local call,nf_resolve_eeg_behavior,local dispatch,inspect callee,3
+MATLAB,local call,nf_resolved_path,local dispatch,inspect callee,3
+MATLAB,local call,nf_restore_matlab_environment,local dispatch,inspect callee,3
+MATLAB,local call,nf_sample_data,local dispatch,inspect callee,3
+MATLAB,local call,nf_save_requested,local dispatch,inspect callee,3
+MATLAB,local call,nf_stage_metrics,local dispatch,inspect callee,3
+MATLAB,local call,nf_strip_trailing_separators,local dispatch,inspect callee,3
+MATLAB,local call,nf_tf_field_to_4d_local,local dispatch,inspect callee,3
+MATLAB,local call,nf_track_vendor_channel_selection,local dispatch,inspect callee,3
+MATLAB,local call,nf_union_channel_labels,local dispatch,inspect callee,3
+MATLAB,local call,nf_unused_threshold_local,local dispatch,inspect callee,3
+MATLAB,local call,nf_validate_decomposition,local dispatch,inspect callee,3
+MATLAB,local call,nf_validate_epoched_eeg,local dispatch,inspect callee,3
+MATLAB,local call,nf_validate_locations,local dispatch,inspect callee,3
+MATLAB,local call,nf_validate_time_range,local dispatch,inspect callee,3
+MATLAB,local call,nf_validate_window_detector_options,local dispatch,inspect callee,3
+MATLAB,local call,nf_zscore_mat_local,local dispatch,inspect callee,3
+MATLAB,local call,normalize_mode_string,local dispatch,inspect callee,3
+MATLAB,local call,reshape_struct_row,local dispatch,inspect callee,3
+MATLAB,local call,restoreComponent,local dispatch,inspect callee,3
+MATLAB,local call,vectors_equal_with_tolerance,local dispatch,inspect callee,3
+MATLAB app,binary,&,predicate/logical,retain predicate,3
+MATLAB app,binary,+,index arithmetic,retain index arithmetic,3
+MATLAB app,call,contour,nonnumeric API,retain interface,3
+MATLAB app,call,error,nonnumeric API,retain interface,3
+MATLAB app,call,reshape,size/axis,retain structure,3
+MATLAB app,call,scatter,nonnumeric API,retain interface,3
+MATLAB app,call,squeeze,size/axis,retain structure,3
+MATLAB app,call,surface,nonnumeric API,retain interface,3
+MATLAB app,call,zeros,size/axis,retain structure,3
+R,call,read_double,other call/index,unresolved at static analysis,3
+R,member,$,member,retain structure,3
+C,binary,/,index arithmetic,retain index arithmetic,2
+C,call,copysign,elementwise numeric,retain numerical primitive,2
+C,call,count_arg,other call/index,unresolved at static analysis,2
+C,call,fmod,elementwise numeric,retain numerical primitive,2
+C,call,frexp,numeric conversion/axis,retain numerical primitive,2
+C,call,fullRealDouble,other call/index,unresolved at static analysis,2
+C,call,group_mean_delta,other call/index,unresolved at static analysis,2
+C,call,ldexp,elementwise numeric,retain numerical primitive,2
+C,call,log1p,elementwise numeric,retain numerical primitive,2
+C,call,memset,other call/index,unresolved at static analysis,2
+C,call,mxCreateDoubleScalar,API/handle,retain interface,2
+C,call,mxGetComplexSingles,API/handle,retain interface,2
+C,call,mxGetImagData,API/handle,retain interface,2
+C,call,mxGetSingles,API/handle,retain interface,2
+C,call,mxIsSingle,API/handle,retain interface,2
+C,call,pow,elementwise numeric,retain numerical primitive,2
+C,macro invocation,DIVIDE_REAL,native kernel,native delegation,2
+C,macro invocation,WINDOW_INTERLEAVED,native kernel,native delegation,2
+C,type/pointer,T,type/pointer,retain structure,2
+C,type/pointer,const T *,type/pointer,retain structure,2
+C,type/pointer,float *,type/pointer,retain structure,2
+C,type/pointer,mxLogical *,type/pointer,retain structure,2
+C,unary,++,index arithmetic,retain index arithmetic,2
+C++,binary,&&,predicate/logical,retain predicate,2
+C++,binary,>,predicate/logical,retain predicate,2
+C++,call,isnan,numeric predicate,retain structure,2
+C++,call,mxGetData,API/handle,retain interface,2
+C++,call,mxGetNumberOfElements,API/handle,retain interface,2
+C++,call,mxGetPr,API/handle,retain interface,2
+C++,call,mxIsComplex,API/handle,retain interface,2
+C++,call,mxIsLogicalScalar,API/handle,retain interface,2
+C++,call,mxIsLogicalScalarTrue,API/handle,retain interface,2
+C++,call,reduce,other call/index,unresolved at static analysis,2
+C++,predicate,?:,predicate/logical,retain predicate,2
+C++,type/pointer,T,type/pointer,retain structure,2
+MATLAB,binary,.*,index arithmetic,retain index arithmetic,2
+MATLAB,binary,\,arithmetic,test/reference,2
+MATLAB,call,acos,elementwise numeric,retain numerical primitive,2
+MATLAB,call,bitset,numeric conversion/axis,retain numerical primitive,2
+MATLAB,call,conv,numerical algorithm,retain algorithm,2
+MATLAB,call,corr,factorization/solve,retain algorithm,2
+MATLAB,call,corrcoef,factorization/solve,retain algorithm,2
+MATLAB,call,cos,elementwise numeric,helper primitive,2
+MATLAB,call,cosd,elementwise numeric,retain numerical primitive,2
+MATLAB,call,cwt,numerical algorithm,retain algorithm,2
+MATLAB,call,erfc,elementwise numeric,retain numerical primitive,2
+MATLAB,call,hnf_circ_corrcl_mex,native kernel,native delegation,2
+MATLAB,call,hnf_ept_TFCE_indsamples,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_ept_TFCE_indsamples_par,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_ept_TFCE_onesample,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_ept_TFCE_onesample_par,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_error_expo_function,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_error_expo_nk_function,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_fit_peak_guess,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_fixed_spectra_mex,native kernel,native delegation,2
+MATLAB,call,hnf_gpu_execution,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_knee_loss,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_la_ls,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_mvl_mex,native kernel,native delegation,2
+MATLAB,call,hnf_octave_readtable,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_permuted_t_mex,native kernel,native delegation,2
+MATLAB,call,hnf_robmad,robust helper,delegate,2
+MATLAB,call,hnf_robvar,robust helper,delegate,2
+MATLAB,call,hnf_runica,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_spatial_info_eyes,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_specparam_fixed_ap_fit,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_stats_measures,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_stats_restore_beta,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_surr_timeshift_mex,native kernel,native delegation,2
+MATLAB,call,hnf_surr_timeshift_vec,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_tfce_options,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_tfdshift,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_trim_and_mean,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,hnf_zero_phase,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,inf,size/axis,retain structure,2
+MATLAB,call,ipermute,size/axis,retain structure,2
+MATLAB,call,iqr,reduction,retain numerical primitive,2
+MATLAB,call,kron,numerical algorithm,retain algorithm,2
+MATLAB,call,log10,elementwise numeric,helper primitive,2
+MATLAB,call,mod,elementwise numeric,helper primitive,2
+MATLAB,call,nf_cleanic,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_eeglab_releases,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_fetch_package,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_filter,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_https,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_makefactorialdesign,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_native_abi,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_octave_packages,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_pick_folder,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_prepdata,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_ridbinomial,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_ridbornjordan,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_specparam,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_stregress,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,nf_tfspecparam,NeuroFreq dispatch,inspect callee,2
+MATLAB,call,prctile,numerical algorithm,retain algorithm,2
+MATLAB,call,sin,elementwise numeric,helper primitive,2
+MATLAB,call,sind,elementwise numeric,retain numerical primitive,2
+MATLAB,call,speye,numeric conversion/axis,retain numerical primitive,2
+MATLAB,call,trace,reduction,retain numerical primitive,2
+MATLAB,call,unwrap,elementwise numeric,retain numerical primitive,2
+MATLAB,call,zp2sos,numerical algorithm,retain algorithm,2
+MATLAB,handle,char,nonnumeric API,retain interface,2
+MATLAB,handle,gt,API/handle,retain interface,2
+MATLAB,handle,isfolder,nonnumeric API,retain interface,2
+MATLAB,handle,le,API/handle,retain interface,2
+MATLAB,handle,nf_is_correlation,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_is_events,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_is_fraction,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_is_iclabel_thresholds,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_is_nonnegative_scalar,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_is_reference,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_optional_struct,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_positive_integer,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_text_scalar,NeuroFreq dispatch,inspect callee,2
+MATLAB,handle,nf_valid_rows_option,NeuroFreq dispatch,inspect callee,2
+MATLAB,local call,carry,local dispatch,inspect callee,2
+MATLAB,local call,cast_vector_like,local dispatch,inspect callee,2
+MATLAB,local call,check_extremes,local dispatch,inspect callee,2
+MATLAB,local call,classic,local dispatch,inspect callee,2
+MATLAB,local call,componentMean,local dispatch,inspect callee,2
+MATLAB,local call,corr_draw,local dispatch,inspect callee,2
+MATLAB,local call,draw,local dispatch,inspect callee,2
+MATLAB,local call,drawPair,local dispatch,inspect callee,2
+MATLAB,local call,elem_addproducts,local dispatch,inspect callee,2
+MATLAB,local call,elem_castcheck,local dispatch,inspect callee,2
+MATLAB,local call,elem_extreme,local dispatch,inspect callee,2
+MATLAB,local call,enhance,local dispatch,inspect callee,2
+MATLAB,local call,eventMatches,local dispatch,inspect callee,2
+MATLAB,local call,find_owner,local dispatch,inspect callee,2
+MATLAB,local call,full_size,local dispatch,inspect callee,2
+MATLAB,local call,get_channel_labels,local dispatch,inspect callee,2
+MATLAB,local call,get_time_lengths,local dispatch,inspect callee,2
+MATLAB,local call,hnf_robmean,local dispatch,inspect callee,2
+MATLAB,local call,hnf_robstd,local dispatch,inspect callee,2
+MATLAB,local call,hnf_runica,local dispatch,inspect callee,2
+MATLAB,local call,is_candidate_data_field,local dispatch,inspect callee,2
+MATLAB,local call,is_dir_listing,local dispatch,inspect callee,2
+MATLAB,local call,local_add_msg,local dispatch,inspect callee,2
+MATLAB,local call,local_assert_positive_reference,local dispatch,inspect callee,2
+MATLAB,local call,local_axis_tol,local dispatch,inspect callee,2
+MATLAB,local call,local_canonical_interval,local dispatch,inspect callee,2
+MATLAB,local call,local_collect_power_phase_fields,local dispatch,inspect callee,2
+MATLAB,local call,local_corr_core_numeric,local dispatch,inspect callee,2
+MATLAB,local call,local_cpm_linear_power,local dispatch,inspect callee,2
+MATLAB,local call,local_default_conds,local dispatch,inspect callee,2
+MATLAB,local call,local_detect_scale,local dispatch,inspect callee,2
+MATLAB,local call,local_detect_tf_mode,local dispatch,inspect callee,2
+MATLAB,local call,local_encode_signal,local dispatch,inspect callee,2
+MATLAB,local call,local_filter_dirstruct,local dispatch,inspect callee,2
+MATLAB,local call,local_find_measure_fields,local dispatch,inspect callee,2
+MATLAB,local call,local_finite_axis,local dispatch,inspect callee,2
+MATLAB,local call,local_force_obs_first_to_4d_or_5d,local dispatch,inspect callee,2
+MATLAB,local call,local_get_nested_field,local dispatch,inspect callee,2
+MATLAB,local call,local_glm_core_numeric,local dispatch,inspect callee,2
+MATLAB,local call,local_group_trials,local dispatch,inspect callee,2
+MATLAB,local call,local_is_chan_selector,local dispatch,inspect callee,2
+MATLAB,local call,local_is_epoch_selector,local dispatch,inspect callee,2
+MATLAB,local call,local_kernel,local dispatch,inspect callee,2
+MATLAB,local call,local_linear_baseline_db,local dispatch,inspect callee,2
+MATLAB,local call,local_linear_baseline_ratio,local dispatch,inspect callee,2
+MATLAB,local call,local_lme_stats_mass,local dispatch,inspect callee,2
+MATLAB,local call,local_lme_stats_single,local dispatch,inspect callee,2
+MATLAB,local call,local_move_subject_last_to_first,local dispatch,inspect callee,2
+MATLAB,local call,local_parse_args,local dispatch,inspect callee,2
+MATLAB,local call,local_parse_inputs,local dispatch,inspect callee,2
+MATLAB,local call,local_positive_integer,local dispatch,inspect callee,2
+MATLAB,local call,local_process_power,local dispatch,inspect callee,2
+MATLAB,local call,local_prune_heavy_fields,local dispatch,inspect callee,2
+MATLAB,local call,local_prune_heavy_fields_glm,local dispatch,inspect callee,2
+MATLAB,local call,local_raw_mad,local dispatch,inspect callee,2
+MATLAB,local call,local_resolve_axis_idx,local dispatch,inspect callee,2
+MATLAB,local call,local_row,local dispatch,inspect callee,2
+MATLAB,local call,local_scale_linear_over_time,local dispatch,inspect callee,2
+MATLAB,local call,local_scale_trials,local dispatch,inspect callee,2
+MATLAB,local call,local_single_trial_normalize,local dispatch,inspect callee,2
+MATLAB,local call,local_stable_masked_mean,local dispatch,inspect callee,2
+MATLAB,local call,local_stable_square_mean,local dispatch,inspect callee,2
+MATLAB,local call,local_standardize_avg_field,local dispatch,inspect callee,2
+MATLAB,local call,local_standardize_avg_subjectfirst,local dispatch,inspect callee,2
+MATLAB,local call,local_standardize_singletrial_field,local dispatch,inspect callee,2
+MATLAB,local call,local_standardize_singletrial_obsfirst,local dispatch,inspect callee,2
+MATLAB,local call,local_stat_maps,local dispatch,inspect callee,2
+MATLAB,local call,local_unquote,local dispatch,inspect callee,2
+MATLAB,local call,local_validate_positive_integer,local dispatch,inspect callee,2
+MATLAB,local call,logBayes,local dispatch,inspect callee,2
+MATLAB,local call,log_add,local dispatch,inspect callee,2
+MATLAB,local call,nf_artifact_status,local dispatch,inspect callee,2
+MATLAB,local call,nf_as_canonical4_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_cached_eeglab,local dispatch,inspect callee,2
+MATLAB,local call,nf_clear_threshold_marks,local dispatch,inspect callee,2
+MATLAB,local call,nf_close_new_figures,local dispatch,inspect callee,2
+MATLAB,local call,nf_compact_gedai_configuration,local dispatch,inspect callee,2
+MATLAB,local call,nf_confidence_label,local dispatch,inspect callee,2
+MATLAB,local call,nf_contains_boundary_event,local dispatch,inspect callee,2
+MATLAB,local call,nf_count_matching_masks,local dispatch,inspect callee,2
+MATLAB,local call,nf_data_cuts_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_dataset_identity,local dispatch,inspect callee,2
+MATLAB,local call,nf_detect_joint_probability,local dispatch,inspect callee,2
+MATLAB,local call,nf_detector_mask,local dispatch,inspect callee,2
+MATLAB,local call,nf_diary_state_matches,local dispatch,inspect callee,2
+MATLAB,local call,nf_drop_crossing_windows_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_empty_class_masks_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_empty_class_status_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_empty_class_text_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_empty_epoch_actions,local dispatch,inspect callee,2
+MATLAB,local call,nf_empty_handles,local dispatch,inspect callee,2
+MATLAB,local call,nf_empty_ica_actions,local dispatch,inspect callee,2
+MATLAB,local call,nf_empty_prep_channel_actions,local dispatch,inspect callee,2
+MATLAB,local call,nf_epoch_detector_title_lines,local dispatch,inspect callee,2
+MATLAB,local call,nf_faster_function_names,local dispatch,inspect callee,2
+MATLAB,local call,nf_fill_nonfinite,local dispatch,inspect callee,2
+MATLAB,local call,nf_find_power_fields_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_find_top_numeric_fields_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_finish_job_log,local dispatch,inspect callee,2
+MATLAB,local call,nf_fit_epoch_window,local dispatch,inspect callee,2
+MATLAB,local call,nf_force_first_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_frontal_posterior_rms_ratio,local dispatch,inspect callee,2
+MATLAB,local call,nf_get_epoch_rejection_vector,local dispatch,inspect callee,2
+MATLAB,local call,nf_get_rejection_matrix,local dispatch,inspect callee,2
+MATLAB,local call,nf_getrank,local dispatch,inspect callee,2
+MATLAB,local call,nf_group_variable_names,local dispatch,inspect callee,2
+MATLAB,local call,nf_hann,local dispatch,inspect callee,2
+MATLAB,local call,nf_has_repairable_detector,local dispatch,inspect callee,2
+MATLAB,local call,nf_has_run,local dispatch,inspect callee,2
+MATLAB,local call,nf_indsamples_TFCE,local dispatch,inspect callee,2
+MATLAB,local call,nf_initial_variance_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_is_absolute_path,local dispatch,inspect callee,2
+MATLAB,local call,nf_is_behavior_input,local dispatch,inspect callee,2
+MATLAB,local call,nf_is_correlation,local dispatch,inspect callee,2
+MATLAB,local call,nf_is_nonnegative_integer,local dispatch,inspect callee,2
+MATLAB,local call,nf_is_positive_or_off,local dispatch,inspect callee,2
+MATLAB,local call,nf_is_scalar_struct,local dispatch,inspect callee,2
+MATLAB,local call,nf_is_substantive_name,local dispatch,inspect callee,2
+MATLAB,local call,nf_label_at,local dispatch,inspect callee,2
+MATLAB,local call,nf_labels_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_legacy_detector_mask,local dispatch,inspect callee,2
+MATLAB,local call,nf_linear_detrend,local dispatch,inspect callee,2
+MATLAB,local call,nf_location_has_topography,local dispatch,inspect callee,2
+MATLAB,local call,nf_location_has_xyz,local dispatch,inspect callee,2
+MATLAB,local call,nf_location_units_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_logical_scalar,local dispatch,inspect callee,2
+MATLAB,local call,nf_loop_prefix,local dispatch,inspect callee,2
+MATLAB,local call,nf_matching_event_indices,local dispatch,inspect callee,2
+MATLAB,local call,nf_merge_options,local dispatch,inspect callee,2
+MATLAB,local call,nf_native_specparam_sources,local dispatch,inspect callee,2
+MATLAB,local call,nf_nearest_atlas_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_normalize_channel_method,local dispatch,inspect callee,2
+MATLAB,local call,nf_normalize_fft_bands,local dispatch,inspect callee,2
+MATLAB,local call,nf_normalize_on_off,local dispatch,inspect callee,2
+MATLAB,local call,nf_one_spread_rescue_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_peak_bandwidth_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_peak_evidence_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_pipeline_requires_geometry,local dispatch,inspect callee,2
+MATLAB,local call,nf_plot_heatmap,local dispatch,inspect callee,2
+MATLAB,local call,nf_plot_psd_band,local dispatch,inspect callee,2
+MATLAB,local call,nf_plugin_release,local dispatch,inspect callee,2
+MATLAB,local call,nf_portable_path,local dispatch,inspect callee,2
+MATLAB,local call,nf_prepare_adjust_eeg,local dispatch,inspect callee,2
+MATLAB,local call,nf_presence_matrix,local dispatch,inspect callee,2
+MATLAB,local call,nf_prior_absolute,local dispatch,inspect callee,2
+MATLAB,local call,nf_private_eeglab,local dispatch,inspect callee,2
+MATLAB,local call,nf_provider_version,local dispatch,inspect callee,2
+MATLAB,local call,nf_quality_options_contains,local dispatch,inspect callee,2
+MATLAB,local call,nf_record_quality_export,local dispatch,inspect callee,2
+MATLAB,local call,nf_remove_temporary_directory,local dispatch,inspect callee,2
+MATLAB,local call,nf_remove_temporary_report,local dispatch,inspect callee,2
+MATLAB,local call,nf_repo_clean_path,local dispatch,inspect callee,2
+MATLAB,local call,nf_repo_walk,local dispatch,inspect callee,2
+MATLAB,local call,nf_require_finite,local dispatch,inspect callee,2
+MATLAB,local call,nf_require_native_classifier_files,local dispatch,inspect callee,2
+MATLAB,local call,nf_require_nonnegative_or_inf,local dispatch,inspect callee,2
+MATLAB,local call,nf_resolve_dir,local dispatch,inspect callee,2
+MATLAB,local call,nf_restore_and_remove_directory,local dispatch,inspect callee,2
+MATLAB,local call,nf_restore_channel_order,local dispatch,inspect callee,2
+MATLAB,local call,nf_restore_dataset_identity,local dispatch,inspect callee,2
+MATLAB,local call,nf_restore_diary,local dispatch,inspect callee,2
+MATLAB,local call,nf_restore_environment,local dispatch,inspect callee,2
+MATLAB,local call,nf_rows_to_mask,local dispatch,inspect callee,2
+MATLAB,local call,nf_same_report_file,local dispatch,inspect callee,2
+MATLAB,local call,nf_scaled_rows,local dispatch,inspect callee,2
+MATLAB,local call,nf_specparam_options_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_text_lines,local dispatch,inspect callee,2
+MATLAB,local call,nf_topography_available,local dispatch,inspect callee,2
+MATLAB,local call,nf_training_artifact_masks,local dispatch,inspect callee,2
+MATLAB,local call,nf_unique_channel_labels,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_behavior_metadata,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_eeglab_stat_options,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_input_eeg,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_options,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_point_detector_options,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_report_path,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_requested_events,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_settings,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_trial_metadata,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_unique_labels_local,local dispatch,inspect callee,2
+MATLAB,local call,nf_validate_vendor_indices,local dispatch,inspect callee,2
+MATLAB,local call,nf_value_present,local dispatch,inspect callee,2
+MATLAB,local call,nf_vendor_signature,local dispatch,inspect callee,2
+MATLAB,local call,nf_window_starts,local dispatch,inspect callee,2
+MATLAB,local call,normalize_field_list,local dispatch,inspect callee,2
+MATLAB,local call,pool,local dispatch,inspect callee,2
+MATLAB,local call,project,local dispatch,inspect callee,2
+MATLAB,local call,responses,local dispatch,inspect callee,2
+MATLAB,local call,sample_links,local dispatch,inspect callee,2
+MATLAB,local call,scalarMI,local dispatch,inspect callee,2
+MATLAB,local call,showTF,local dispatch,inspect callee,2
+MATLAB,local call,specparam_rsquare_local,local dispatch,inspect callee,2
+MATLAB,local call,subset_condition_fields,local dispatch,inspect callee,2
+MATLAB,local call,sum_condition_counts,local dispatch,inspect callee,2
+MATLAB app,call,angle,elementwise numeric,retain numerical primitive,2
+MATLAB app,call,arrayfun,higher-order API,retain interface,2
+MATLAB app,call,clear,nonnumeric API,retain interface,2
+MATLAB app,call,colorbar,nonnumeric API,retain interface,2
+MATLAB app,call,exp,elementwise numeric,retain numerical primitive,2
+MATLAB app,call,int2str,nonnumeric API,retain interface,2
+MATLAB app,call,nf_viewer_scalp,NeuroFreq dispatch,inspect callee,2
+MATLAB app,call,patch,nonnumeric API,retain interface,2
+MATLAB app,call,prctile,numerical algorithm,retain algorithm,2
+MATLAB app,call,rank,factorization/solve,retain algorithm,2
+MATLAB app,local call,createComponents,local dispatch,inspect callee,2
+MATLAB app,local call,nf_viewerapp_OpeningFcn,local dispatch,inspect callee,2
+MATLAB app,numeric constant,pi,numeric constant,retain primitive,2
+R,call,as.double,elementwise numeric,retain numerical primitive,2
+R,call,as.logical,numeric conversion/axis,retain numerical primitive,2
+R,call,c,other call/index,unresolved at static analysis,2
+R,call,close,nonnumeric API,retain interface,2
+R,call,file,other call/index,unresolved at static analysis,2
+R,call,file.path,nonnumeric API,retain interface,2
+R,call,length,size/axis,retain structure,2
+R,call,matrix,size/axis,retain structure,2
+R,call,on.exit,other call/index,unresolved at static analysis,2
+R,call,paste0,other call/index,unresolved at static analysis,2
+R,call,readBin,other call/index,unresolved at static analysis,2
+R,call,read_int,other call/index,unresolved at static analysis,2
+R,call,seq_len,size/axis,retain structure,2
+R,call,stop,other call/index,unresolved at static analysis,2
+R,call,writeBin,other call/index,unresolved at static analysis,2
+R,member,::,member,retain structure,2
+C,binary,%,division/solve,retain scale,1
+C,call,(mwIndex),other call/index,unresolved at static analysis,1
+C,call,filter_trace,other call/index,unresolved at static analysis,1
+C,call,mexCallMATLAB,API/handle,retain interface,1
+C,call,mxCreateLogicalMatrix,API/handle,retain interface,1
+C,call,mxDuplicateArray,API/handle,retain interface,1
+C,call,mxGetInf,API/handle,retain interface,1
+C,call,one_sample,other call/index,unresolved at static analysis,1
+C,call,safe_scale,other call/index,unresolved at static analysis,1
+C,call,sameSize,other call/index,unresolved at static analysis,1
+C,type/pointer,T *,type/pointer,retain structure,1
+C,type/pointer,const float *,type/pointer,retain structure,1
+C,type/pointer,const mxComplexSingle *,type/pointer,retain structure,1
+C,type/pointer,mwIndex *,type/pointer,retain structure,1
+C,type/pointer,mxComplexSingle *,type/pointer,retain structure,1
+C,type/pointer,signed char *,type/pointer,retain structure,1
+C,type/pointer,uintmax_t,type/pointer,retain structure,1
+C++,binary,%,division/solve,retain; review domain,1
+C++,binary,*=,multiplication,retain formula,1
+C++,binary,+=,addition/subtraction,retain formula,1
+C++,binary,-,addition/subtraction,retain formula,1
+C++,call,(T),other call/index,unresolved at static analysis,1
+C++,call,fabs,reduction,retain numerical primitive,1
+C++,call,floor,elementwise numeric,retain numerical primitive,1
+C++,call,isfinite,numeric predicate,retain structure,1
+C++,call,isinf,numeric predicate,retain structure,1
+C++,call,mxCreateNumericArray,API/handle,retain interface,1
+C++,call,mxFree,API/handle,retain interface,1
+C++,call,mxGetClassID,API/handle,retain interface,1
+C++,call,mxGetDimensions,API/handle,retain interface,1
+C++,call,mxGetInf,API/handle,retain interface,1
+C++,call,mxGetNaN,API/handle,retain interface,1
+C++,call,mxGetNumberOfDimensions,API/handle,retain interface,1
+C++,call,mxGetScalar,API/handle,retain interface,1
+C++,call,mxIsSingle,API/handle,retain interface,1
+C++,call,mxIsSparse,API/handle,retain interface,1
+C++,call,mxMalloc,API/handle,retain interface,1
+C++,call,sqrt,elementwise numeric,retain numerical primitive,1
+C++,type/pointer,const float *,type/pointer,retain structure,1
+C++,type/pointer,float *,type/pointer,retain structure,1
+C++,type/pointer,mwSize,type/pointer,retain structure,1
+C++,type/pointer,mwSize *,type/pointer,retain structure,1
+MATLAB,binary,^,index arithmetic,retain index arithmetic,1
+MATLAB,call,atan2,elementwise numeric,helper primitive,1
+MATLAB,call,atanh,elementwise numeric,retain numerical primitive,1
+MATLAB,call,betainc,elementwise numeric,retain numerical primitive,1
+MATLAB,call,bitget,numeric conversion/axis,helper primitive,1
+MATLAB,call,condest,factorization/solve,retain algorithm,1
+MATLAB,call,cumsum,reduction,retain numerical primitive,1
+MATLAB,call,det,factorization/solve,retain algorithm,1
+MATLAB,call,erf,elementwise numeric,helper primitive,1
+MATLAB,call,erfc,elementwise numeric,helper primitive,1
+MATLAB,call,erfcx,elementwise numeric,helper primitive,1
+MATLAB,call,eval,higher-order API,retain interface,1
+MATLAB,call,ferror,numeric predicate,retain structure,1
+MATLAB,call,fft2,numerical algorithm,retain algorithm,1
+MATLAB,call,fftshift,numerical algorithm,retain algorithm,1
+MATLAB,call,filter,numerical algorithm,retain algorithm,1
+MATLAB,call,fitlme,factorization/solve,retain algorithm,1
+MATLAB,call,fitlmematrix,factorization/solve,retain algorithm,1
+MATLAB,call,fmincon,numerical algorithm,retain algorithm,1
+MATLAB,call,hnf_ADJUST,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_MARA_TF,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_beall_blink,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_beall_horizontal,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_binomial2,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_born_jordan2,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_compsum_mex,native kernel,native delegation,1
+MATLAB,call,hnf_compute_GD,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_compute_SAD,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_compute_SED,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_ept_TFCE_lme,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_erpac_perm_mex,native kernel,native delegation,1
+MATLAB,call,hnf_error_model,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_fit_peaks,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_grid_interp_mex,native kernel,native delegation,1
+MATLAB,call,hnf_lme_octave,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_morlet_blocks,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_pac_shift_scores_mex,native kernel,native delegation,1
+MATLAB,call,hnf_prep_traces_mex,native kernel,native delegation,1
+MATLAB,call,hnf_qc_percentiles_mex,native kernel,native delegation,1
+MATLAB,call,hnf_qc_window_mex,native kernel,native delegation,1
+MATLAB,call,hnf_rid_fold_mex,native kernel,native delegation,1
+MATLAB,call,hnf_robabs2,robust helper,delegate,1
+MATLAB,call,hnf_robdiv_mex,robust helper,delegate,1
+MATLAB,call,hnf_robust_ap_fit,robust helper,delegate,1
+MATLAB,call,hnf_scaled_length_mex,robust helper,delegate,1
+MATLAB,call,hnf_sosfiltfilt_mex,native kernel,native delegation,1
+MATLAB,call,hnf_specparam_fit,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,hnf_stft_mex,native kernel,native delegation,1
+MATLAB,call,hnf_stockwell_window_mex,native kernel,native delegation,1
+MATLAB,call,hnf_tfce_tail_mex,native kernel,native delegation,1
+MATLAB,call,hnf_trim_and_max,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,int16,elementwise numeric,retain numerical primitive,1
+MATLAB,call,int32,elementwise numeric,retain numerical primitive,1
+MATLAB,call,int64,elementwise numeric,retain numerical primitive,1
+MATLAB,call,logical,numeric conversion/axis,helper primitive,1
+MATLAB,call,lu,factorization/solve,retain algorithm,1
+MATLAB,call,mean,reduction,helper primitive,1
+MATLAB,call,nf_adjust_core,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_adjust_role_atlas,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_badchans,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_catalog,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_check_features,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_configure,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_dependencies,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_eeglab,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_erpac_cross,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_erpac_within,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_lme_TFCE,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_makebehavior,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_mipac_cross,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_mipac_within,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_mvlpac_cross,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_mvlpac_within,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_native_build,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_native_paths,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_normbase,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_progress,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_readpsychopy,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_remove_paths,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,nf_thresh,NeuroFreq dispatch,inspect callee,1
+MATLAB,call,pol2cart,numeric conversion/axis,retain numerical primitive,1
+MATLAB,call,polyfit,numerical algorithm,retain algorithm,1
+MATLAB,call,polyval,numerical algorithm,retain algorithm,1
+MATLAB,call,pwelch,numerical algorithm,retain algorithm,1
+MATLAB,call,rem,elementwise numeric,retain numerical primitive,1
+MATLAB,call,resample,numerical algorithm,retain algorithm,1
+MATLAB,call,robustfit,factorization/solve,retain algorithm,1
+MATLAB,call,sortrows,size/axis,retain structure,1
+MATLAB,call,speye,numeric conversion/axis,helper primitive,1
+MATLAB,call,std,reduction,helper primitive,1
+MATLAB,call,sub2ind,size/axis,retain structure,1
+MATLAB,call,tiedrank,elementwise numeric,retain numerical primitive,1
+MATLAB,call,uint32,elementwise numeric,retain numerical primitive,1
+MATLAB,call,uint64,elementwise numeric,helper primitive,1
+MATLAB,call,wvd,numerical algorithm,retain algorithm,1
+MATLAB,call/index,(all),nonnumeric API,retain interface,1
+MATLAB,handle,check_core,API/handle,retain interface,1
+MATLAB,handle,compareEEG,API/handle,retain interface,1
+MATLAB,handle,compareSignals,API/handle,retain interface,1
+MATLAB,handle,deblank,nonnumeric API,retain interface,1
+MATLAB,handle,getenv,API/handle,retain interface,1
+MATLAB,handle,gradient_at,API/handle,retain interface,1
+MATLAB,handle,hnf_binomial2,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,hnf_born_jordan2,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,hnf_cauchy,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,hnf_gaussian,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,hnf_mex_available,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,hnf_octave_amor,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,hnf_tfce_clusters_mex,native kernel,native delegation,1
+MATLAB,handle,hnf_tfce_integrate,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,iscell,nonnumeric API,retain interface,1
+MATLAB,handle,isfile,nonnumeric API,retain interface,1
+MATLAB,handle,local_valid_coefficients,API/handle,retain interface,1
+MATLAB,handle,local_valid_dimension,API/handle,retain interface,1
+MATLAB,handle,local_valid_normalization_times,API/handle,retain interface,1
+MATLAB,handle,local_valid_optional_interval,API/handle,retain interface,1
+MATLAB,handle,local_valid_tf_input,API/handle,retain interface,1
+MATLAB,handle,local_valid_trial_groups_input,API/handle,retain interface,1
+MATLAB,handle,mean,reduction,retain numerical primitive,1
+MATLAB,handle,navigate,API/handle,retain interface,1
+MATLAB,handle,nf_chanlocs_or_empty_local,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_frequency_pair,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_baseline,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_channel_specification,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_detector_list,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_faster_options,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_fft_band_input,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_frequency_bands,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_gedai_options,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_labels,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_method_list,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_save_request,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_trial_counter,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_is_visibility,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_logical_scalar,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_normalize_name,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_positive_scalar_local,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_valid_input,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_valid_max_peaks_local,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_valid_positive_integer,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_valid_ratio,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_valid_text_scalar,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,nf_visibility,NeuroFreq dispatch,inspect callee,1
+MATLAB,handle,pickSite,API/handle,retain interface,1
+MATLAB,handle,value_at,API/handle,retain interface,1
+MATLAB,local call,align_struct_fields,local dispatch,inspect callee,1
+MATLAB,local call,apply_time_selection,local dispatch,inspect callee,1
+MATLAB,local call,checkKernels,local dispatch,inspect callee,1
+MATLAB,local call,checkNull,local dispatch,inspect callee,1
+MATLAB,local call,checkOctave,local dispatch,inspect callee,1
+MATLAB,local call,checkRuntime,local dispatch,inspect callee,1
+MATLAB,local call,checkUpdate,local dispatch,inspect callee,1
+MATLAB,local call,check_channel_compatibility,local dispatch,inspect callee,1
+MATLAB,local call,check_compatibility,local dispatch,inspect callee,1
+MATLAB,local call,check_data_field_compatibility,local dispatch,inspect callee,1
+MATLAB,local call,check_frequency_compatibility,local dispatch,inspect callee,1
+MATLAB,local call,check_ntrls_compatibility,local dispatch,inspect callee,1
+MATLAB,local call,check_scalar_metadata_compatibility,local dispatch,inspect callee,1
+MATLAB,local call,check_time_compatibility_after_selection,local dispatch,inspect callee,1
+MATLAB,local call,choose_time_policy,local dispatch,inspect callee,1
+MATLAB,local call,cleanup,local dispatch,inspect callee,1
+MATLAB,local call,compile_in,local dispatch,inspect callee,1
+MATLAB,local call,compiler_info,local dispatch,inspect callee,1
+MATLAB,local call,direct_distribution,local dispatch,inspect callee,1
+MATLAB,local call,drawScalp,local dispatch,inspect callee,1
+MATLAB,local call,explicitScores,local dispatch,inspect callee,1
+MATLAB,local call,finish,local dispatch,inspect callee,1
+MATLAB,local call,get_behavior_trial_offset,local dispatch,inspect callee,1
+MATLAB,local call,get_indexed_labels,local dispatch,inspect callee,1
+MATLAB,local call,get_ntrls_from_struct,local dispatch,inspect callee,1
+MATLAB,local call,getrank,local dispatch,inspect callee,1
+MATLAB,local call,group_time_vectors,local dispatch,inspect callee,1
+MATLAB,local call,has_wildcard,local dispatch,inspect callee,1
+MATLAB,local call,hnf_robols,local dispatch,inspect callee,1
+MATLAB,local call,install_one,local dispatch,inspect callee,1
+MATLAB,local call,intersect_time_vectors,local dispatch,inspect callee,1
+MATLAB,local call,load_nf_input,local dispatch,inspect callee,1
+MATLAB,local call,load_nf_mat,local dispatch,inspect callee,1
+MATLAB,local call,local_apply_pairwise_tf,local dispatch,inspect callee,1
+MATLAB,local call,local_apply_split_tf,local dispatch,inspect callee,1
+MATLAB,local call,local_average_behavior,local dispatch,inspect callee,1
+MATLAB,local call,local_baseline_index,local dispatch,inspect callee,1
+MATLAB,local call,local_build_base_predictors,local dispatch,inspect callee,1
+MATLAB,local call,local_build_interactions,local dispatch,inspect callee,1
+MATLAB,local call,local_build_ledger,local dispatch,inspect callee,1
+MATLAB,local call,local_build_singletrial_aggregate,local dispatch,inspect callee,1
+MATLAB,local call,local_build_stat_aggregate,local dispatch,inspect callee,1
+MATLAB,local call,local_canonical_average_method,local dispatch,inspect callee,1
+MATLAB,local call,local_canonical_baseline_method,local dispatch,inspect callee,1
+MATLAB,local call,local_canonical_normalization_times,local dispatch,inspect callee,1
+MATLAB,local call,local_canonical_single_trial_method,local dispatch,inspect callee,1
+MATLAB,local call,local_canonical_verbosity,local dispatch,inspect callee,1
+MATLAB,local call,local_check_stat,local dispatch,inspect callee,1
+MATLAB,local call,local_collect_top_level_measure_structs,local dispatch,inspect callee,1
+MATLAB,local call,local_common_dir,local dispatch,inspect callee,1
+MATLAB,local call,local_corr_tfset_wrapper,local dispatch,inspect callee,1
+MATLAB,local call,local_cpm_scientific_cautions,local dispatch,inspect callee,1
+MATLAB,local call,local_delimited,local dispatch,inspect callee,1
+MATLAB,local call,local_design_diagnostics,local dispatch,inspect callee,1
+MATLAB,local call,local_detect_aggtype,local dispatch,inspect callee,1
+MATLAB,local call,local_dimensionless_aggregate,local dispatch,inspect callee,1
+MATLAB,local call,local_direntry_to_fullpath,local dispatch,inspect callee,1
+MATLAB,local call,local_discover_fields,local dispatch,inspect callee,1
+MATLAB,local call,local_discover_measured_fields,local dispatch,inspect callee,1
+MATLAB,local call,local_drop_constant_predictors,local dispatch,inspect callee,1
+MATLAB,local call,local_enforce_zero_row_means,local dispatch,inspect callee,1
+MATLAB,local call,local_error_if_epoched,local dispatch,inspect callee,1
+MATLAB,local call,local_extract_fixed_from_design,local dispatch,inspect callee,1
+MATLAB,local call,local_extract_roi_mean,local dispatch,inspect callee,1
+MATLAB,local call,local_extract_subject_from_design,local dispatch,inspect callee,1
+MATLAB,local call,local_extract_subject_vector,local dispatch,inspect callee,1
+MATLAB,local call,local_files_from_dirstruct,local dispatch,inspect callee,1
+MATLAB,local call,local_find_field_ci,local dispatch,inspect callee,1
+MATLAB,local call,local_find_top_level_power_fields,local dispatch,inspect callee,1
+MATLAB,local call,local_find_top_power_fields,local dispatch,inspect callee,1
+MATLAB,local call,local_finish_cpm_components,local dispatch,inspect callee,1
+MATLAB,local call,local_finish_db_normalized_log10,local dispatch,inspect callee,1
+MATLAB,local call,local_finish_normalized,local dispatch,inspect callee,1
+MATLAB,local call,local_finish_raw_linear,local dispatch,inspect callee,1
+MATLAB,local call,local_fit_dot,local dispatch,inspect callee,1
+MATLAB,local call,local_fit_dotderiv,local dispatch,inspect callee,1
+MATLAB,local call,local_fit_lme4,local dispatch,inspect callee,1
+MATLAB,local call,local_get_behavior_table,local dispatch,inspect callee,1
+MATLAB,local call,local_get_interaction_eligible_indices,local dispatch,inspect callee,1
+MATLAB,local call,local_get_slice,local dispatch,inspect callee,1
+MATLAB,local call,local_glm_tfset_wrapper,local dispatch,inspect callee,1
+MATLAB,local call,local_guess_nobs_from_field,local dispatch,inspect callee,1
+MATLAB,local call,local_infer_nEpoch,local dispatch,inspect callee,1
+MATLAB,local call,local_infer_type_from_shape,local dispatch,inspect callee,1
+MATLAB,local call,local_is_binary_numeric,local dispatch,inspect callee,1
+MATLAB,local call,local_itpc_field_name,local dispatch,inspect callee,1
+MATLAB,local call,local_keep_trials,local dispatch,inspect callee,1
+MATLAB,local call,local_linear_aggregate,local dispatch,inspect callee,1
+MATLAB,local call,local_load_tfset,local dispatch,inspect callee,1
+MATLAB,local call,local_log10_median,local dispatch,inspect callee,1
+MATLAB,local call,local_make_lagged_column,local dispatch,inspect callee,1
+MATLAB,local call,local_make_lagged_name,local dispatch,inspect callee,1
+MATLAB,local call,local_make_subid_value,local dispatch,inspect callee,1
+MATLAB,local call,local_make_unique_key,local dispatch,inspect callee,1
+MATLAB,local call,local_map_layout,local dispatch,inspect callee,1
+MATLAB,local call,local_match_type,local dispatch,inspect callee,1
+MATLAB,local call,local_normalization_index,local dispatch,inspect callee,1
+MATLAB,local call,local_obs_first,local dispatch,inspect callee,1
+MATLAB,local call,local_operation_order,local dispatch,inspect callee,1
+MATLAB,local call,local_output_description,local dispatch,inspect callee,1
+MATLAB,local call,local_pack_cpm_models,local dispatch,inspect callee,1
+MATLAB,local call,local_parse_subid_from_filename,local dispatch,inspect callee,1
+MATLAB,local call,local_permute_design_subjectaware,local dispatch,inspect callee,1
+MATLAB,local call,local_pooled_normalized_zscore,local dispatch,inspect callee,1
+MATLAB,local call,local_prepare_avg_payload,local dispatch,inspect callee,1
+MATLAB,local call,local_prepare_design,local dispatch,inspect callee,1
+MATLAB,local call,local_prepare_singletrial_payload,local dispatch,inspect callee,1
+MATLAB,local call,local_prepare_stat_payload,local dispatch,inspect callee,1
+MATLAB,local call,local_process_cpm_condition,local dispatch,inspect callee,1
+MATLAB,local call,local_progress,local dispatch,inspect callee,1
+MATLAB,local call,local_project_simplex,local dispatch,inspect callee,1
+MATLAB,local call,local_random_slopes_to_indices,local dispatch,inspect callee,1
+MATLAB,local call,local_real_least_squares,local dispatch,inspect callee,1
+MATLAB,local call,local_remove_unaverageable_behavior,local dispatch,inspect callee,1
+MATLAB,local call,local_report_cpm_validity,local dispatch,inspect callee,1
+MATLAB,local call,local_resolve_baseline_method,local dispatch,inspect callee,1
+MATLAB,local call,local_resolve_chan_idx,local dispatch,inspect callee,1
+MATLAB,local call,local_resolve_subject_field,local dispatch,inspect callee,1
+MATLAB,local call,local_resolve_time_idx,local dispatch,inspect callee,1
+MATLAB,local call,local_restore_env,local dispatch,inspect callee,1
+MATLAB,local call,local_run_split,local dispatch,inspect callee,1
+MATLAB,local call,local_sanitize_varname,local dispatch,inspect callee,1
+MATLAB,local call,local_scale_design_columns,local dispatch,inspect callee,1
+MATLAB,local call,local_scale_log10_over_time,local dispatch,inspect callee,1
+MATLAB,local call,local_select_candidates,local dispatch,inspect callee,1
+MATLAB,local call,local_select_matfiles_gui,local dispatch,inspect callee,1
+MATLAB,local call,local_select_stat_set,local dispatch,inspect callee,1
+MATLAB,local call,local_single_trial_gain_log10,local dispatch,inspect callee,1
+MATLAB,local call,local_slice_info,local dispatch,inspect callee,1
+MATLAB,local call,local_smallest_positive,local dispatch,inspect callee,1
+MATLAB,local call,local_stable_quadratic_difference,local dispatch,inspect callee,1
+MATLAB,local call,local_stack_measure_struct_metrics,local dispatch,inspect callee,1
+MATLAB,local call,local_sum_cpm_baseline_diagnostics,local dispatch,inspect callee,1
+MATLAB,local call,local_sum_cpm_summaries,local dispatch,inspect callee,1
+MATLAB,local call,local_summary,local dispatch,inspect callee,1
+MATLAB,local call,local_tiled,local dispatch,inspect callee,1
+MATLAB,local call,local_time_derivative,local dispatch,inspect callee,1
+MATLAB,local call,local_times_are_ms,local dispatch,inspect callee,1
+MATLAB,local call,local_trial_groups,local dispatch,inspect callee,1
+MATLAB,local call,local_unique_fieldname,local dispatch,inspect callee,1
+MATLAB,local call,local_valid_dimension,local dispatch,inspect callee,1
+MATLAB,local call,local_valid_optional_interval,local dispatch,inspect callee,1
+MATLAB,local call,local_validate_cpm_transform_semantics,local dispatch,inspect callee,1
+MATLAB,local call,local_validate_layout_match,local dispatch,inspect callee,1
+MATLAB,local call,local_validate_method_combination,local dispatch,inspect callee,1
+MATLAB,local call,local_validate_power_values,local dispatch,inspect callee,1
+MATLAB,local call,local_validate_tf,local dispatch,inspect callee,1
+MATLAB,local call,local_validate_tf_rules_per_mode,local dispatch,inspect callee,1
+MATLAB,local call,local_validate_tfset_minimum,local dispatch,inspect callee,1
+MATLAB,local call,local_warnings,local dispatch,inspect callee,1
+MATLAB,local call,make_merge_report,local dispatch,inspect callee,1
+MATLAB,local call,make_time_mismatch_message,local dispatch,inspect callee,1
+MATLAB,local call,merge_behavior_fields,local dispatch,inspect callee,1
+MATLAB,local call,merge_epoch_fields,local dispatch,inspect callee,1
+MATLAB,local call,merge_event_fields,local dispatch,inspect callee,1
+MATLAB,local call,nanmean,local dispatch,inspect callee,1
+MATLAB,local call,nf_acquire_bundle_lock,local dispatch,inspect callee,1
+MATLAB,local call,nf_acquire_package,local dispatch,inspect callee,1
+MATLAB,local call,nf_add_prep_channel_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_adjusted_adjust_zone_coverage,local dispatch,inspect callee,1
+MATLAB,local call,nf_adult_decisions_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_align_channels,local dispatch,inspect callee,1
+MATLAB,local call,nf_append_bad_channels,local dispatch,inspect callee,1
+MATLAB,local call,nf_apply_channel_detection,local dispatch,inspect callee,1
+MATLAB,local call,nf_apply_deferred_happe_filter,local dispatch,inspect callee,1
+MATLAB,local call,nf_apply_preset_defaults,local dispatch,inspect callee,1
+MATLAB,local call,nf_artifact_metrics,local dispatch,inspect callee,1
+MATLAB,local call,nf_artifact_summary,local dispatch,inspect callee,1
+MATLAB,local call,nf_assert_directory_writable,local dispatch,inspect callee,1
+MATLAB,local call,nf_attach_final_behavior,local dispatch,inspect callee,1
+MATLAB,local call,nf_beall_features_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_behavior_input_semantics,local dispatch,inspect callee,1
+MATLAB,local call,nf_behavior_option_summary,local dispatch,inspect callee,1
+MATLAB,local call,nf_build_warnings,local dispatch,inspect callee,1
+MATLAB,local call,nf_cached_package,local dispatch,inspect callee,1
+MATLAB,local call,nf_candidate_report,local dispatch,inspect callee,1
+MATLAB,local call,nf_canonical,local dispatch,inspect callee,1
+MATLAB,local call,nf_canonical_power_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_capture_faster_eog_request,local dispatch,inspect callee,1
+MATLAB,local call,nf_cell_value_present,local dispatch,inspect callee,1
+MATLAB,local call,nf_change_metrics,local dispatch,inspect callee,1
+MATLAB,local call,nf_channel_category_indices,local dispatch,inspect callee,1
+MATLAB,local call,nf_channel_detection_uses_unfiltered_input,local dispatch,inspect callee,1
+MATLAB,local call,nf_check_repository,local dispatch,inspect callee,1
+MATLAB,local call,nf_class_counts,local dispatch,inspect callee,1
+MATLAB,local call,nf_classifier_provenance,local dispatch,inspect callee,1
+MATLAB,local call,nf_classify_adjust,local dispatch,inspect callee,1
+MATLAB,local call,nf_classify_adjusted_adjust,local dispatch,inspect callee,1
+MATLAB,local call,nf_classify_faster,local dispatch,inspect callee,1
+MATLAB,local call,nf_classify_iclabel,local dispatch,inspect callee,1
+MATLAB,local call,nf_classify_mara,local dispatch,inspect callee,1
+MATLAB,local call,nf_classify_nf_adjusted_adjust,local dispatch,inspect callee,1
+MATLAB,local call,nf_cleanraw_removed_mask,local dispatch,inspect callee,1
+MATLAB,local call,nf_clear_final_ica,local dispatch,inspect callee,1
+MATLAB,local call,nf_clear_rejection_marks,local dispatch,inspect callee,1
+MATLAB,local call,nf_collect_pipeline_provenance,local dispatch,inspect callee,1
+MATLAB,local call,nf_compact_options_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_comparability,local dispatch,inspect callee,1
+MATLAB,local call,nf_contract_commits,local dispatch,inspect callee,1
+MATLAB,local call,nf_count_companions,local dispatch,inspect callee,1
+MATLAB,local call,nf_decomposition_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_default_gedai_configuration,local dispatch,inspect callee,1
+MATLAB,local call,nf_default_thresholds,local dispatch,inspect callee,1
+MATLAB,local call,nf_default_windows,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_amplitude,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_clipping,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_eeglab_stats,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_faster,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_fft,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_flatline,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_gradient,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_peak2peak,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_step,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_trial_rows,local dispatch,inspect callee,1
+MATLAB,local call,nf_detect_vendor_release,local dispatch,inspect callee,1
+MATLAB,local call,nf_detector_any_epoch_masks,local dispatch,inspect callee,1
+MATLAB,local call,nf_detector_channels_are_repairable,local dispatch,inspect callee,1
+MATLAB,local call,nf_detector_display_name,local dispatch,inspect callee,1
+MATLAB,local call,nf_detector_short_name,local dispatch,inspect callee,1
+MATLAB,local call,nf_developmental_decisions_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_diary_file_matches,local dispatch,inspect callee,1
+MATLAB,local call,nf_discard_stage,local dispatch,inspect callee,1
+MATLAB,local call,nf_eeg_source_directory,local dispatch,inspect callee,1
+MATLAB,local call,nf_eeg_source_stem,local dispatch,inspect callee,1
+MATLAB,local call,nf_eeglab_stat_function_names,local dispatch,inspect callee,1
+MATLAB,local call,nf_eeglab_threshold,local dispatch,inspect callee,1
+MATLAB,local call,nf_empty_channel_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_empty_periodic_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_ensure_job_diary,local dispatch,inspect callee,1
+MATLAB,local call,nf_epoch_detector_ledger_text,local dispatch,inspect callee,1
+MATLAB,local call,nf_event_display,local dispatch,inspect callee,1
+MATLAB,local call,nf_explicit_option_names,local dispatch,inspect callee,1
+MATLAB,local call,nf_explicit_rows_detection,local dispatch,inspect callee,1
+MATLAB,local call,nf_explicit_variable_detection,local dispatch,inspect callee,1
+MATLAB,local call,nf_export_quality_artifacts,local dispatch,inspect callee,1
+MATLAB,local call,nf_fallback_candidate_report,local dispatch,inspect callee,1
+MATLAB,local call,nf_fallback_detection,local dispatch,inspect callee,1
+MATLAB,local call,nf_faster_no_reference_properties,local dispatch,inspect callee,1
+MATLAB,local call,nf_features_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_fft_frequency_limits,local dispatch,inspect callee,1
+MATLAB,local call,nf_final_metrics,local dispatch,inspect callee,1
+MATLAB,local call,nf_finalize_channel_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_finalize_decomposition,local dispatch,inspect callee,1
+MATLAB,local call,nf_finalize_montage,local dispatch,inspect callee,1
+MATLAB,local call,nf_find_phase_fields_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_fixed_arrays_matlab_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_fixed_no_peaks_matrix_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_fixed_pca,local dispatch,inspect callee,1
+MATLAB,local call,nf_flag_eligible_name,local dispatch,inspect callee,1
+MATLAB,local call,nf_flag_suspicious_rows,local dispatch,inspect callee,1
+MATLAB,local call,nf_flat_channel_mask,local dispatch,inspect callee,1
+MATLAB,local call,nf_geometry_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_group_loop_candidates,local dispatch,inspect callee,1
+MATLAB,local call,nf_happe_coherence_names,local dispatch,inspect callee,1
+MATLAB,local call,nf_happeer_erp_mode,local dispatch,inspect callee,1
+MATLAB,local call,nf_happeer_inference_channel_count,local dispatch,inspect callee,1
+MATLAB,local call,nf_happeer_vendor_settings,local dispatch,inspect callee,1
+MATLAB,local call,nf_has_function,local dispatch,inspect callee,1
+MATLAB,local call,nf_helper_checks,local dispatch,inspect callee,1
+MATLAB,local call,nf_ica_ocular_components,local dispatch,inspect callee,1
+MATLAB,local call,nf_ica_rejected_components,local dispatch,inspect callee,1
+MATLAB,local call,nf_ica_spatial_impact,local dispatch,inspect callee,1
+MATLAB,local call,nf_index_diagnostics,local dispatch,inspect callee,1
+MATLAB,local call,nf_infer_release,local dispatch,inspect callee,1
+MATLAB,local call,nf_initial_persistence_report,local dispatch,inspect callee,1
+MATLAB,local call,nf_install_lock,local dispatch,inspect callee,1
+MATLAB,local call,nf_install_plugin,local dispatch,inspect callee,1
+MATLAB,local call,nf_installed_package,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_correlation_or_off,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_fraction,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_nonnegative_ordered_pair,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_ordered_pair,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_param_power_field_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_practice_loop,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_reference_label,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_text_or_empty,local dispatch,inspect callee,1
+MATLAB,local call,nf_is_threshold,local dispatch,inspect callee,1
+MATLAB,local call,nf_loop_candidates,local dispatch,inspect callee,1
+MATLAB,local call,nf_make_final_epochs,local dispatch,inspect callee,1
+MATLAB,local call,nf_map_behavior_to_event_epochs,local dispatch,inspect callee,1
+MATLAB,local call,nf_mark_dataset_saved,local dispatch,inspect callee,1
+MATLAB,local call,nf_mark_log_completed,local dispatch,inspect callee,1
+MATLAB,local call,nf_merge_override_aliases,local dispatch,inspect callee,1
+MATLAB,local call,nf_metadata_eligible_name,local dispatch,inspect callee,1
+MATLAB,local call,nf_metadata_reference,local dispatch,inspect callee,1
+MATLAB,local call,nf_mixture_boundary_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_most_conservative_action,local dispatch,inspect callee,1
+MATLAB,local call,nf_native_specparam_dependencies,local dispatch,inspect callee,1
+MATLAB,local call,nf_nearest_git_commit,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_behavior_argument,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_channel_locations,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_classification,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_cleanrawdata_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_detected_epoch_action,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_detectors,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_eeglab_measures,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_eeglab_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_eeglab_stat_methods,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_epoch_action,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_epoch_detectors,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_epoch_stage,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_event_types,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_faster_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_frequency_bands,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_gedai_configuration,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_happeer_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_method,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_positional_inputs,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_preclean_method,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_preset,local dispatch,inspect callee,1
+MATLAB,local call,nf_normalize_qc_detector_name,local dispatch,inspect callee,1
+MATLAB,local call,nf_offer_savepath,local dispatch,inspect callee,1
+MATLAB,local call,nf_one_location_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_onesample_TFCE,local dispatch,inspect callee,1
+MATLAB,local call,nf_option_arguments_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_options_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_panel_extra,local dispatch,inspect callee,1
+MATLAB,local call,nf_parse_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_parse_epoch_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_parse_epoch_detector_attribution,local dispatch,inspect callee,1
+MATLAB,local call,nf_parse_filter_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_parse_ica_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_periodic_rescue_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_periodogram,local dispatch,inspect callee,1
+MATLAB,local call,nf_phase_cohen_tf_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_phase_itpc_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_plot_alerts,local dispatch,inspect callee,1
+MATLAB,local call,nf_plot_channel_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_plot_epochs,local dispatch,inspect callee,1
+MATLAB,local call,nf_plot_ica,local dispatch,inspect callee,1
+MATLAB,local call,nf_plot_ledger,local dispatch,inspect callee,1
+MATLAB,local call,nf_plot_psd,local dispatch,inspect callee,1
+MATLAB,local call,nf_positive_scalar_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_preflight,local dispatch,inspect callee,1
+MATLAB,local call,nf_preflight_dependencies,local dispatch,inspect callee,1
+MATLAB,local call,nf_prep_noise_summary,local dispatch,inspect callee,1
+MATLAB,local call,nf_prep_resolved_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_prepare_adjust_report,local dispatch,inspect callee,1
+MATLAB,local call,nf_prepare_artifact_destination,local dispatch,inspect callee,1
+MATLAB,local call,nf_prepare_persistence_report,local dispatch,inspect callee,1
+MATLAB,local call,nf_prepare_training_events,local dispatch,inspect callee,1
+MATLAB,local call,nf_prepare_vendor_environment,local dispatch,inspect callee,1
+MATLAB,local call,nf_print_summary,local dispatch,inspect callee,1
+MATLAB,local call,nf_prior_dirs,local dispatch,inspect callee,1
+MATLAB,local call,nf_prior_providers,local dispatch,inspect callee,1
+MATLAB,local call,nf_profile_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_profile_probes,local dispatch,inspect callee,1
+MATLAB,local call,nf_propagate_run_metadata,local dispatch,inspect callee,1
+MATLAB,local call,nf_psd_metrics,local dispatch,inspect callee,1
+MATLAB,local call,nf_qc_detector_field,local dispatch,inspect callee,1
+MATLAB,local call,nf_quality_alerts,local dispatch,inspect callee,1
+MATLAB,local call,nf_quality_figure,local dispatch,inspect callee,1
+MATLAB,local call,nf_rank_repair_plan,local dispatch,inspect callee,1
+MATLAB,local call,nf_read_input,local dispatch,inspect callee,1
+MATLAB,local call,nf_recover_run_metadata,local dispatch,inspect callee,1
+MATLAB,local call,nf_reference_channel,local dispatch,inspect callee,1
+MATLAB,local call,nf_regress_tf_map_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_regress_tf_map_tfce_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_release_bundle_lock,local dispatch,inspect callee,1
+MATLAB,local call,nf_remap_epoch_channel_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_remap_faster_eog_channels,local dispatch,inspect callee,1
+MATLAB,local call,nf_remap_faster_ica_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_removal_provenance,local dispatch,inspect callee,1
+MATLAB,local call,nf_remove_duplicate_helper_ledgers,local dispatch,inspect callee,1
+MATLAB,local call,nf_remove_temp_file,local dispatch,inspect callee,1
+MATLAB,local call,nf_remove_trials_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_repair_requires_interpolation,local dispatch,inspect callee,1
+MATLAB,local call,nf_repo_recognized,local dispatch,inspect callee,1
+MATLAB,local call,nf_repo_remove_stage,local dispatch,inspect callee,1
+MATLAB,local call,nf_repo_sha,local dispatch,inspect callee,1
+MATLAB,local call,nf_repo_swap,local dispatch,inspect callee,1
+MATLAB,local call,nf_repo_unpack,local dispatch,inspect callee,1
+MATLAB,local call,nf_report_threshold_defaults,local dispatch,inspect callee,1
+MATLAB,local call,nf_require_duration,local dispatch,inspect callee,1
+MATLAB,local call,nf_require_function,local dispatch,inspect callee,1
+MATLAB,local call,nf_require_minimum_diagnostic_channels,local dispatch,inspect callee,1
+MATLAB,local call,nf_require_native_adjust_dependencies,local dispatch,inspect callee,1
+MATLAB,local call,nf_require_positive_or_inf,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_adjust_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_artifact_plan,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_asr_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_channel,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_channels,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_classifier_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_detector_settings,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_epoch_stage,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_frontal_channels,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_gedai_configuration,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_happeer_preclean_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_ica_method,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_native_adjust_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_repair_settings,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_report,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_save_destination,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_trial_variable,local dispatch,inspect callee,1
+MATLAB,local call,nf_resolve_vendor_function,local dispatch,inspect callee,1
+MATLAB,local call,nf_restore_eeglab_cwd,local dispatch,inspect callee,1
+MATLAB,local call,nf_restore_vendor_environment,local dispatch,inspect callee,1
+MATLAB,local call,nf_result_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_rollback_failed_quality_artifacts,local dispatch,inspect callee,1
+MATLAB,local call,nf_row_text_values,local dispatch,inspect callee,1
+MATLAB,local call,nf_rows_have_one_value,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_asr,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_cleanraw,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_detector,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_eeglab,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_faster,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_gedai,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_happeer,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_happeer_preclean,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_ica,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_none,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_prep,local dispatch,inspect callee,1
+MATLAB,local call,nf_run_prep_pipeline,local dispatch,inspect callee,1
+MATLAB,local call,nf_save_dataset,local dispatch,inspect callee,1
+MATLAB,local call,nf_save_quality_figure,local dispatch,inspect callee,1
+MATLAB,local call,nf_save_quality_pdf,local dispatch,inspect callee,1
+MATLAB,local call,nf_select_eeg_channels,local dispatch,inspect callee,1
+MATLAB,local call,nf_select_epoch_actions,local dispatch,inspect callee,1
+MATLAB,local call,nf_select_package,local dispatch,inspect callee,1
+MATLAB,local call,nf_sentinel_rows,local dispatch,inspect callee,1
+MATLAB,local call,nf_skip_ica,local dispatch,inspect callee,1
+MATLAB,local call,nf_software_summary,local dispatch,inspect callee,1
+MATLAB,local call,nf_sort_continuous_events,local dispatch,inspect callee,1
+MATLAB,local call,nf_source_segments,local dispatch,inspect callee,1
+MATLAB,local call,nf_spatial_correlation,local dispatch,inspect callee,1
+MATLAB,local call,nf_spatial_graphs_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_sphere_center_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_spread_rescue_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_stage_context,local dispatch,inspect callee,1
+MATLAB,local call,nf_start_job_log,local dispatch,inspect callee,1
+MATLAB,local call,nf_subset_gedai_reference,local dispatch,inspect callee,1
+MATLAB,local call,nf_temporal_features_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_temporal_windows_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_text_scalar,local dispatch,inspect callee,1
+MATLAB,local call,nf_tfce_p_to_z_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_tfspecparam_core_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_throw_loop_ambiguity,local dispatch,inspect callee,1
+MATLAB,local call,nf_topoplot_coordinates,local dispatch,inspect callee,1
+MATLAB,local call,nf_training_epoch_overlap,local dispatch,inspect callee,1
+MATLAB,local call,nf_unique_event_type_count,local dispatch,inspect callee,1
+MATLAB,local call,nf_unique_function_path,local dispatch,inspect callee,1
+MATLAB,local call,nf_unscaled_spectrum,local dispatch,inspect callee,1
+MATLAB,local call,nf_update_eeglab,local dispatch,inspect callee,1
+MATLAB,local call,nf_upper_frequency_text,local dispatch,inspect callee,1
+MATLAB,local call,nf_user_folder,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_accepted_event_positions,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_adjust_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_amplitude_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_behavior_for_current_eeg,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_clean_channel_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_continuous_eeg,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_continuous_event_behavior_count,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_covariance,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_eeg_for_skip,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_event_behavior_count,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_faster_classifier_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_faster_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_gedai_montage,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_gedai_standard_labels,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_interpolation_locations,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_mara_input,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_mara_options,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_provider_paths,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_repair_limits,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_thresholds,local dispatch,inspect callee,1
+MATLAB,local call,nf_validate_windows,local dispatch,inspect callee,1
+MATLAB,local call,nf_warn_periodic_unavailable_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_warn_spread_unavailable_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_warn_unavailable_local,local dispatch,inspect callee,1
+MATLAB,local call,nf_window_features,local dispatch,inspect callee,1
+MATLAB,local call,nf_write_log_failure,local dispatch,inspect callee,1
+MATLAB,local call,nf_write_log_success,local dispatch,inspect callee,1
+MATLAB,local call,nf_x_coordinates,local dispatch,inspect callee,1
+MATLAB,local call,normalize_nf_inputs,local dispatch,inspect callee,1
+MATLAB,local call,octave_peak_sqp,local dispatch,inspect callee,1
+MATLAB,local call,offset_numeric_or_cell,local dispatch,inspect callee,1
+MATLAB,local call,remove_stage,local dispatch,inspect callee,1
+MATLAB,local call,repmat_mask,local dispatch,inspect callee,1
+MATLAB,local call,resolve_data_fields,local dispatch,inspect callee,1
+MATLAB,local call,restore,local dispatch,inspect callee,1
+MATLAB,local call,restore_environment,local dispatch,inspect callee,1
+MATLAB,local call,restore_state,local dispatch,inspect callee,1
+MATLAB,local call,select_longest_group,local dispatch,inspect callee,1
+MATLAB,local call,select_majority_group,local dispatch,inspect callee,1
+MATLAB,local call,size4d_local,local dispatch,inspect callee,1
+MATLAB,local call,size_along,local dispatch,inspect callee,1
+MATLAB,local call,snapshot,local dispatch,inspect callee,1
+MATLAB,local call,sort_dir_listing,local dispatch,inspect callee,1
+MATLAB,local call,specparam_constrained_options_local,local dispatch,inspect callee,1
+MATLAB,local call,specparam_has_fmincon_local,local dispatch,inspect callee,1
+MATLAB,local call,specparam_requested_fallback_options_local,local dispatch,inspect callee,1
+MATLAB,local call,specparam_unconstrained_options_local,local dispatch,inspect callee,1
+MATLAB,local call,stransf_optimized,local dispatch,inspect callee,1
+MATLAB,local call,subset_along_dimension,local dispatch,inspect callee,1
+MATLAB,local call,subset_cpm,local dispatch,inspect callee,1
+MATLAB,local call,update_datafield,local dispatch,inspect callee,1
+MATLAB,local call,validate_nf_core,local dispatch,inspect callee,1
+MATLAB,local call,validate_options,local dispatch,inspect callee,1
+MATLAB,local call,validate_state,local dispatch,inspect callee,1
+MATLAB,local call,values_equal,local dispatch,inspect callee,1
+MATLAB,numeric constant,i,numeric constant,retain primitive,1
+MATLAB,numeric constant,nan,numeric constant,retain primitive,1
+MATLAB app,binary,-,index arithmetic,retain index arithmetic,1
+MATLAB app,binary,/,index arithmetic,retain index arithmetic,1
+MATLAB app,binary,~=,predicate/logical,retain predicate,1
+MATLAB app,call,all,numeric predicate,retain structure,1
+MATLAB app,call,cos,elementwise numeric,retain numerical primitive,1
+MATLAB app,call,meshgrid,numeric conversion/axis,retain numerical primitive,1
+MATLAB app,call,nf_viewer_data,NeuroFreq dispatch,inspect callee,1
+MATLAB app,call,pol2cart,numeric conversion/axis,retain numerical primitive,1
+MATLAB app,call,sin,elementwise numeric,retain numerical primitive,1
+MATLAB app,call,sqrt,elementwise numeric,retain numerical primitive,1
+MATLAB app,handle,GoToGlobalMax_Callback,API/handle,retain interface,1
+MATLAB app,handle,GoToGlobalMin_Callback,API/handle,retain interface,1
+MATLAB app,handle,GoToSensorMax_Callback,API/handle,retain interface,1
+MATLAB app,handle,GoToSensorMin_Callback,API/handle,retain interface,1
+MATLAB app,handle,tf_axes_ButtonDownFcn,API/handle,retain interface,1
+MATLAB app,handle,tf_clim_Callback,API/handle,retain interface,1
+MATLAB app,handle,tf_freq2plotValueChanged,API/handle,retain interface,1
+MATLAB app,handle,tf_freqMButtonPushed,API/handle,retain interface,1
+MATLAB app,handle,tf_freqPButtonPushed,API/handle,retain interface,1
+MATLAB app,handle,tf_freqscaling_Callback,API/handle,retain interface,1
+MATLAB app,handle,tf_pickelectrode_Callback,API/handle,retain interface,1
+MATLAB app,handle,tf_showcrosshairsValueChanged,API/handle,retain interface,1
+MATLAB app,handle,tf_time2plotValueChanged,API/handle,retain interface,1
+MATLAB app,handle,tf_timeMButtonPushed,API/handle,retain interface,1
+MATLAB app,handle,tf_timePButtonPushed,API/handle,retain interface,1
+MATLAB app,handle,tf_trial2plotValueChanged,API/handle,retain interface,1
+MATLAB app,handle,tf_trialMButtonPushed,API/handle,retain interface,1
+MATLAB app,handle,tf_trialPButtonPushed,API/handle,retain interface,1
+MATLAB app,handle,topo_axes_ButtonDownFcn,API/handle,retain interface,1
+MATLAB app,handle,topo_clim_Callback,API/handle,retain interface,1
+MATLAB app,handle,topo_electrodetype_Callback,API/handle,retain interface,1
+MATLAB app,handle,topo_numcontour_Callback,API/handle,retain interface,1
+MATLAB app,handle,topo_plotrad_Callback,API/handle,retain interface,1
+MATLAB app,handle,topo_showselectedelectrode_Callback,API/handle,retain interface,1
+MATLAB app,local call,delete,local dispatch,inspect callee,1
+MATLAB app,local call,topoplotX,local dispatch,inspect callee,1
+MATLAB app,local call,topoplotrect,local dispatch,inspect callee,1
+MATLAB app,numeric constant,NaN,numeric constant,retain primitive,1
+R,binary,!=,predicate/logical,retain predicate,1
+R,binary,&&,predicate/logical,retain predicate,1
+R,binary,*,multiplication,retain formula,1
+R,binary,+,addition/subtraction,retain formula,1
+R,call,Sys.getenv,other call/index,unresolved at static analysis,1
+R,call,as.data.frame,other call/index,unresolved at static analysis,1
+R,call,coef,other call/index,unresolved at static analysis,1
+R,call,factor,other call/index,unresolved at static analysis,1
+R,call,fit_maps,other call/index,unresolved at static analysis,1
+R,call,integer,other call/index,unresolved at static analysis,1
+R,call,lme4::isSingular,numeric predicate,retain structure,1
+R,call,lme4::lmer,factorization/solve,retain algorithm,1
+R,call,message,other call/index,unresolved at static analysis,1
+R,call,names,other call/index,unresolved at static analysis,1
+R,call,numeric,other call/index,unresolved at static analysis,1
+R,call,paste,other call/index,unresolved at static analysis,1
+R,call,reformulate,other call/index,unresolved at static analysis,1
+R,call,requireNamespace,other call/index,unresolved at static analysis,1
+R,call,summary,other call/index,unresolved at static analysis,1
+R,call,suppressMessages,other call/index,unresolved at static analysis,1
+R,unary,!,predicate/logical,retain predicate,1

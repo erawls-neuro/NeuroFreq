@@ -65,14 +65,28 @@ if isreal(data)
     gain(2:end) = 2*gain(2:end);
     if mod(nfft,2) == 0, gain(end) = gain(end)/2; end
 end
-power = zeros(nChan,nFreq,numel(starts),nTrls);
-phase = power;
-for frame = 1:numel(starts)
-    indices = starts(frame)+(0:window-1);
-    spectrum = fft(bsxfun(@times, data(:,indices,:), taper), nfft, 2);
-    spectrum = bsxfun(@times, spectrum(:,1:nFreq,:), gain);
-    power(:,:,frame,:) = reshape(abs(spectrum).^2,nChan,nFreq,1,nTrls);
-    phase(:,:,frame,:) = reshape(angle(spectrum),nChan,nFreq,1,nTrls);
+% Optional native packing batches the same MATLAB FFT across frames; single
+% precision and installations without the binary use the direct frame loop.
+useNative = isa(data,'double') && isa(taper,'double') && isa(gain,'double') && numel(starts)>1 && exist('hnf_stft_mex','file')==3 && ...
+        exist('hnf_mex_available','file')==2 && hnf_mex_available('hnf_stft_mex');
+if useNative
+    try
+        [power,phase] = hnf_stft_mex(data,taper,double(nfft),double(hop),gain);
+    catch err
+        if ~hnf_mex_load_error(err), rethrow(err); end
+        useNative = false;
+    end
+end
+if ~useNative
+    power = zeros(nChan,nFreq,numel(starts),nTrls);
+    phase = power;
+    for frame = 1:numel(starts)
+        indices = starts(frame)+(0:window-1);
+        spectrum = fft(bsxfun(@times, data(:,indices,:), taper), nfft, 2);
+        spectrum = bsxfun(@times, spectrum(:,1:nFreq,:), gain);
+        power(:,:,frame,:) = reshape(abs(double(spectrum)).^2,nChan,nFreq,1,nTrls);
+        phase(:,:,frame,:) = reshape(angle(spectrum),nChan,nFreq,1,nTrls);
+    end
 end
 tfRes.power = hnf_tf_output(power);
 tfRes.phase = hnf_tf_output(phase);

@@ -116,7 +116,7 @@ end
 % ----------------------------
 if isfield(TF, 'behavior') == 1
 
-    if istable(TF.behavior) == 1
+    if isa(TF.behavior, 'table') == 1
         TF.behavior = table2struct(TF.behavior, 'ToScalar', false);
     end
 
@@ -321,6 +321,9 @@ end
 % ----------------------------
 % Return behavior table
 % ----------------------------
+if exist('OCTAVE_VERSION','builtin') && isempty(which('struct2table'))
+    error('NeuroFreq:OctaveTables','Install the Octave tablicious package and run pkg load tablicious for the ROI table.');
+end
 behTab = struct2table(TF.behavior);
 
 disp('[nf_extractpower]: Power extraction complete.');
@@ -585,29 +588,8 @@ function vals = local_extract_roi_mean(X,c,f,t,nObs)
 roi = X(c,f,t,:);
 % Each column is an observation. Preserve a final singleton observation.
 values = reshape(double(roi),[],nObs).';
-vals = local_nanmean_rows(values);
-end
-
-function m = local_nanmean_rows(X)
-
-n = size(X, 1);
-
-m = nan(n, 1);
-
-for i = 1:n
-
-    row = X(i, :);
-
-    ok = isfinite(row);
-
-    if ~any(ok)
-        m(i) = NaN;
-    else
-        m(i) = sum(row(ok)) ./ sum(ok);
-    end
-
-end
-
+values(~isfinite(values)) = NaN;
+vals = hnf_robmean(values,2,'omitnan');
 end
 
 function nameOut = local_unique_fieldname(beh, nameIn)

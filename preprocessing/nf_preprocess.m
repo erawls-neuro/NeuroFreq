@@ -257,7 +257,8 @@ options.channelMethod = nf_normalize_channel_method(options.channelMethod);
 options.precleanMethod = nf_normalize_preclean_method(options.precleanMethod);
 options.icaAlgorithm = lower(char(options.icaAlgorithm));
 options.picardMode = lower(char(options.picardMode));
-options.icaMethod = nf_resolve_ica_method(options.preset, options.icaMethod);
+options.requestedIcaMethod = nf_resolve_ica_method(options.preset, options.icaMethod);
+options.icaMethod = hnf_adjust_backend(options.requestedIcaMethod,false);
 options.epochStageRequested = nf_normalize_epoch_stage(options.epochStage);
 [options.epochStage, options.epochStageResolution] = ...
     nf_resolve_epoch_stage(options.epochStageRequested, options);
@@ -594,7 +595,7 @@ try
         cleanicBehaviorArguments = {'behavior', inputBehavior};
     end
     cleanicArguments = [ ...
-        {options.icaMethod}, ...
+        {options.requestedIcaMethod}, ...
         {options.aggressiveICA}, ...
         cleanicBehaviorArguments(:)', ...
         {'algorithm'}, {options.icaAlgorithm}, ...
@@ -959,9 +960,11 @@ if plan.saveDataset
         plan.datasetFilename);
     [~, outputStem] = fileparts(plan.datasetFilename);
     if plan.exportQuality
+        figureExtension = '.fig';
+        if exist('OCTAVE_VERSION','builtin'), figureExtension = '.ofig'; end
         plan.qualityFigurePath = fullfile( ...
             plan.outputDirectory, ...
-            [outputStem '_qc.fig']);
+            [outputStem '_qc' figureExtension]);
         plan.qualityPdfPath = fullfile( ...
             plan.outputDirectory, ...
             [outputStem '_qc.pdf']);
@@ -1173,8 +1176,13 @@ if ~nf_is_absolute_path(pathValue)
     pathValue = fullfile(pwd, pathValue);
 end
 try
-    fileObject = javaObject('java.io.File', pathValue);
-    pathValue = char(fileObject.getCanonicalPath());
+    if exist('OCTAVE_VERSION','builtin')
+        canonical = canonicalize_file_name(pathValue);
+        if ~isempty(canonical), pathValue = canonical; end
+    else
+        fileObject = javaObject('java.io.File',pathValue);
+        pathValue = char(fileObject.getCanonicalPath());
+    end
 catch
     pathValue = nf_strip_trailing_separators(pathValue);
 end
@@ -1358,7 +1366,11 @@ attempted = false;
 try
     nf_assert_new_artifact(outputPath);
     attempted = true;
-    savefig(figureHandle, outputPath);
+    if exist('OCTAVE_VERSION','builtin')
+        hgsave(figureHandle,outputPath);
+    else
+        savefig(figureHandle,outputPath);
+    end
     if ~nf_is_nonempty_file(outputPath)
         error('nf_preprocess:QualityFigureSaveFailed', ...
             'savefig returned without creating a nonempty file at %s.', ...
@@ -1381,7 +1393,9 @@ attempted = false;
 try
     nf_assert_new_artifact(outputPath);
     attempted = true;
-    if nf_function_available('exportgraphics')
+    if exist('OCTAVE_VERSION','builtin')
+        print(figureHandle,outputPath,'-dpdf','-bestfit');
+    elseif nf_function_available('exportgraphics')
         try
             exportgraphics(figureHandle, outputPath, ...
                 'ContentType', 'vector');
@@ -1567,14 +1581,14 @@ state = struct();
 state.previousStatus = 'off';
 previousFile = '';
 try
-    previousStatus = get(0, 'Diary');
+    previousStatus = nf_diary_property('Diary');
     if nf_is_text(previousStatus)
         state.previousStatus = char(previousStatus);
     end
 catch
 end
 try
-    previousFile = get(0, 'DiaryFile');
+    previousFile = nf_diary_property('DiaryFile');
 catch
 end
 if nf_is_text(previousFile)
@@ -1661,7 +1675,7 @@ try
     end
 catch logException
     try
-        currentStatus = get(0, 'Diary');
+        currentStatus = nf_diary_property('Diary');
         if nf_is_text(currentStatus) && strcmpi(char(currentStatus), 'on')
             diary off
         end
@@ -1739,7 +1753,7 @@ try
 catch
 end
 try
-    if strcmpi(get(0, 'Diary'), 'on')
+    if strcmpi(nf_diary_property('Diary'), 'on')
         diary off
     end
     if strcmpi(state.previousStatus, 'on')
@@ -1751,7 +1765,16 @@ try
         fprintf(['\n[nf_preprocess]:  Resumed diary after nf_preprocess job ' ...
             'log: %s\n'], state.jobLogPath);
     elseif ~isempty(state.previousFile)
-        set(0, 'DiaryFile', state.previousFile);
+        if exist('OCTAVE_VERSION','builtin')
+            % Octave has no inactive-target setter. Only reopen an existing
+            % diary; restoring the default should never create an empty file.
+            if isfile(state.previousFile)
+                diary(state.previousFile)
+                diary off
+            end
+        else
+            set(0,'DiaryFile',state.previousFile);
+        end
     end
     if ~nf_diary_state_matches(state)
         error('nf_preprocess:DiaryRestoreFailed', ...
@@ -1766,11 +1789,26 @@ catch restoreException
 end
 end
 
+function value = nf_diary_property(name)
+if exist('OCTAVE_VERSION','builtin')
+    [enabled,target] = diary();
+    if strcmp(name,'DiaryFile')
+        value = target;
+    else
+        states = {'off','on'};
+        value = states{1+enabled};
+    end
+else
+    value = get(0,name);
+end
+end
+
 function matches = nf_diary_state_matches(state)
-currentStatus = get(0, 'Diary');
-currentFile = get(0, 'DiaryFile');
+currentStatus = nf_diary_property('Diary');
+currentFile = nf_diary_property('DiaryFile');
 statusMatches = strcmpi(currentStatus, state.previousStatus);
-if isempty(state.previousFile)
+if isempty(state.previousFile) || (exist('OCTAVE_VERSION','builtin') && ...
+        strcmpi(state.previousStatus,'off') && ~isfile(state.previousFile))
     fileMatches = true;
 elseif ~nf_is_text(currentFile) || isempty(strtrim(char(currentFile)))
     fileMatches = false;
@@ -1786,14 +1824,14 @@ active = false;
 observedStatus = 'unknown';
 observedFile = '';
 try
-    currentStatus = get(0, 'Diary');
+    currentStatus = nf_diary_property('Diary');
     if nf_is_text(currentStatus)
         observedStatus = char(currentStatus);
     end
 catch
 end
 try
-    currentFile = get(0, 'DiaryFile');
+    currentFile = nf_diary_property('DiaryFile');
     if nf_is_text(currentFile)
         observedFile = char(currentFile);
     end
@@ -1825,7 +1863,7 @@ if active
 end
 observedDirectory = pwd;
 try
-    currentStatus = get(0, 'Diary');
+    currentStatus = nf_diary_property('Diary');
     if nf_is_text(currentStatus) && strcmpi(char(currentStatus), 'on')
         diary off
     end
@@ -1847,7 +1885,7 @@ try
 catch recoveryException
     active = false;
     try
-        currentStatus = get(0, 'Diary');
+        currentStatus = nf_diary_property('Diary');
         if nf_is_text(currentStatus) && strcmpi(char(currentStatus), 'on')
             diary off
         end
@@ -2127,7 +2165,7 @@ if ischar(configuration.referenceMatrixType) && ...
     databasePath = fullfile(gedaiDirectory, 'auxiliaries', ...
         'fsavLEADFIELD_4_GEDAI.mat');
     contract.referenceDatabase.path = databasePath;
-    contract.referenceDatabase.sha256 = nf_file_sha256(databasePath);
+    contract.referenceDatabase.sha256 = hnf_file_sha256(databasePath);
     if isempty(contract.referenceDatabase.sha256)
         error('nf_preprocess:GEDAIDatabaseHashFailed', ...
             ['Could not calculate the SHA-256 identity of GEDAI''s ' ...
@@ -2180,8 +2218,8 @@ function [EEG, info] = nf_run_asr(EEG, supplied)
 configuration = nf_resolve_asr_options(supplied);
 contract = nf_vendor_function_contract('clean_asr', 11, 1);
 normalizedContractPath = lower(strrep(contract.path, '\', '/'));
-if ~contains(normalizedContractPath, 'clean_rawdata') && ...
-        ~contains(normalizedContractPath, 'cleanrawdata')
+if isempty(strfind(normalizedContractPath, 'clean_rawdata')) && ...
+        isempty(strfind(normalizedContractPath, 'cleanrawdata'))
     error('nf_preprocess:InvalidCleanRawDataProvider', ...
         ['clean_asr did not resolve inside an identifiable clean_rawdata ' ...
         'installation. Resolved path: %s'], contract.path);
@@ -2294,7 +2332,7 @@ function [EEG, info] = nf_run_prep_pipeline(EEG, supplied)
 pipelineContract = nf_vendor_function_contract('prepPipeline', 2, 3);
 versionContract = nf_vendor_function_contract('getPrepVersion', 0, 3);
 normalizedPath = lower(strrep(pipelineContract.path, '\', '/'));
-if ~contains(normalizedPath, '/preppipeline/preppipeline.m')
+if isempty(strfind(normalizedPath, '/preppipeline/preppipeline.m'))
     error('nf_preprocess:InvalidPREPProvider', ...
         ['prepPipeline did not resolve to the expected PREP directory. ' ...
         'Resolved path: %s'], pipelineContract.path);
@@ -2347,7 +2385,7 @@ end
 errors = EEG.etc.noiseDetection.errors;
 status = '';
 if isstruct(errors) && isfield(errors, 'status')
-    status = char(string(errors.status));
+    status = hnf_scalar_text(errors.status);
 end
 if ~strcmpi(strtrim(status), 'good')
     diagnostic = strtrim(evalc('disp(errors)'));
@@ -2410,7 +2448,7 @@ configuration = nf_resolve_happeer_preclean_options( ...
     supplied, pipelineOptions);
 contract = nf_vendor_function_contract('happe_wavThresh', 5, 3);
 normalizedContractPath = lower(strrep(contract.path, '\', '/'));
-if ~contains(normalizedContractPath, 'happe')
+if isempty(strfind(normalizedContractPath, 'happe'))
     error('nf_preprocess:InvalidHAPPEProvider', ...
         ['happe_wavThresh did not resolve inside an identifiable HAPPE ' ...
         'installation. Resolved path: %s'], contract.path);
@@ -2680,7 +2718,7 @@ end
 
 function contract = nf_vendor_function_contract( ...
     functionName, expectedInputs, expectedOutputs)
-resolved = which(functionName, '-all');
+resolved = hnf_which_all(functionName);
 if isempty(resolved)
     error('nf_preprocess:MissingVendorFunction', ...
         'Required vendor function %s was not found.', functionName);
@@ -2731,37 +2769,13 @@ contract.nargin = observedInputs;
 contract.nargout = observedOutputs;
 contract.fileBytes = metadata.bytes;
 contract.fileModified = metadata.date;
-contract.sha256 = nf_file_sha256(paths{1});
+contract.sha256 = hnf_file_sha256(paths{1});
 if isempty(contract.sha256)
     error('nf_preprocess:VendorHashFailed', ...
         ['Could not calculate a SHA-256 identity for %s. A named vendor ' ...
         'stage will not run without a verifiable source-file identity.'], ...
         functionName);
 end
-end
-
-function digest = nf_file_sha256(pathValue)
-digest = '';
-fileIdentifier = fopen(pathValue, 'rb');
-if fileIdentifier < 0
-    return
-end
-fileCleanup = onCleanup(@() fclose(fileIdentifier));
-try
-    engine = java.security.MessageDigest.getInstance('SHA-256');
-    while true
-        block = fread(fileIdentifier, 1048576, '*uint8');
-        if isempty(block)
-            break
-        end
-        engine.update(block);
-    end
-    rawDigest = typecast(engine.digest(), 'uint8');
-    digest = lower(reshape(dec2hex(rawDigest, 2)', 1, []));
-catch
-    digest = '';
-end
-clear fileCleanup
 end
 
 function nf_restore_matlab_environment(warningState, pathState, ...
@@ -2912,11 +2926,10 @@ if ~isfield(database, 'leadfield4GEDAI') || ...
         ['GEDAI''s standard database does not contain the expected ' ...
         'leadfield4GEDAI.electrodes.Name labels.']);
 end
-databaseLabels = strtrim(string( ...
-    {database.leadfield4GEDAI.electrodes.Name}));
-inputLabels = strtrim(string({chanlocs.labels}));
-[present, databaseIndices] = ismember(lower(inputLabels), ...
-    lower(databaseLabels));
+databaseLabels = strtrim({database.leadfield4GEDAI.electrodes.Name});
+inputLabels = strtrim({chanlocs.labels});
+[present, databaseIndices] = ismember(hnf_lower_labels(inputLabels), ...
+    hnf_lower_labels(databaseLabels));
 if any(~present)
     missing = strjoin(cellstr(inputLabels(~present)), ', ');
     error('nf_preprocess:GEDAIStandardLabelMismatch', ...
@@ -2933,8 +2946,8 @@ end
 
 function configuration = nf_subset_gedai_reference(configuration, ...
     originalMontage, retainedMontage)
-originalLabels = lower(string({originalMontage.labels}));
-retainedLabels = lower(string({retainedMontage.labels}));
+originalLabels = hnf_lower_labels({originalMontage.labels});
+retainedLabels = hnf_lower_labels({retainedMontage.labels});
 [present, retainedIndices] = ismember(retainedLabels, originalLabels);
 if any(~present)
     error('nf_preprocess:GEDAIReferenceOrder', ...
@@ -3230,8 +3243,8 @@ detectorNames = {'threshold', 'fft', 'peak2peak', 'step', 'gradient', ...
     'flatline', 'clipping', 'faster', 'eeglabstats', ...
     'jointprobability'};
 channelFields = {'channelIndices', 'localChannelIndices', 'ignoredChannels'};
-sourceLabels = string({sourceMontage.labels});
-targetLabels = string({targetMontage.labels});
+sourceLabels = {sourceMontage.labels};
+targetLabels = {targetMontage.labels};
 
 for optionIndex = 1:numel(optionNames)
     if ~any(strcmp(options.epochDetectors, detectorNames{optionIndex}))
@@ -3257,7 +3270,7 @@ for optionIndex = 1:numel(optionNames)
         requested = reshape(double(requested), 1, []);
         requestedLabels = sourceLabels(requested);
         [present, remapped] = ismember( ...
-            lower(requestedLabels), lower(targetLabels));
+            hnf_lower_labels(requestedLabels), hnf_lower_labels(targetLabels));
         if any(~present)
             missingLabels = strjoin(cellstr(requestedLabels(~present)), ', ');
             error('nf_preprocess:EpochChannelUnavailable', ...
@@ -3305,10 +3318,10 @@ if ~isnumeric(requested) || ~isreal(requested) || ...
         'the selected raw-input montage.']);
 end
 requested = reshape(double(requested), 1, []);
-sourceLabels = string({sourceMontage.labels});
-targetLabels = string({targetMontage.labels});
+sourceLabels = {sourceMontage.labels};
+targetLabels = {targetMontage.labels};
 requestedLabels = sourceLabels(requested);
-[present, remapped] = ismember(lower(requestedLabels), lower(targetLabels));
+[present, remapped] = ismember(hnf_lower_labels(requestedLabels), hnf_lower_labels(targetLabels));
 if any(~present)
     missingLabels = strjoin(cellstr(requestedLabels(~present)), ', ');
     error('nf_preprocess:FASTERICAChannelUnavailable', ...
@@ -3395,8 +3408,8 @@ function [EEG, info] = nf_finalize_montage(EEG, originalMontage, options, ...
     channelInfo)
 hadIcaBeforeFinalization = isfield(EEG, 'icaweights') && ...
     ~isempty(EEG.icaweights);
-currentLabels = lower(string({EEG.chanlocs.labels}));
-originalLabels = lower(string({originalMontage.labels}));
+currentLabels = hnf_lower_labels({EEG.chanlocs.labels});
+originalLabels = hnf_lower_labels({originalMontage.labels});
 missingMask = ~ismember(originalLabels, currentLabels);
 referenceMask = false(1, numel(originalMontage));
 referenceRemoved = false;
@@ -3452,8 +3465,8 @@ info.outputLabels = {EEG.chanlocs.labels};
 end
 
 function [EEG, restored] = nf_restore_channel_order(EEG, originalMontage)
-expected = lower(string({originalMontage.labels}));
-current = lower(string({EEG.chanlocs.labels}));
+expected = hnf_lower_labels({originalMontage.labels});
+current = hnf_lower_labels({EEG.chanlocs.labels});
 [present, originalIndices] = ismember(current, expected);
 if any(~present) || numel(unique(originalIndices)) ~= numel(originalIndices)
     error('nf_preprocess:MontageRestorationFailed', ...
@@ -3579,9 +3592,9 @@ detectorLabels = {detectorEEG.chanlocs.labels};
 nf_require_unique_labels(workingLabels);
 nf_require_unique_labels(detectorLabels);
 [present, keepIndices] = ismember( ...
-    lower(string(detectorLabels)), lower(string(workingLabels)));
+    hnf_lower_labels(detectorLabels), hnf_lower_labels(workingLabels));
 if any(~present)
-    missing = strjoin(cellstr(string(detectorLabels(~present))), ', ');
+    missing = strjoin(cellstr(detectorLabels(~present)), ', ');
     error('nf_preprocess:ChannelDetectionTransferFailed', ...
         ['The unfiltered detector returned channel labels that are absent ' ...
         'from the analysis-filtered data: %s'], missing);
@@ -3638,10 +3651,10 @@ else
     elseif isstring(requested)
         requested = cellstr(requested);
     end
-    labels = lower(string({EEG.chanlocs.labels}));
-    [present, indices] = ismember(lower(string(requested)), labels);
+    labels = hnf_lower_labels({EEG.chanlocs.labels});
+    [present, indices] = ismember(hnf_lower_labels(requested), labels);
     if any(~present)
-        missing = strjoin(cellstr(string(requested(~present))), ', ');
+        missing = strjoin(cellstr(requested(~present)), ', ');
         error('nf_preprocess:InvalidEEGChannels', ...
             'Requested EEG channels were not found: %s', missing);
     end
@@ -3918,8 +3931,8 @@ end
 
 function names = nf_explicit_option_names(options, usingDefaults)
 allNames = fieldnames(options);
-defaultNames = lower(string(usingDefaults));
-explicitMask = ~ismember(lower(string(allNames)), defaultNames);
+defaultNames = hnf_lower_labels(usingDefaults);
+explicitMask = ~ismember(hnf_lower_labels(allNames), defaultNames);
 names = allNames(explicitMask);
 end
 
@@ -4537,7 +4550,7 @@ if strcmp(options.icaMethod, 'nfadjustedadjust')
         'hnf_compute_SAD', 'hnf_EM', 'hnf_trim_and_mean', ...
         'hnf_trim_and_max', 'hnf_MARA_TF', 'hnf_beall_horizontal', ...
         'hnf_beall_blink', 'hnf_spatial_info_eyes', 'nf_specparam', ...
-        'resample', 'pwelch', 'findpeaks', 'zscore', 'pdist'};
+        'resample', 'hnf_mara_peaks', 'zscore', 'pdist'};
     for index = 1:numel(madeDependencies)
         if exist(madeDependencies{index}, 'file') ~= 2
             error('nf_preprocess:MissingNFAdjustedAdjust', ...
@@ -4792,7 +4805,7 @@ end
 end
 
 function valid = nf_is_behavior_input(value)
-valid = istable(value) || ...
+valid = isa(value, 'table') || ...
     (isstruct(value) && isvector(value));
 end
 
@@ -4896,7 +4909,7 @@ if isempty(behavior)
     behavior = struct([]);
     return
 end
-if istable(behavior)
+if isa(behavior, 'table')
     behavior = table2struct(behavior, 'ToScalar', false);
 end
 if ~isstruct(behavior) || ~isvector(behavior)
@@ -5195,8 +5208,8 @@ for index = 1:numel(labels)
             'Every selected channel must have a nonempty scalar-text label.');
     end
 end
-normalized = lower(string(labels));
-if any(strlength(normalized) == 0) || ...
+normalized = hnf_lower_labels(labels);
+if any(cellfun(@isempty,normalized)) || ...
         numel(unique(normalized)) ~= numel(normalized)
     error('nf_preprocess:InvalidChannelLabels', ...
         'Every selected channel must have a unique nonempty label.');

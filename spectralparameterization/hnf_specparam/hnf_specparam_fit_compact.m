@@ -51,8 +51,7 @@ end
 if isfield(options, 'ag') && ~isempty(options.ag)
     aperiodicGuess = options.ag;
 else
-    aperiodicGuess = (workSpec(1) - workSpec(end)) ./ ...
-        log10(workFreqs(end) ./ workFreqs(1));
+    aperiodicGuess = hnf_specparam_slope_guess(workFreqs,workSpec);
 end
 
 peakType = 'gaussian';
@@ -85,9 +84,11 @@ initialApFit = hnf_gen_aperiodic(workFreqs, initialApParms, ...
     options.aPeriodicMode, frequencyCache);
 initialPeriodicData = workSpec - initialApFit;
 
+approvedPeakKernel = []; % A direct serial fit uses its local kernel policy.
+if isfield(options,'approvedPeakKernel'), approvedPeakKernel = options.approvedPeakKernel; end
 [peakParms, ~, usedBounds] = hnf_fit_peaks(workFreqs, initialPeriodicData, ...
     options.maxPeaks, options.peakThreshold, options.minPeakHeight, ...
-    options.peakWidthLims ./ 2, [], options.optim, peakType);
+    options.peakWidthLims ./ 2, [], options.optim, peakType, approvedPeakKernel);
 
 if options.threshAfter == 1 && ~usedBounds && ~isempty(peakParms)
     keepPeak = peakParms(:, 2) >= options.minPeakHeight;
@@ -131,6 +132,16 @@ if any(~isfinite(observed)) || any(~isfinite(fitted))
     return
 end
 
+% Correlation is invariant to independent positive rescaling. Bound
+% both inputs before centering so their squared norms cannot overflow.
+observedScale = max(abs(observed));
+fittedScale = max(abs(fitted));
+if observedScale == 0 || fittedScale == 0
+    rSquare = NaN;
+    return
+end
+observed = observed./observedScale;
+fitted = fitted./fittedScale;
 observedCentered = observed - mean(observed);
 fittedCentered = fitted - mean(fitted);
 

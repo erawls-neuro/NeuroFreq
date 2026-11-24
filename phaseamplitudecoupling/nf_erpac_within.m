@@ -110,46 +110,10 @@ for ch = 1:nChan
         obsPAC = reshape(obsPAC_3d, [nTimes, hiF]);   % [nTimes x hiF]
         
         if nperm > 0
-            
-            % Permutation null distribution
-            permutedPAC = zeros(nperm, nTimes, hiF);
-            
-            for ip = 1:nperm
-                
-                % Permute trials identically across time and hiF
-                perm_idx = randperm(nTrial);
-                pow_perm = pow_ch(perm_idx, :, :); %#ok
-                
-                % Null ERPAC for this permutation
-                [tmp_3d, ~] = hnf_clcorr_kernel(phase_rep, pow_perm, use_mex);   % [1 x nTimes x hiF]
-                tmp = reshape(tmp_3d, [nTimes, hiF]);
-                permutedPAC(ip, :, :) = tmp;
-                
-            end
-            
-            % Null distribution stats
-            mu_null_3d = mean(permutedPAC, 1);   % [1 x nTimes x hiF]
-            sd_null_3d = std(permutedPAC, 0, 1); % [1 x nTimes x hiF]
-            mu_null = reshape(mu_null_3d, [nTimes, hiF]);
-            sd_null = reshape(sd_null_3d, [nTimes, hiF]);
-            
-            % Guard against zero std
-            zero_sd = (sd_null <= 8*eps(abs(mu_null)));
-            sd_null(zero_sd) = NaN;
-            
-            % z-score ERPAC
-            zPAC = (obsPAC - mu_null) ./ sd_null;   % [nTimes x hiF]
-            
-            % Assign to output: PAC(ch, f1, :, :) = hiF x time
-            PAC(ch, f1, :, :) = permute(zPAC, [2, 1]);
-            
-        else
-            
-            % Raw ERPAC (no z-scoring)
-            PAC(ch, f1, :, :) = permute(obsPAC, [2, 1]);
-            
+            obsPAC = hnf_pac_permutation_z(phase_cf, pow_ch, obsPAC, ...
+                nperm, 'erpac', 0, use_mex, false);
         end
-        
+        PAC(ch, f1, :, :) = permute(obsPAC, [2, 1]);
     end
     
     % Update progress bar
