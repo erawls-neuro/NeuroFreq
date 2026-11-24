@@ -22,6 +22,10 @@ weight = weight(:,good);
 % MI is scale invariant. Rescaling prevents overflow in bin sums.
 weight = bsxfun(@rdivide, weight, max(weight,[],1));
 % +pi and -pi represent the same direction in the half-open interval.
+% For highly unwrapped angles, modulo with a rounded 2*pi loses the
+% direction. libm's sine/cosine use high-precision argument reduction.
+large = abs(phase) > 2^20;
+phase(large) = atan2(sin(phase(large)),cos(phase(large)));
 width = 2*pi/double(nbin);
 bins = min(double(nbin), 1 + floor(mod(phase + pi, 2*pi) ./ width));
 nVars = size(phase,2);

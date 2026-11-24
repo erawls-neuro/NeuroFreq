@@ -87,8 +87,9 @@ else
         H = H/max(abs(H));
         coefficients = ifft(bsxfun(@times,X,H), [], 2);
         coefficients = coefficients(:,half+(1:nTimes),:);
-        power(:,k,:,:) = reshape(abs(coefficients).^2,nChan,1,nTimes,nTrls);
-        phase(:,k,:,:) = reshape(angle(coefficients),nChan,1,nTimes,nTrls);
+        [p,a] = hnf_powphase(coefficients);
+        power(:,k,:,:) = reshape(p,nChan,1,nTimes,nTrls);
+        phase(:,k,:,:) = reshape(a,nChan,1,nTimes,nTrls);
     end
 end
 if useGPU, tfRes.executionEnvironment = 'gpu'; else, tfRes.executionEnvironment = 'cpu'; end

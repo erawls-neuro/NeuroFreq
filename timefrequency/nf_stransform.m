@@ -71,8 +71,7 @@ for i = 1:nChan
         % optimized Stockwell S-transform
         tmpTF = stransf_optimized(dataY, factor);
         
-        stransPow(i, :, :, j)  = abs(tmpTF).^2;
-        stransPhas(i, :, :, j) = angle(tmpTF);
+        [stransPow(i,:,:,j),stransPhas(i,:,:,j)] = hnf_powphase(tmpTF);
         
     end
     

@@ -70,10 +70,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     for (col = 0; col < slices; ++col) {
         mwSize start = col*bins;
         double meanY = 0.0, cross = 0.0, sumSquaresY = 0.0, absError = 0.0;
-        double exponent, offset;
+        double exponent, offset, scale = 0;
         for (f = 0; f < bins; ++f) {
             double y = isSingle ? dataSingle[start+f] : dataDouble[start+f];
             if (!isfinite(y)) { badSlice[col] = 1; break; }
+            scale = fmax(scale,fabs(y));
             meanY += y;
         }
         if (badSlice[col]) {
@@ -85,10 +86,17 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             continue;
         }
 
+        if (scale > 1e75 || (scale > 0 && scale < 1e-75)) {
+            meanY = 0;
+            for (f = 0; f < bins; ++f) {
+                double y = isSingle ? dataSingle[start+f] : dataDouble[start+f];
+                meanY += y/scale;
+            }
+        } else scale = 1;
         meanY /= (double)bins;
         for (f = 0; f < bins; ++f) {
             double y = isSingle ? dataSingle[start+f] : dataDouble[start+f];
-            double centeredY = y - meanY;
+            double centeredY = (scale == 1 ? y : y/scale) - meanY;
             cross += centeredX[f]*centeredY;
             if (summary) sumSquaresY += centeredY*centeredY;
         }
@@ -97,9 +105,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         for (f = 0; f < bins; ++f) {
             double y = isSingle ? dataSingle[start+f] : dataDouble[start+f];
             double fitted = x[f]*exponent + offset;
-            double residual = y - fitted;
-            double ap = returnFit ? fitted : y;
-            double osc = returnFit ? 0.0 : residual;
+            double residual = (scale == 1 ? y : y/scale) - fitted;
+            double ap = returnFit ? fitted*scale : y;
+            double osc = returnFit ? 0.0 : residual*scale;
             if (isSingle) {
                 apSingle[start+f] = (float)ap;
                 oscSingle[start+f] = (float)osc;
@@ -110,11 +118,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             if (summary) absError += fabs(residual);
         }
         if (summary) {
-            double denominator = sumSquaresY * (exponent*exponent*sumSquaresX);
-            double r = denominator > 0 ? (exponent*cross) / sqrt(denominator) : nanValue;
-            summary[4*col] = offset;
-            summary[4*col+1] = exponent;
-            summary[4*col+2] = absError / (double)bins;
+            double r = sumSquaresY > 0 && exponent != 0 ? cross/sqrt(sumSquaresX)/sqrt(sumSquaresY) : nanValue;
+            summary[4*col] = offset*scale;
+            summary[4*col+1] = exponent*scale;
+            summary[4*col+2] = (absError / (double)bins)*scale;
             summary[4*col+3] = r*r;
         }
     }

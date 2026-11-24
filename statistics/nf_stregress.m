@@ -26,13 +26,16 @@ expectedMethods = {'robust' 'pearson' 'spearman' 'kendall' 'tfce'};
 
 addRequired(p, 'TF', @(x) isstruct(x) == 1);
 addRequired(p, 'regs');
+% Octave 9.4 uses validator #1 for an exact name that also prefixes
+% another parameter (progress_detail). Register progress first so both
+% names and the inputParser abbreviation contract remain usable.
+addParameter(p, 'progress', 1, @(x) isscalar(x) && ismember(x, [0 1]));
 addParameter(p, 'toi', [], @(x) isempty(x) || (isnumeric(x) && isvector(x) && numel(x) == 2));
 addParameter(p, 'foi', [], @(x) isempty(x) || (isnumeric(x) && isvector(x) && numel(x) == 2));
 addParameter(p, 'method', 'robust', @(x) any(strcmpi(char(x), expectedMethods)));
 addParameter(p, 'permutations', 1000, @(x) isnumeric(x) && isscalar(x) && x >= 0);
 addParameter(p, 'perm_seed', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x)));
 addParameter(p, 'tfce_par', 0, @(x) isscalar(x) && ismember(x, [0 1]));
-addParameter(p, 'progress', 1, @(x) isscalar(x) && ismember(x, [0 1]));
 addParameter(p, 'progress_detail', 1, @(x) isscalar(x) && ismember(x, [0 1 2]));
 
 parse(p, TF, regs, varargin{:});
@@ -165,7 +168,7 @@ freqs = freqs_all(fIdx);
 % Regressor parsing (numeric/logical or table) + names
 % ----------------------------
 
-if istable(regs) == 1
+if isa(regs,'table') == 1
 
     if height(regs) ~= R
         error('nf_stregress:BadRegs', 'Table regs must have height == number of trials (%d).', R);
@@ -616,7 +619,7 @@ p = min(p, pmax);
 
 sgn = sign(tstat);
 
-z = sgn .* norminv(1 - p ./ 2);
+z = sgn .* (sqrt(2) .* erfcinv(p));
 
 end
 
@@ -665,7 +668,7 @@ if strcmpi(method, 'robust') == 1
             yZ = nf_zscore_vec_local(y);
 
             try
-                b = robustfit(XZ0, yZ);
+                b = hnf_robustfit(XZ0, yZ);
                 b = b(:);
                 if numel(b) ~= (Kreg + 1)
                     error('BadB');
@@ -686,7 +689,7 @@ if strcmpi(method, 'robust') == 1
             yZ = nf_zscore_vec_local(y);
 
             try
-                b = robustfit(XZ0, yZ);
+                b = hnf_robustfit(XZ0, yZ);
                 b = b(:);
                 if numel(b) ~= (Kreg + 1)
                     error('BadB');
@@ -702,7 +705,7 @@ if strcmpi(method, 'robust') == 1
 else
 
     try
-        obs = corr(Y2, reg_used, 'type', method);
+        obs = hnf_stats_corr(Y2, reg_used, method);
     catch
         error('nf_stregress:corrFail', 'corr failed for method %s', method);
     end
@@ -760,7 +763,7 @@ if nPerm > 0
 
                     try
                         XZp = nf_zscore_mat_local(Xp);
-                        b0 = robustfit(XZp, yZ);
+                        b0 = hnf_robustfit(XZp, yZ);
                         b0 = b0(:);
                         if numel(b0) ~= (Kreg + 1)
                             error('BadB');
@@ -826,7 +829,7 @@ if nPerm > 0
 
                     try
                         XZp = nf_zscore_mat_local(Xp);
-                        b0 = robustfit(XZp, yZ);
+                        b0 = hnf_robustfit(XZp, yZ);
                         b0 = b0(:);
                         if numel(b0) ~= (Kreg + 1)
                             error('BadB');
@@ -911,7 +914,7 @@ if nPerm > 0
                 permIdx = randperm(R);
                 Xp = reg_used(permIdx, :);
 
-                nullBlock = corr(Y2(:, idx), Xp, 'type', method);
+                nullBlock = hnf_stats_corr(Y2(:, idx), Xp, method);
 
                 if pp == 1
                     mu = nullBlock;
@@ -948,10 +951,9 @@ else
     dfTmp = R - 2;
 
     if strcmpi(method, 'pearson') == 1
-        denom = 1 - obs .^ 2;
-        denom(denom <= 0) = eps;
+        denom = (1 - abs(obs)) .* (1 + abs(obs));
         tVals = obs .* sqrt(dfTmp ./ denom);
-        pVals = 2 .* (1 - tcdf(abs(tVals), dfTmp));
+        pVals = betainc(dfTmp ./ (dfTmp + tVals.^2),dfTmp/2,0.5);
     else
         tVals = nan(size(obs));
         pVals = nan(size(obs));
@@ -1001,7 +1003,11 @@ pVals = nan(C, F, T, Kreg);
 V = zeros(size(reg_used));
 
 for k = 1:Kreg
-    V(:, k) = tiedrank(reg_used(:, k));
+    if exist('OCTAVE_VERSION','builtin')
+        V(:, k) = ranks(reg_used(:, k));
+    else
+        V(:, k) = tiedrank(reg_used(:, k));
+    end
 end
 
 if isempty(progress_cb) == 0
@@ -1129,37 +1135,11 @@ end
 
 function z = nf_zscore_vec_local(x)
 
-x = x(:);
-
-mu = mean(x);
-sd = std(x);
-
-if ~(isfinite(sd) && sd > 0)
-    z = zeros(size(x));
-else
-    z = (x - mu) ./ sd;
-end
-
+[z,constant] = hnf_stats_zscore(x(:));
+if constant, z(:) = 0; end
 end
 
 function Z = nf_zscore_mat_local(X)
-
-mu = mean(X, 1);
-sd = std(X, 0, 1);
-
-Z = zeros(size(X));
-
-for c = 1:size(X, 2)
-
-    if ~(isfinite(sd(c)) && sd(c) > 0)
-        Z(:, c) = 0;
-    else
-        Z(:, c) = (X(:, c) - mu(c)) ./ sd(c);
-    end
-
+[Z,constant] = hnf_stats_zscore(X);
+Z(:,constant) = 0;
 end
-
-end
-
-
-

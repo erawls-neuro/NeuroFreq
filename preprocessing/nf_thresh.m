@@ -1851,7 +1851,7 @@ end
 nf_validate_provider_paths(provider, contract.paths, detector);
 contract.sha256 = cell(1, numel(contract.paths));
 for index = 1:numel(contract.paths)
-    contract.sha256{index} = nf_file_sha256(contract.paths{index});
+    contract.sha256{index} = hnf_file_sha256(contract.paths{index});
     if isempty(contract.sha256{index})
         error('nf_thresh:VendorHashFailed', ...
             ['Detector %s could not calculate a SHA-256 identity for ' ...
@@ -1867,7 +1867,7 @@ contract.definition = ...
 end
 
 function path = nf_unique_function_path(functionName, detector, provider)
-allPaths = which(functionName, '-all');
+allPaths = hnf_which_all(functionName);
 if ischar(allPaths) && size(allPaths, 1) > 1
     allPaths = cellstr(allPaths);
 elseif ischar(allPaths)
@@ -1894,7 +1894,7 @@ end
 function nf_validate_provider_paths(provider, paths, detector)
 lowerPaths = cellfun(@lower, paths, 'UniformOutput', false);
 if strcmp(provider, 'FASTER')
-    providerPresent = cellfun(@(value) contains(value, 'faster'), ...
+    providerPresent = cellfun(@(value) ~isempty(strfind(value, 'faster')), ...
         lowerPaths);
     providerDirectories = cellfun(@fileparts, lowerPaths, ...
         'UniformOutput', false);
@@ -1905,7 +1905,7 @@ if strcmp(provider, 'FASTER')
             strjoin(paths, '\n'));
     end
 elseif strcmp(provider, 'EEGLAB')
-    providerPresent = cellfun(@(value) contains(value, 'eeglab'), ...
+    providerPresent = cellfun(@(value) ~isempty(strfind(value, 'eeglab')), ...
         lowerPaths);
 else
     providerPresent = true(size(lowerPaths));
@@ -1928,7 +1928,7 @@ contract.functions = {['nf_thresh>nf_detect_' ...
     nf_detector_field(detector)]};
 sourceFile = [mfilename('fullpath') '.m'];
 contract.paths = {sourceFile};
-contract.sha256 = {nf_file_sha256(sourceFile)};
+contract.sha256 = {hnf_file_sha256(sourceFile)};
 contract.codeIdentityVerified = ~isempty(contract.sha256{1});
 contract.version = 'nf_thresh schema 3.1.0';
 contract.definition = definition;
@@ -1946,30 +1946,6 @@ contract.sha256 = {};
 contract.codeIdentityVerified = false;
 contract.version = '';
 contract.definition = '';
-end
-
-function digest = nf_file_sha256(pathValue)
-digest = '';
-fileIdentifier = fopen(pathValue, 'rb');
-if fileIdentifier < 0
-    return
-end
-fileCleanup = onCleanup(@() fclose(fileIdentifier));
-try
-    engine = java.security.MessageDigest.getInstance('SHA-256');
-    while true
-        block = fread(fileIdentifier, 1048576, '*uint8');
-        if isempty(block)
-            break
-        end
-        engine.update(block);
-    end
-    rawDigest = typecast(engine.digest(), 'uint8');
-    digest = lower(reshape(dec2hex(rawDigest, 2)', 1, []));
-catch
-    digest = '';
-end
-clear fileCleanup
 end
 
 function version = nf_provider_version(provider, paths)
@@ -2212,7 +2188,7 @@ end
 end
 
 function nf_validate_trial_metadata(value, trials, fieldName)
-if istable(value)
+if isa(value, 'table')
     count = height(value);
 elseif isvector(value)
     count = numel(value);
@@ -2271,7 +2247,7 @@ end
 
 function behavior = nf_validate_behavior_metadata( ...
         behavior, trials, fieldName)
-if istable(behavior)
+if isa(behavior, 'table')
     behavior = table2struct(behavior, 'ToScalar', false);
 end
 if ~isstruct(behavior) || (~isempty(behavior) && ~isvector(behavior))
@@ -2298,7 +2274,7 @@ end
 
 function value = nf_subset_trial_metadata(value, indices, trials, fieldName)
 nf_validate_trial_metadata(value, trials, fieldName);
-if istable(value)
+if isa(value, 'table')
     value = value(indices, :);
 elseif isvector(value)
     value = value(indices);

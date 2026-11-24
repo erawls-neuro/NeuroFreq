@@ -76,8 +76,7 @@ for k = 1:numel(freqs)
     end
     if isreal(data), analytic = hilbert(analytic); end
     analytic = permute(reshape(analytic,nTimes,nChan,nTrls),[2 4 1 3]);
-    power(:,k,:,:) = abs(analytic).^2;
-    phase(:,k,:,:) = angle(analytic);
+    [power(:,k,:,:),phase(:,k,:,:)] = hnf_powphase(analytic);
 end
 tfRes.power = hnf_tf_output(power);
 tfRes.phase = hnf_tf_output(phase);

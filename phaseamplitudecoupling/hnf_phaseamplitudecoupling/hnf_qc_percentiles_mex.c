@@ -40,7 +40,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
                 mwIndex low = (mwIndex)position - 1;
                 double fraction = position - (low + 1);
                 mwIndex high = low + (fraction > 0);
-                out[3 * freq + k] = work[low] + fraction * (work[high] - work[low]);
+                const double a = work[low], b = work[high];
+                const double delta = b - a;
+                if (!mxIsFinite(delta))
+                    out[3 * freq + k] = (1.0 - fraction) * a + fraction * b;
+                else if (fraction > 0.5)
+                    out[3 * freq + k] = b - (1.0 - fraction) * delta;
+                else
+                    out[3 * freq + k] = a + fraction * delta;
             }
         }
     }

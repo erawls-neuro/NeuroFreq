@@ -130,7 +130,7 @@ disp('calculating actual differences')
 % selected observations without allocating two permuted group arrays.
 useNative = numel(aData) >= 1024 && isreal(aData) && ~issparse(aData) && ...
     exist('hnf_mex_available','file') == 2 && hnf_mex_available('hnf_permuted_t_mex');
-T_Obs = (mean(Data{1})-mean(Data{2}))./sqrt(var(Data{1})/nA+var(Data{2})/nB);
+T_Obs = hnf_permuted_t_map(aData, 1:(nA+nB), useNative, nA);
 T_Obs = squeeze(T_Obs);
 %do TFCE transformation
 TFCE_Obs = hnf_tfce_transformation(T_Obs,ChN,E_H,flag_ft);

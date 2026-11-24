@@ -29,11 +29,20 @@ if useNative
     end
 end
 if nargin == 3
-    signed = draw .* data;
-    t = mean(signed,1) ./ (std(signed,0,1) ./ sqrt(size(data,1)));
+    signed = hnf_stats_scale(data) .* draw;
+    origin = signed(1,:,:,:);
+    centered = signed-origin;
+    t = hnf_robmean(signed,1,'includenan') ./ (std(centered,0,1) / sqrt(size(data,1)));
 else
+    data = hnf_stats_scale(data);
     a = data(draw(1:nA),:,:,:);
     b = data(draw(nA+1:end),:,:,:);
-    t = (mean(a)-mean(b)) ./ sqrt(var(a)/nA + var(b)/size(b,1));
+    origA = a(1,:,:,:); origB = b(1,:,:,:);
+    [a,scaleA] = hnf_stats_scale(a-origA);
+    [b,scaleB] = hnf_stats_scale(b-origB);
+    diffMean = (origA-origB) + (mean(a,1).*scaleA - mean(b,1).*scaleB);
+    seA = (std(a,0,1)/sqrt(nA)) .* scaleA;
+    seB = (std(b,0,1)/sqrt(size(b,1))) .* scaleB;
+    t = diffMean ./ hypot(seA,seB);
 end
 end

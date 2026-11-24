@@ -639,7 +639,7 @@ for field = {'trial_subjectindex','trial_fileindex','trial_subid','trial_condind
     name = field{1};
     if ~isfield(TF,name), continue; end
     values = TF.(name);
-    if istable(values) && height(values)==numel(keepTrials)
+    if isa(values, 'table') && height(values)==numel(keepTrials)
         TF.(name) = values(keepTrials,:);
     elseif isvector(values) && numel(values)==numel(keepTrials)
         TF.(name) = values(keepTrials);
@@ -1134,7 +1134,7 @@ elseif isstring(trlvec) == true
             'String trial labels cannot contain empty labels.');
     end
 
-elseif iscategorical(trlvec) == true
+elseif isa(trlvec, 'categorical') == true
 
     trialLabels = trlvec(:);
 
@@ -1150,9 +1150,13 @@ elseif iscell(trlvec) == true
             'Cell trial labels must be a cell array of character vectors.');
     end
 
-    trialLabels = string(trlvec(:));
+    if exist('OCTAVE_VERSION','builtin')
+        trialLabels = trlvec(:);
+    else
+        trialLabels = string(trlvec(:));
+    end
 
-    if any(strlength(trialLabels) == 0) == true
+    if any(cellfun(@isempty,trlvec(:)))
         error('nf_rmerp:MissingTrialLabel', ...
             'Cellstr trial labels cannot contain empty labels.');
     end
@@ -1169,8 +1173,11 @@ conditionLabels = unique(trialLabels, 'stable');
 conditionIndices = cell(numel(conditionLabels), 1);
 
 for conditionIndex = 1:numel(conditionLabels)
-    conditionIndices{conditionIndex} = ...
-        find(trialLabels == conditionLabels(conditionIndex));
+    if iscell(trialLabels)
+        conditionIndices{conditionIndex} = find(strcmp(trialLabels,conditionLabels{conditionIndex}));
+    else
+        conditionIndices{conditionIndex} = find(trialLabels == conditionLabels(conditionIndex));
+    end
 
     if isempty(conditionIndices{conditionIndex}) == true
         error('nf_rmerp:InternalConditionGrouping', ...
@@ -1780,7 +1787,7 @@ for fieldIndex = 1:numel(fieldNames)
     fieldValue = TF.(fieldName);
 
     if isnumeric(fieldValue) == true
-        if contains(lower(fieldName), 'power') == true
+        if ~isempty(strfind(lower(fieldName), 'power'))
             powerFields{end + 1, 1} = fieldName; %#ok
         else
             otherFields{end + 1, 1} = fieldName; %#ok

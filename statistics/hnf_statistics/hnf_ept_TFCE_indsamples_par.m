@@ -135,7 +135,7 @@ useNative = numel(aData) >= 1024 && isreal(aData) && ~issparse(aData) && ...
 % computes the very same random assignment using the MATLAB formula.
 workerMex = '';
 if useNative, workerMex = which('hnf_permuted_t_mex'); end
-T_Obs = (mean(Data{1})-mean(Data{2}))./sqrt(var(Data{1})/nA+var(Data{2})/nB);
+T_Obs = hnf_permuted_t_map(aData, 1:(nA+nB), useNative, nA);
 T_Obs = squeeze(T_Obs);
 %do TFCE transformation
 TFCE_Obs = hnf_tfce_transformation(T_Obs,ChN,E_H,flag_ft);

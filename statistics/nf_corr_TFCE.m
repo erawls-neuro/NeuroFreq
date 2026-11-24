@@ -31,7 +31,7 @@ function tfce = nf_corr_TFCE(dataX, dataY, chanlocs, faxis, taxis, nperm, par, p
 % to test every predictor at every location when a 2-D shape is ambiguous.
 % A table always supplies predictor columns. 'pointwise' requests paired maps.
 if nargin < 8 || isempty(predictorMode), predictorMode = 'auto'; end
-if nargin >= 2 && istable(dataY), predictorMode = 'predictors'; end
+if nargin >= 2 && isa(dataY,'table'), predictorMode = 'predictors'; end
 if nargin < 7 || isempty(par)
     par = 0;
 end
@@ -75,7 +75,7 @@ end
 designTab = [];
 droppedVars = {};
 
-if istable(dataY)
+if isa(dataY,'table')
     designTab = dataY;
     [dataYmat, fixedNames, droppedVars] = local_table_to_numeric_matrix(designTab);
 else
@@ -196,7 +196,7 @@ end
 designTab = [];
 droppedVars = {};
 
-if istable(dataY)
+if isa(dataY,'table')
     designTab = dataY;
     [dataYmat, fixedNames, droppedVars] = local_table_to_numeric_matrix(designTab);
 else
@@ -625,7 +625,7 @@ function r = local_corr_core_numeric(dataX, dataY, chanlocs, faxis, taxis, nperm
 designTab = [];
 droppedVars = {};
 
-if istable(dataY)
+if isa(dataY,'table')
     designTab = dataY;
     [dataYmat, fixedNames, droppedVars] = local_table_to_numeric_matrix(designTab);
 else

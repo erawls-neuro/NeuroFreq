@@ -10,6 +10,7 @@
  */
 #include "mex.h"
 #include <math.h>
+#include <float.h>
 
 static int fullRealDouble(const mxArray *a)
 {
@@ -21,7 +22,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     size_t n, bins, k, j;
     const double *params, *freqs, *observed, *guess;
     double weight, shape, error = 0.0;
-    double *gradient = NULL, *basis = NULL;
+    double *gradient = NULL, *basis = NULL, *values = NULL;
     int i;
 
     if (nrhs != 6 || nlhs < 1 || nlhs > 2)
@@ -56,6 +57,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             mxGetDimensions(prhs[0]), mxDOUBLE_CLASS, mxREAL);
         gradient = mxGetPr(plhs[1]);
         basis = (double *)mxCalloc(n, sizeof(double));
+        values = (double *)mxCalloc(n, sizeof(double));
     }
 
     for (j = 0; j < bins; ++j) {
@@ -63,20 +65,40 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         for (k = 0; k < n; ++k) {
             double u = (freqs[j] - params[k]) / params[2*n + k];
             double b = shape == 1.0 ? 1.0 / (1.0 + u*u) : exp(-0.5*u*u);
-            model += params[n + k]*b;
-            if (basis) basis[k] = b;
+            double height = params[n+k], peak = height*b;
+            if (shape == 1.0 && fabs(u) > sqrt(DBL_MAX)/2.0) {
+                double inv = params[2*n+k]/(freqs[j]-params[k]);
+                b = (inv*inv)/(1.0+inv*inv);
+                peak = ((height*inv)*inv)/(1.0+inv*inv);
+            } else if (shape==0.0 && fabs(height)>1.0 && -0.5*u*u < log(DBL_MIN)) {
+                peak = copysign(exp(log(fabs(height))-0.5*u*u),height);
+            }
+            model += peak;
+            if (basis) { basis[k] = b; values[k] = peak; }
         }
         residual = observed[j] - model;
         error += residual*residual;
         if (gradient) {
             for (k = 0; k < n; ++k) {
                 double width = params[2*n + k];
-                double d = freqs[j] - params[k];
-                double center = (params[n + k]*basis[k]*d) / (width*width);
-                double scale = (params[n + k]*basis[k]*d*d) / (width*width*width);
+                double u = (freqs[j] - params[k])/width;
+                double peak = values[k], center, scale;
                 if (shape == 1.0) {
-                    center *= 2.0*basis[k];
-                    scale *= 2.0*basis[k];
+                    double q, w;
+                    if (fabs(u)>1.0) {
+                        double inv = 1.0/u;
+                        w = 1.0/(1.0+inv*inv);
+                        q = inv*w;
+                    } else {
+                        q = u*basis[k];
+                        w = u*q;
+                    }
+                    center = (2.0*(peak*q))/width;
+                    scale = (2.0*(peak*w))/width;
+                } else {
+                    if (!isfinite(u) && basis[k] == 0) u = 0;
+                    center = (peak*u)/width;
+                    scale = ((peak*u)*u)/width;
                 }
                 gradient[k]       -= 2.0*residual*center;
                 gradient[n + k]   -= 2.0*residual*basis[k];
@@ -97,6 +119,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             error += weight*sumSquares;
         }
     }
-    if (basis) mxFree(basis);
+    if (basis) { mxFree(basis); mxFree(values); }
     plhs[0] = mxCreateDoubleScalar(error);
 }

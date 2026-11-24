@@ -19,16 +19,7 @@ centers = peakParams(:, 1);
 heights = peakParams(:, 2);
 widths = peakParams(:, 3);
 
-distance = bsxfun(@minus, freqRow, centers);
-scaledDistance = bsxfun(@rdivide, distance, widths);
-
-if strcmp(peakType,'cauchy')
-    basis = 1 ./ (1 + scaledDistance.^2);
-else
-    basis = exp(-0.5 .* scaledDistance .* scaledDistance);
-end
-
-weightedBasis = bsxfun(@times, basis, heights);
+weightedBasis = hnf_peak_values(freqRow,centers,heights,widths,peakType);
 model = sum(weightedBasis, 1);
 
 end

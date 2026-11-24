@@ -11,6 +11,7 @@ mkdir(work);
 cleanup = onCleanup(@() finish(previousFolder, previousPath, work)); %#ok<NASGU>
 checkUpdate(repo, work);
 checkRuntime(repo, work);
+if exist('OCTAVE_VERSION','builtin'), checkOctave(repo, work); end
 fprintf('NeuroFreq installer regression tests passed.\n');
 end
 
@@ -29,6 +30,11 @@ writeText(fullfile(private,'webread.m'), {
     'end'});
 writeText(fullfile(private,'websave.m'), {
     'function dest = websave(dest,varargin)'
+    ['state = load(' stateFile '); copyfile(state.archive,dest);']
+    'end'});
+% The Octave updater uses urlwrite for binary archives.
+writeText(fullfile(private,'urlwrite.m'), {
+    'function dest = urlwrite(url,dest)'
     ['state = load(' stateFile '); copyfile(state.archive,dest);']
     'end'});
 writeText(fullfile(private,'questdlg.m'), {
@@ -113,6 +119,44 @@ catch failure
     assert(strcmp(failure.identifier,'NFTest:Expected'),failure.message);
 end
 assert(strcmp(original,path) && eeglab()==2);
+end
+
+function checkOctave(repo, work)
+% Configure an intact checkout without GitHub, SCCN, EEGLAB, or a compiler.
+% The MATLAB configuration belongs to the other interpreter on a shared tree.
+root = fullfile(work,'NeuroFreq-octave');
+mkdir(root);
+copyfile(fullfile(repo,'private'),fullfile(root,'private'));
+copyfile(fullfile(repo,'nf_install.m'),root);
+copyfile(fullfile(repo,'nf_run.m'),root);
+writeText(fullfile(root,'private','webread.m'), {
+    'function data=webread(varargin)'
+    'error(''NFTest:Offline'',''Offline fixture.'');'
+    'end'});
+cache = fullfile(root,'dependencies','_nf_local');
+mkdir(cache);
+config = struct('scopePaths',{{}},'eeglabRoot','','original',true);
+save(fullfile(cache,'runtime.mat'),'config','-v7');
+cd(root);
+clear nf_install nf_run
+report = nf_install('Native','off');
+assert(report.configured && strcmp(report.repository,'unverified'));
+assert(isfile(fullfile(cache,'runtime-octave.mat')));
+saved = load(fullfile(cache,'runtime.mat'));
+assert(saved.config.original);
+assert(any(strcmp(report.features(:,1),'Octave package signal')));
+p = path;
+before = pkg('list');
+active = nf_run(@() pkg('list'));
+for k = 1:numel(active)
+    if any(strcmp(active{k}.name,{'signal','statistics','optim','io','tablicious'}))
+        assert(active{k}.loaded);
+    end
+end
+assert(strcmp(path,p));
+after = pkg('list');
+assert(isequal(cellfun(@(v) v.loaded,before),cellfun(@(v) v.loaded,after)));
+cd(work);
 end
 
 function writeText(file, text)

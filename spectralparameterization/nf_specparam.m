@@ -24,7 +24,8 @@ function parm_spec = nf_specparam(spec, freqs, varargin)
 % peakThreshold : Candidate threshold in residual standard deviations.
 % threshAfter   : Apply intended post-fit limits for unconstrained fits.
 % peakType      : Gaussian (width parameter = SD) or Cauchy (HWHM).
-% optim         : Use fmincon when Optimization Toolbox is available.
+% optim         : Enable constrained peak fitting (default 1). MATLAB uses
+%                 fmincon when available. Octave uses optim fmincon or core sqp.
 % ag            : Initial aperiodic-exponent guess.
 %
 % REFERENCES
@@ -61,8 +62,7 @@ hnf_specparam_frequency_cache(freqs); % Validate the frequency grid before takin
 if numel(freqs) ~= numel(spec)
     error('nf_specparam:SizeMismatch','spec and freqs must have the same length.');
 end
-defaultAperiodicGuess = (double(spec(1)) - double(spec(end))) ./ ...
-    log10(double(freqs(end)) ./ double(freqs(1)));
+defaultAperiodicGuess = hnf_specparam_slope_guess(freqs,spec);
 
 addRequired(p, 'spec');
 addRequired(p, 'f');

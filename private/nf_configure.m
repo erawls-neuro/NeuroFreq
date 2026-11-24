@@ -17,7 +17,7 @@ fprintf('\nEEGLAB\n');
 fprintf('%s\n', report.eeglab);
 fprintf('\nNeuroFreq dependencies and EEGLAB plugins\n');
 [report.dependencies, paths] = nf_dependencies(root, eeglabRoot, privateEEGLAB);
-fprintf('\nMATLAB feature availability\n');
+fprintf('\nRuntime feature availability\n');
 report.features = nf_check_features(paths, root, eeglabRoot);
 
 % nf_run temporarily adds the chosen providers before dispatching a call.
@@ -41,7 +41,7 @@ staged = [tempname(cache) '.mat'];
 cleanup = onCleanup(@() nf_remove_temp_file(staged)); %#ok<NASGU>
 save(staged, 'config', '-v7');
 source = javaObject('java.io.File', staged);
-target = javaObject('java.io.File', fullfile(cache, 'runtime.mat'));
+target = javaObject('java.io.File', nf_runtime_file(root, true));
 options = javaArray('java.nio.file.CopyOption', 2);
 options(1) = javaMethod('valueOf', 'java.nio.file.StandardCopyOption', 'REPLACE_EXISTING');
 options(2) = javaMethod('valueOf', 'java.nio.file.StandardCopyOption', 'ATOMIC_MOVE');

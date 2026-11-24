@@ -2,7 +2,7 @@ function answer = nf_choose(question, titleText, choices, default)
 % Every prompt has an explicit safe default for a dismissed dialog or batch
 % session. A terminal/batch run never waits for an invisible dialog.
 answer = default;
-if ~usejava('desktop') || ~usejava('awt')
+if ~nf_desktop()
     fprintf('%s\n  No desktop dialog available. Choice: %s\n', question, default);
     return
 end

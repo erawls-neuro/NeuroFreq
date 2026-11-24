@@ -38,18 +38,17 @@ if useNative
     end
 end
 if useNative
-    freeObjective = @hnf_peak_objective_mex;
-    freeArgs = {freqs, flatSpec, guess, penalty, shape};
+    freeObjective = @(p) hnf_peak_objective_mex(p,freqs,flatSpec,guess,penalty,shape);
 else
-    freeObjective = @hnf_error_model;
-    freeArgs = {freqs, flatSpec, guess, guessWeight, peakType};
+    freeObjective = @(p) hnf_error_model(p,freqs,flatSpec,guess,guessWeight,peakType);
 end
 
 if useOptimizationToolbox == 1
     canUseFmincon = specparam_has_fmincon_local();
     fallbackOptions = specparam_requested_fallback_options_local();
 
-    if canUseFmincon == true
+    octaveRuntime = exist('OCTAVE_VERSION','builtin') ~= 0;
+    if canUseFmincon || octaveRuntime
         lowerBounds = [guess(:, 1) - guess(:, 3) .* 2, ...
             zeros(size(guess(:, 2))), ...
             ones(size(guess(:, 3))) .* widthLimits(1)];
@@ -57,27 +56,36 @@ if useOptimizationToolbox == 1
             inf(size(guess(:, 2))), ...
             ones(size(guess(:, 3))) .* widthLimits(2)];
 
-        try
-            constrainedOptions = specparam_constrained_options_local();
-            if useNative
-                objective = @(params) hnf_peak_objective_mex(params, freqs, flatSpec, [], 0, shape);
-            else
-                objective = @(params) hnf_error_model_constr(params, freqs, flatSpec, peakType);
+        if useNative
+            objective = @(params) hnf_peak_objective_mex(params, freqs, flatSpec, [], 0, shape);
+        else
+            objective = @(params) hnf_error_model_constr(params, freqs, flatSpec, peakType);
+        end
+        if canUseFmincon
+            try
+                [peakParams,~,exitFlag] = fmincon(objective, guess(:), ...
+                    [], [], [], [], lowerBounds(:), upperBounds(:), [], ...
+                    specparam_constrained_options_local());
+                usedBounds = ~octaveRuntime || (exitFlag > 0 && all(isfinite(peakParams)) && ...
+                    all(peakParams >= lowerBounds(:)-1e-7) && all(peakParams <= upperBounds(:)+1e-7));
+            catch
+                if ~octaveRuntime
+                    peakParams = fminsearch(freeObjective, guess, fallbackOptions);
+                end
             end
-            parameterVector = fmincon(objective, guess(:), ...
-                [], [], [], [], lowerBounds(:), upperBounds(:), [], ...
-                constrainedOptions);
+        end
+        if octaveRuntime && ~usedBounds
+            % Core Octave also supplies a constrained solver. Keep the
+            % same peak SSE and bounds when the optim package is absent.
+            peakParams = octave_peak_sqp(objective,guess(:),lowerBounds(:),upperBounds(:));
             usedBounds = true;
-            peakParams = reshape(parameterVector, [], 3);
-        catch
-            peakParams = fminsearch(freeObjective, guess, fallbackOptions, freeArgs{:});
         end
     else
-        peakParams = fminsearch(freeObjective, guess, fallbackOptions, freeArgs{:});
+        peakParams = fminsearch(freeObjective, guess, fallbackOptions);
     end
 else
     unconstrainedOptions = specparam_unconstrained_options_local();
-    peakParams = fminsearch(freeObjective, guess, unconstrainedOptions, freeArgs{:});
+    peakParams = fminsearch(freeObjective, guess, unconstrainedOptions);
 end
 
 peakParams = reshape(peakParams, [], 3);
@@ -89,7 +97,42 @@ end
 function available = specparam_has_fmincon_local()
 
 % Paths and toolbox licenses may change between calls in one session.
-available = exist('fmincon', 'file') == 2 && license('test','Optimization_Toolbox');
+available = exist('fmincon', 'file') == 2 && ...
+    (exist('OCTAVE_VERSION','builtin') || license('test','Optimization_Toolbox'));
+end
+
+function p = octave_peak_sqp(objective,p,lb,ub)
+% Eliminate parameters fixed by equal bounds (e.g., a prescribed width).
+free = lb < ub;
+p(~free) = lb(~free);
+if ~any(free), return; end
+% Express only finite bounds as linear inequalities. Octave 9 sqp's
+% lb/ub interface mishandles mixed finite and infinite upper bounds.
+lower = lb(free);
+upper = ub(free);
+eyeFree = eye(nnz(free));
+A = [eyeFree(isfinite(lower),:); -eyeFree(isfinite(upper),:)];
+b = [lower(isfinite(lower)); -upper(isfinite(upper))];
+constraints = {@(x) A*x-b,@(x) A};
+[x,value,info] = sqp(p(free),{@value_at,@gradient_at},[],constraints, ...
+    [],[],3000,1e-7);
+if ~any(info==[101 104]) || ~isfinite(value) || any(~isfinite(x)) || ...
+        any(x < lb(free)-1e-7) || any(x > ub(free)+1e-7)
+    error('NeuroFreq:OctavePeakFit','Bounded Octave peak fit failed (sqp status %d).',info);
+end
+p(free) = min(ub(free),max(lb(free),x));
+
+    function value = value_at(x)
+        trial = p;
+        trial(free) = x;
+        value = objective(trial);
+    end
+    function gradient = gradient_at(x)
+        trial = p;
+        trial(free) = x;
+        [~,g] = objective(trial);
+        gradient = g(free);
+    end
 end
 
 function options = specparam_constrained_options_local()

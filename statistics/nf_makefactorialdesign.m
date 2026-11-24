@@ -263,7 +263,7 @@ if keepSubjectInX == true
         error('nf_makefactorialdesign:NoSubjectForX', ...
             'keepSubjectInX=true, but no subject field exists.');
     end
-    subjNum = double(grp2idx(categorical(subID)));
+    subjNum = hnf_subject_codes(subID);
     X = [subjNum(:), X];
     fixedNames = [{'subID'}, fixedNames];
 end
@@ -285,9 +285,9 @@ if keepSubjectInDesignTab == true && hasSubject == true
         designTab(:,subjectFieldResolved) = [];
     end
     if subjectAsCategorical == true
-        designTab = addvars(designTab, categorical(subID), 'Before', 1, 'NewVariableNames', subjectFieldResolved);
+        designTab = addvars(designTab, categorical(subID), 'Before', 1, 'NewVariableNames', {subjectFieldResolved});
     else
-        designTab = addvars(designTab, subID, 'Before', 1, 'NewVariableNames', subjectFieldResolved);
+        designTab = addvars(designTab, subID, 'Before', 1, 'NewVariableNames', {subjectFieldResolved});
     end
 end
 
@@ -327,7 +327,7 @@ end
 
 function behaviorTable = local_get_behavior_table(TF)
 
-if istable(TF)
+if isa(TF,'table')
     behaviorTable = TF;
     return
 end
@@ -446,7 +446,7 @@ if ischar(col)
 end
 
 if iscategorical(col)
-    subID = cellstr(string(col));
+    subID = cellstr(col);
     return
 end
 
@@ -511,21 +511,30 @@ for iVar = 1:nVars
 
     isBinary(iVar) = local_is_binary_numeric(x, binaryTol);
 
-    if isBinary(iVar) == true
-        baseX(:, iVar) = x;
+    % Preserve missing entries while computing location and spread in
+    % scaled units. Inf retains MATLAB's existing omit-NaN behavior.
+    baseX(:,iVar) = x;
+    keep = ~isnan(x);
+    if any(isinf(x)) || ~any(keep)
         mu(iVar) = mean(x,'omitnan');
         sigma(iVar) = std(x,0,'omitnan');
-    else
-        mu(iVar) = mean(x,'omitnan');
-        sigma(iVar) = std(x,0,'omitnan');
-
-        if standardize && (isnan(sigma(iVar)) || sigma(iVar) == 0)
-            baseX(:,iVar) = x;
+        if standardize && ~isBinary(iVar)
             baseX(isfinite(x),iVar) = 0;
-        elseif standardize == true
-            baseX(:, iVar) = (x - mu(iVar)) ./ sigma(iVar);
+        end
+        continue
+    end
+    [scaled,factor] = hnf_stats_scale(x(keep));
+    origin = scaled(1);
+    delta = scaled - origin;
+    center = mean(delta);
+    spread = std(delta);
+    mu(iVar) = (origin + center) * factor;
+    sigma(iVar) = spread * factor;
+    if standardize && ~isBinary(iVar)
+        if spread == 0
+            baseX(keep,iVar) = 0;
         else
-            baseX(:, iVar) = x;
+            baseX(keep,iVar) = (delta-center)/spread;
         end
     end
 
@@ -596,10 +605,17 @@ for order = 2:maxOrder
 
         idx = combos(iC, :);
 
-        prodVec = ones(nObs, 1);
-
-        for k = 1:numel(idx)
-            prodVec = prodVec .* baseXEligible(:, idx(k));
+        terms = baseXEligible(:,idx);
+        prodVec = prod(terms,2);
+        % A third (or later) factor can bring an intermediate overflow or
+        % underflow back into range. Keep the ordinary fast path for rows
+        % whose product can be computed directly without range loss.
+        repair = all(isfinite(terms),2) & ...
+            (~isfinite(prodVec) | (prodVec == 0 & all(terms ~= 0,2)));
+        if any(repair)
+            values = terms(repair,:);
+            [fraction,exponent] = log2(values);
+            prodVec(repair) = pow2(prod(fraction,2),sum(exponent,2));
         end
 
         name = eligibleNames{idx(1)};

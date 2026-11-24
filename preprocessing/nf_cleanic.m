@@ -141,7 +141,8 @@ else
     EEG = nf_clear_eeg_behavior(EEG);
 end
 
-method = nf_normalize_method(method);
+requestedMethod = nf_normalize_method(method);
+method = hnf_adjust_backend(requestedMethod);
 if strcmp(method, 'none')
     nf_validate_eeg_for_skip(EEG);
 else
@@ -174,6 +175,8 @@ if strcmp(method, 'none')
     return
 end
 classifierProvenance = nf_preflight(method, algorithm, options);
+classifierProvenance.requestedMethod = requestedMethod;
+classifierProvenance.executedMethod = method;
 if strcmp(method, 'iclabel')
     classifierProvenance.parameters.aggressive = logical(aggressive);
 end
@@ -483,6 +486,7 @@ end
 info = struct();
 info.schemaVersion = '2.4.0';
 info.method = method;
+info.requestedMethod = requestedMethod;
 info.algorithm = algorithm;
 info.algorithmDetails = algorithmInfo;
 info.randomness.requestedSeed = options.randomSeed;
@@ -741,7 +745,7 @@ if isempty(behavior)
     behavior = struct([]);
     return
 end
-if istable(behavior)
+if isa(behavior, 'table')
     behavior = table2struct(behavior, 'ToScalar', false);
 end
 if ~isstruct(behavior) || ~isvector(behavior)
@@ -1163,7 +1167,7 @@ if isempty(mapping.requestedInputIndices)
 end
 mapping.requestedLabels = ...
     {EEG.chanlocs(mapping.requestedInputIndices).labels};
-if numel(unique(lower(string(mapping.requestedLabels)))) ~= ...
+if numel(unique(hnf_lower_labels(mapping.requestedLabels))) ~= ...
         numel(mapping.requestedLabels)
     error('nf_cleanic:DuplicateFASTERRequestedEOGLabels', ...
         ['fasterOptions.eogChannels resolves to duplicate channel labels ' ...
@@ -1180,7 +1184,7 @@ end
 
 retainedLabels = {EEG.chanlocs.labels};
 [present, retainedIndices] = ismember( ...
-    lower(string(mapping.requestedLabels)), lower(string(retainedLabels)));
+    hnf_lower_labels(mapping.requestedLabels), hnf_lower_labels(retainedLabels));
 if any(~present)
     removedLabels = mapping.requestedLabels(~present);
     error('nf_cleanic:FASTERRequestedEOGRemoved', ...
@@ -1880,14 +1884,14 @@ elseif ischar(existingLabels)
     existingLabels = {existingLabels};
 end
 combined = [existingLabels(:)' labels(:)'];
-[~, uniqueIndices] = unique(lower(string(combined)), 'stable');
+[~, uniqueIndices] = unique(hnf_lower_labels(combined), 'stable');
 EEG.etc.badchanlabels = combined(sort(uniqueIndices));
 EEG.etc.badchans = numel(EEG.etc.badchanlabels);
 if isfield(EEG.etc, 'ogchan') && isstruct(EEG.etc.ogchan) && ...
         isfield(EEG.etc.ogchan, 'labels')
-    originalLabels = lower(string({EEG.etc.ogchan.labels}));
+    originalLabels = hnf_lower_labels({EEG.etc.ogchan.labels});
     [present, originalIndices] = ismember( ...
-        lower(string(EEG.etc.badchanlabels)), originalLabels);
+        hnf_lower_labels(EEG.etc.badchanlabels), originalLabels);
     if all(present)
         EEG.etc.badchanindices = originalIndices;
     elseif isfield(EEG.etc, 'badchanindices')
@@ -2213,7 +2217,7 @@ elseif strcmp(method, 'nfadjust')
 elseif strcmp(method, 'nfadjustedadjust')
     nativeRequired = {'hnf_ADJUST', 'hnf_compute_GD', 'hnf_compute_SED', ...
         'hnf_compute_SAD', 'hnf_EM', 'hnf_trim_and_mean', ...
-        'hnf_trim_and_max', 'hnf_MARA_TF', 'hnf_beall_horizontal', ...
+        'hnf_trim_and_max', 'hnf_MARA_TF', 'hnf_mara_peaks', 'hnf_beall_horizontal', ...
         'hnf_beall_blink', 'hnf_spatial_info_eyes', 'nf_specparam'};
     nf_require_native_classifier_files(nativeRequired, method);
 elseif strcmp(method, 'adjustedadjust')
@@ -2394,7 +2398,7 @@ elseif strcmp(method, 'nfadjustedadjust')
     names = {'nf_cleanic', ...
         'hnf_ADJUST', 'hnf_compute_GD', 'hnf_compute_SED', ...
         'hnf_compute_SAD', 'hnf_EM', 'hnf_trim_and_mean', ...
-        'hnf_trim_and_max', 'hnf_MARA_TF', 'hnf_beall_horizontal', ...
+        'hnf_trim_and_max', 'hnf_MARA_TF', 'hnf_mara_peaks', 'hnf_beall_horizontal', ...
         'hnf_beall_blink', 'hnf_spatial_info_eyes', 'nf_specparam'};
     source = 'NeuroFreq minimal HNF adjusted-ADJUST adaptation';
     parameters = options.adjustOptions;
@@ -2453,7 +2457,7 @@ records = repmat(struct( ...
 for index = 1:numel(names)
     records(index).name = names{index};
     records(index).path = nf_resolved_path(names{index});
-    records(index).sha256 = nf_file_sha256(records(index).path);
+    records(index).sha256 = hnf_file_sha256(records(index).path);
     if isempty(records(index).sha256)
         error('nf_cleanic:VendorHashFailed', ...
             ['Could not calculate a SHA-256 identity for %s at %s. ' ...
@@ -2490,7 +2494,7 @@ provenance.provider = 'EEGLAB';
 provenance.entryPoint = 'pop_subcomp';
 provenance.decisionProvider = 'NeuroFreq';
 provenance.path = nf_resolved_path('pop_subcomp');
-provenance.sha256 = nf_file_sha256(provenance.path);
+provenance.sha256 = hnf_file_sha256(provenance.path);
 if isempty(provenance.sha256)
     error('nf_cleanic:VendorHashFailed', ...
         ['Could not calculate a SHA-256 identity for pop_subcomp at %s. ' ...
@@ -2501,7 +2505,7 @@ provenance.executed = false;
 end
 
 function pathValue = nf_resolved_path(functionName)
-resolved = which(functionName, '-all');
+resolved = hnf_which_all(functionName);
 if isempty(resolved)
     error('nf_cleanic:MissingDependency', ...
         'Required function %s was not found.', functionName);
@@ -2518,9 +2522,9 @@ elseif ~iscell(resolved)
     resolved = {char(resolved)};
 end
 resolved = resolved(~cellfun(@isempty, resolved));
-normalized = string(resolved);
+normalized = resolved;
 if ispc
-    normalized = lower(normalized);
+    normalized = hnf_lower_labels(normalized);
 end
 [~, uniqueIndices] = unique(normalized, 'stable');
 resolved = resolved(sort(uniqueIndices));
@@ -2581,28 +2585,6 @@ try
 catch
     release = '';
 end
-end
-
-function value = nf_file_sha256(filePath)
-value = '';
-if isempty(filePath) || exist(filePath, 'file') ~= 2
-    return
-end
-fileId = fopen(filePath, 'r');
-if fileId < 0
-    return
-end
-fileCleanup = onCleanup(@() fclose(fileId));
-try
-    bytes = fread(fileId, Inf, '*uint8');
-    digest = java.security.MessageDigest.getInstance('SHA-256');
-    digest.update(bytes);
-    digestBytes = typecast(digest.digest(), 'uint8');
-    value = lower(reshape(dec2hex(digestBytes, 2).', 1, []));
-catch
-    value = '';
-end
-clear fileCleanup
 end
 
 function EEG = nf_ensure_event_fields(EEG)
@@ -3063,7 +3045,7 @@ for index = 1:numel(chanlocs)
     coordinates(index, :) = coordinates(index, :) ./ ...
         norm(coordinates(index, :));
 end
-if numel(unique(lower(string(labels)))) ~= numel(labels)
+if numel(unique(hnf_lower_labels(labels))) ~= numel(labels)
     error('nf_cleanic:InvalidChannelLabels', ...
         'ICA channel labels must be unique, ignoring case.');
 end

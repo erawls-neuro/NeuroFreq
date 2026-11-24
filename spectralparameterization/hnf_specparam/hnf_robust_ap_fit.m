@@ -4,8 +4,7 @@ function aperiodicParams = hnf_robust_ap_fit(freqs, powerSpectrum, aperiodicMode
 freqs = double(freqs(:).');
 powerSpectrum = double(powerSpectrum(:).');
 if nargin < 4 || isempty(aperiodicGuess)
-    aperiodicGuess = -(powerSpectrum(end) - powerSpectrum(1)) ./ ...
-        log10(freqs(end) ./ freqs(1));
+    aperiodicGuess = hnf_specparam_slope_guess(freqs,powerSpectrum);
 end
 
 if nargin < 5 || isempty(frequencyCache)
@@ -46,16 +45,15 @@ switch aperiodicMode
 
         if fullRank == false
             searchOptions = specparam_ap_search_options_local();
-            aperiodicParams = fminsearch(@hnf_error_expo_nk_function, ...
-                initialParams, searchOptions, fitFreqs, fitSpectrum, ...
-                fitLog10Freqs);
+            loss = @(p) hnf_error_expo_nk_function(p,fitFreqs,fitSpectrum,fitLog10Freqs);
+            aperiodicParams = fminsearch(loss,initialParams,searchOptions);
         end
 
     case 'knee'
         searchOptions = specparam_ap_search_options_local();
         fitLogFreqs = frequencyCache.logFreqs(percentileMask);
-        aperiodicParams = fminsearch(@hnf_error_expo_function, initialParams, ...
-            searchOptions, fitFreqs, fitSpectrum, fitLogFreqs);
+        loss = hnf_knee_loss(fitFreqs,fitSpectrum,fitLogFreqs,initialParams,frequencyCache);
+        aperiodicParams = fminsearch(loss,initialParams,searchOptions);
 end
 
 end

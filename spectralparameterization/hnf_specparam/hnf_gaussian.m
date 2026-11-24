@@ -14,7 +14,11 @@ function ys = hnf_gaussian(freqs, mu, hgt, sigma)
 %       ys :    1xn array
 %       Output values for gaussian function.
 
-    scaledDistance = (freqs - mu) ./ sigma;
-    ys = hgt .* exp(-0.5 .* scaledDistance .* scaledDistance);
+    if isscalar(mu) && isscalar(hgt) && isscalar(sigma)
+        ys = reshape(hnf_peak_values(freqs(:).',mu,hgt,sigma,'gaussian'),size(freqs));
+    else
+        u = (freqs-mu)./sigma;
+        ys = hgt.*exp(-.5*u.^2);
+    end
 
 end

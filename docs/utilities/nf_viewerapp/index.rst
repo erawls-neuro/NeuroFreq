@@ -6,9 +6,24 @@ NeuroFreq includes a viewer app that allows interacting with TF structures for M
 
 .. code-block:: matlab
    
-  nf_viewerapp(TF);
+  viewer = nf_run('nf_viewerapp',TF);
 
 Where 1) TF is the output of nf_tftransform (single subject) or of nf_aggregate (multi-subject).
+
+In Octave this call opens a regular figure and returns its handle. Supply a
+measure such as ``'power'``, ``'phase'`` or ``'stat'`` as the next argument.
+Click the TF map to select a bin or a plotted sensor to select its map. The
+arrow keys move in time and frequency. A/D move between sensors, Z/X between
+observations, and M/N jump to the global maximum/minimum. Hold Shift with
+M/N to search within the selected sensor. L switches linear/log frequency
+for positive grids and C toggles crosshairs. Interactive navigation requires
+a toolkit that delivers pointer and keyboard events (for example, Qt).
+With a headless toolkit the figure can still be saved using ``print``.
+
+The Octave figure uses the same map layout and p < .05 mask as the MATLAB
+viewer. Phase is pooled on the circle. Color limits are shared across
+sensors and observations. The Octave figure exposes standard axes in place
+of the App Designer property controls.
 
 References
 ^^^^^^^^^^

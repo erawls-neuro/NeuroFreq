@@ -174,7 +174,18 @@ if options.plot
     figureHandle = nf_quality_figure(quality, locations, actionLocations, ...
         actionLabels, char(options.visible), char(options.title));
     if ~isempty(options.savePath)
-        exportgraphics(figureHandle, char(options.savePath), 'Resolution', 200);
+        outputPath = char(options.savePath);
+        if exist('OCTAVE_VERSION','builtin')
+            [~,~,extension] = fileparts(outputPath);
+            devices = struct('png','png','pdf','pdf','jpg','jpg','jpeg','jpg','tif','tiff','tiff','tiff','eps','epsc','svg','svg');
+            key = lower(extension(2:end));
+            if ~isfield(devices,key)
+                error('nf_eegquality:ExportFormat','Octave export requires PNG, PDF, JPEG, TIFF, EPS, or SVG.');
+            end
+            print(figureHandle,outputPath,['-d' devices.(key)],'-r200');
+        else
+            exportgraphics(figureHandle,outputPath,'Resolution',200);
+        end
     end
 end
 
@@ -319,8 +330,8 @@ end
 function alignment = nf_align_channels(preclean, postclean)
 preLabels = nf_channel_labels(preclean, 'EEG_preclean');
 postLabels = nf_channel_labels(postclean, 'EEG_postclean');
-preLower = lower(preLabels);
-postLower = lower(postLabels);
+preLower = hnf_lower_labels(preLabels);
+postLower = hnf_lower_labels(postLabels);
 
 if numel(unique(preLower)) ~= numel(preLower)
     error('nf_eegquality:DuplicateChannelLabels', ...
@@ -351,19 +362,19 @@ alignment.nPostOnly = numel(alignment.postOnlyLabels);
 end
 
 function labels = nf_channel_labels(EEG, variableName)
-labels = strings(1, EEG.nbchan);
+labels = cell(1, EEG.nbchan);
 for channelIndex = 1:EEG.nbchan
     if ~isfield(EEG.chanlocs(channelIndex), 'labels')
         error('nf_eegquality:MissingChannelLabels', ...
             '%s channel %d has no label field.', variableName, channelIndex);
     end
-    label = string(EEG.chanlocs(channelIndex).labels);
+    label = hnf_scalar_text(EEG.chanlocs(channelIndex).labels);
     label = strtrim(label);
-    if strlength(label) == 0
+    if isempty(label)
         error('nf_eegquality:EmptyChannelLabel', ...
             '%s channel %d has an empty label.', variableName, channelIndex);
     end
-    labels(channelIndex) = label;
+    labels{channelIndex} = label;
 end
 end
 
@@ -610,13 +621,26 @@ end
 function [features, availability] = nf_window_features(data, sampleRate, thresholds)
 nonfinite = ~isfinite(data);
 nonfiniteFraction = mean(nonfinite, 2);
-data(nonfinite) = NaN;
-unreferencedStandardDeviation = std(data, 0, 2, 'omitnan');
-data = nf_common_average(data);
-channelMedian = median(data, 2, 'omitnan');
-centered = data - channelMedian;
-amplitude = max(abs(centered), [], 2, 'omitnan');
-rmsValue = sqrt(mean(centered .^ 2, 2, 'omitnan'));
+native = false;
+if numel(data)>=1024 && ~any(nonfinite(:)) && max(abs(data(:)))<=realmax/4 && ...
+        exist('hnf_qc_window_mex','file')==3 && ...
+        (~exist('hnf_mex_available','file') || hnf_mex_available('hnf_qc_window_mex'))
+    try
+        [data,unreferencedStandardDeviation,amplitude,rmsValue] = hnf_qc_window_mex(data);
+        native = true;
+    catch err
+        if ~exist('hnf_mex_load_error','file') || ~hnf_mex_load_error(err), rethrow(err); end
+    end
+end
+if ~native
+    data(nonfinite) = NaN;
+    unreferencedStandardDeviation = hnf_robstd(data,0,2,'omitnan');
+    data = nf_common_average(data);
+    channelMedian = median(data, 2, 'omitnan');
+    centered = data - channelMedian;
+    amplitude = max(abs(centered), [], 2);
+    rmsValue = hnf_robrms(centered,2,'omitnan');
+end
 filled = nf_fill_nonfinite(data);
 spatialCorrelation = nf_spatial_correlation(filled);
 [spectralPower, frequencies] = nf_unscaled_spectrum(filled, sampleRate);
@@ -630,8 +654,7 @@ muscleAvailable = any(muscleMask) && any(muscleReferenceMask);
 if muscleAvailable
     musclePower = mean(spectralPower(:, muscleMask), 2);
     muscleReferencePower = mean(spectralPower(:, muscleReferenceMask), 2);
-    muscleRatioDb = 10 .* log10(max(musclePower, realmin) ./ ...
-        max(muscleReferencePower, realmin));
+    muscleRatioDb = 10 .* (log10(max(musclePower,realmin)) - log10(max(muscleReferencePower,realmin)));
 else
     muscleRatioDb = nan(size(data, 1), 1);
 end
@@ -646,7 +669,7 @@ lineAvailable = logical(thresholds.lineEvaluationEnabled) && ...
 if lineAvailable
     linePower = mean(spectralPower(:, lineMask), 2);
     sidePower = mean(spectralPower(:, sideMask), 2);
-    lineRatioDb = 10 .* log10(max(linePower, realmin) ./ max(sidePower, realmin));
+    lineRatioDb = 10 .* (log10(max(linePower,realmin)) - log10(max(sidePower,realmin)));
 else
     lineRatioDb = nan(size(data, 1), 1);
 end
@@ -666,16 +689,19 @@ end
 
 function data = nf_common_average(data)
 data(~isfinite(data)) = NaN;
-reference = mean(data, 1, 'omitnan');
+reference = hnf_robmean(data,1,'omitnan');
 data = data - reference;
 end
 
 function data = nf_fill_nonfinite(data)
+% Finite EEG windows need no replacement or per-channel mean.
+if all(isfinite(data(:))), return; end
 for channelIndex = 1:size(data, 1)
     row = data(channelIndex, :);
     valid = isfinite(row);
     if any(valid)
-        replacement = mean(row(valid));
+        if all(valid), continue; end
+        replacement = hnf_robmean(row(valid),2,'includenan');
     else
         replacement = 0;
     end
@@ -685,9 +711,12 @@ end
 end
 
 function correlation = nf_spatial_correlation(data)
-data = data - mean(data, 2);
-energy = sqrt(sum(data .^ 2, 2));
-valid = energy > eps;
+% Per-channel scale cancels in Pearson correlations. Only exactly
+% constant rows have undefined energy, regardless of recording units.
+data = nf_scaled_rows(data);
+data = data - mean(data,2);
+energy = sqrt(sum(data.^2,2));
+valid = energy > 0;
 normalized = zeros(size(data));
 normalized(valid, :) = data(valid, :) ./ energy(valid);
 correlationMatrix = normalized * normalized';
@@ -695,6 +724,12 @@ correlationMatrix(1:(size(correlationMatrix, 1) + 1):end) = NaN;
 correlation = median(abs(correlationMatrix), 2, 'omitnan');
 correlation(~valid) = 0;
 correlation(~isfinite(correlation)) = 0;
+end
+
+function [scaled, scale] = nf_scaled_rows(data)
+scale = max(abs(data),[],2);
+scale(scale==0) = 1;
+scaled = data./scale;
 end
 
 function [power, frequencies] = nf_unscaled_spectrum(data, sampleRate)
@@ -705,7 +740,8 @@ if sampleCount < 2
     return
 end
 
-data = nf_linear_detrend(data);
+% Common channel gain cancels from each within-channel band ratio.
+data = nf_linear_detrend(nf_scaled_rows(data));
 taper = nf_hann(sampleCount);
 data = data .* taper;
 nfft = max(8, 2 ^ nextpow2(sampleCount));
@@ -765,6 +801,7 @@ if ~psd.available
 end
 
 powerSum = zeros(channelCount, oneSidedCount);
+amplitudeScale = zeros(channelCount,1);
 validSegmentCount = zeros(channelCount, 1);
 
 for segmentIndex = 1:segmentCount
@@ -776,7 +813,15 @@ for segmentIndex = 1:segmentCount
     originalFinite = mean(isfinite(data), 2);
     data = nf_common_average(data);
     data = nf_fill_nonfinite(data);
-    segmentPower = nf_periodogram(data, EEG.srate, nfft);
+    % Retain a per-channel amplitude reference while averaging linear powers.
+    % Zero windows still count, but cannot overwhelm a small nonzero reference.
+    scale = max(abs(data),[],2);
+    nextScale = max(amplitudeScale,scale);
+    divisor = nextScale;
+    divisor(divisor==0) = 1;
+    powerSum = powerSum.*(amplitudeScale./divisor).^2;
+    segmentPower = nf_periodogram(data./divisor,EEG.srate,nfft);
+    amplitudeScale = nextScale;
     validChannels = originalFinite > 0;
     powerSum(validChannels, :) = powerSum(validChannels, :) + segmentPower(validChannels, :);
     validSegmentCount(validChannels) = validSegmentCount(validChannels) + 1;
@@ -790,7 +835,9 @@ for channelIndex = 1:channelCount
     end
 end
 
-channelDb = 10 .* log10(max(meanPower(:, frequencyMask), realmin));
+selectedPower = meanPower(:,frequencyMask);
+channelDb = 10*log10(selectedPower)+20*log10(amplitudeScale);
+channelDb(selectedPower==0) = 10*log10(realmin);
 channelDb(validSegmentCount == 0,:) = NaN;
 psd.frequencies = frequencies(frequencyMask);
 psd.channelDb = channelDb;
@@ -852,8 +899,7 @@ for columnIndex = 1:size(data, 2)
     lowerIndex = floor(position);
     upperIndex = ceil(position);
     fraction = position - lowerIndex;
-    values(columnIndex) = column(lowerIndex) + ...
-        (fraction .* (column(upperIndex) - column(lowerIndex)));
+    values(columnIndex) = hnf_roblerp(column(lowerIndex),column(upperIndex),fraction);
 end
 end
 
@@ -883,8 +929,14 @@ if size(preData, 2) < 2
     return
 end
 
-preData = nf_common_average(preData);
-postData = nf_common_average(postData);
+% Independent positive stage scales preserve eigenvectors and fractions.
+% Reapply the recorded scales after projection into the preclean basis.
+preScale = max(abs(preData(:)));
+postScale = max(abs(postData(:)));
+if preScale==0, preScale=1; end
+if postScale==0, postScale=1; end
+preData = nf_common_average(preData/preScale);
+postData = nf_common_average(postData/postScale);
 preData = preData - mean(preData, 2);
 postData = postData - mean(postData, 2);
 preCovariance = (preData * preData') ./ (size(preData, 2) - 1);
@@ -898,7 +950,7 @@ vectors = real(vectors(:, order));
 eigenvalues(eigenvalues < 0) = 0;
 totalVariance = sum(eigenvalues);
 
-if totalVariance <= eps
+if totalVariance <= 0
     pca.reason = 'Earlier-stage covariance contained no estimable variance.';
     return
 end
@@ -959,17 +1011,17 @@ pca.reason = 'Fixed earlier-stage PCA basis projected onto both matched stages.'
 pca.nSamples = size(preData, 2);
 pca.rank = rankValue;
 pca.basis = vectors(:, 1:leadingCount);
-pca.eigenvalues = eigenvalues(1:leadingCount);
+pca.eigenvalues = (sqrt(eigenvalues(1:leadingCount)).*preScale).^2;
 pca.explainedPercent = explained(1:leadingCount);
 pca.candidateIndex = candidateIndex;
 pca.candidateBasisMap = candidate;
 pca.candidateExplainedPercent = explained(candidateIndex);
-pca.candidatePreVariance = preVariance;
-pca.candidatePostVariance = postVariance;
-pca.candidatePreRms = sqrt(preVariance);
-pca.candidatePostRms = sqrt(postVariance);
-pca.candidatePreScaledMap = candidate .* sqrt(preVariance);
-pca.candidatePostScaledMap = candidate .* sqrt(postVariance);
+pca.candidatePreRms = sqrt(preVariance)*preScale;
+pca.candidatePostRms = sqrt(postVariance)*postScale;
+pca.candidatePreVariance = pca.candidatePreRms^2;
+pca.candidatePostVariance = pca.candidatePostRms^2;
+pca.candidatePreScaledMap = candidate .* pca.candidatePreRms;
+pca.candidatePostScaledMap = candidate .* pca.candidatePostRms;
 pca.frontality = frontality;
 pca.selectionScore = selectionScore;
 pca.frontalWeights = frontalWeights;
@@ -1089,9 +1141,9 @@ else
     ocularRemoved = zeros(numel(channelIndices), size(data, 2));
 end
 % The report specifies RMS of the full sensor backprojection, including DC.
-originalRms = sqrt(mean(data .^ 2, 2));
-totalRms = sqrt(mean(totalRemoved .^ 2, 2));
-ocularRms = sqrt(mean(ocularRemoved .^ 2, 2));
+originalRms = hnf_robrms(data,2,'includenan');
+totalRms = hnf_robrms(totalRemoved,2,'includenan');
+ocularRms = hnf_robrms(ocularRemoved,2,'includenan');
 
 impact.available = true;
 impact.reason = ...
@@ -1108,7 +1160,8 @@ impact.originalRmsMicrovolts = originalRms;
 impact.totalRejectedRmsMicrovolts = totalRms;
 impact.ocularRejectedRmsMicrovolts = ocularRms;
 impact.totalRejectedToOriginalRmsPercent = ...
-    100 .* totalRms ./ max(originalRms, eps);
+    100 .* (totalRms ./ originalRms);
+impact.totalRejectedToOriginalRmsPercent(originalRms==0) = NaN;
 impact.channelIndices = channelIndices;
 impact.channelLabels = {icaModel.chanlocs(channelIndices).labels};
 impact.locations = icaModel.chanlocs(channelIndices);
@@ -1165,7 +1218,7 @@ end
 classification = report.ica.classification;
 if isfield(classification, 'classNames')
     classNames = nf_to_cellstr(classification.classNames);
-    eyeClass = find(strcmpi(strtrim(string(classNames)), 'eye'), 1);
+    eyeClass = find(strcmpi(strtrim(cellstr(classNames)), 'eye'), 1);
 else
     eyeClass = [];
 end
@@ -1267,9 +1320,9 @@ posterior = abs(theta) >= 120 & radius >= 0.25;
 if ~any(frontal) || ~any(posterior)
     return
 end
-frontalRms = sqrt(mean(double(values(frontal)) .^ 2));
-posteriorRms = sqrt(mean(double(values(posterior)) .^ 2));
-ratio = frontalRms ./ max(posteriorRms, eps);
+frontalRms = hnf_robrms(double(values(frontal)),1,'includenan');
+posteriorRms = hnf_robrms(double(values(posterior)),1,'includenan');
+if posteriorRms > 0, ratio = frontalRms / posteriorRms; end
 end
 
 function coordinates = nf_x_coordinates(locations)
@@ -1792,7 +1845,7 @@ channels.removed = nf_merge_channel_categories( ...
     channels.removed, prep.removed);
 if ~isempty(finalLabels)
     missingLabels = prep.removed.labels(~ismember( ...
-        lower(string(prep.removed.labels)), lower(string(finalLabels))));
+        hnf_lower_labels(prep.removed.labels), hnf_lower_labels(finalLabels)));
     prepMissing = nf_make_channel_category( ...
         missingLabels, [], numel(missingLabels));
     channels.missingAtFinalization = nf_merge_channel_categories( ...
@@ -1807,7 +1860,7 @@ channels.globalInterpolationRequested = ...
 if isempty(channels.method) || strcmpi(channels.method, 'none') || ...
         strcmpi(channels.method, 'unknown')
     channels.method = 'PREP prepPipeline';
-elseif ~contains(lower(channels.method), 'prep')
+elseif isempty(strfind(lower(channels.method), 'prep'))
     channels.method = [channels.method ' + PREP prepPipeline'];
 end
 end
@@ -1898,7 +1951,7 @@ labels = labels(~cellfun(@isempty, labels));
 if isempty(labels)
     return
 end
-[~, firstIndices] = unique(lower(string(labels)), 'stable');
+[~, firstIndices] = unique(hnf_lower_labels(labels), 'stable');
 labels = labels(sort(firstIndices));
 end
 
@@ -2097,7 +2150,8 @@ if isempty(epochs.spectralFlags) && ~isempty(fftIndex)
 end
 
 if ~isempty(reasons)
-    [reasonNames, ~, reasonIndex] = unique(reasons, 'stable');
+    reasonNames = unique(reasons, 'stable');
+    [~,reasonIndex] = ismember(reasons,reasonNames);
     reasonCounts = zeros(1, numel(reasonNames));
     for reasonIndexValue = 1:numel(reasonNames)
         reasonCounts(reasonIndexValue) = sum(reasonIndex == reasonIndexValue);
@@ -2239,7 +2293,7 @@ mask = logical(candidate);
 end
 
 function detector = nf_normalize_qc_detector_name(value)
-detector = lower(regexprep(strtrim(char(string(value))), ...
+detector = lower(regexprep(strtrim(hnf_scalar_text(value)), ...
     '[^a-zA-Z0-9]', ''));
 switch detector
     case {'threshold', 'voltage'}
@@ -2306,8 +2360,7 @@ end
 
 nf_validate_eeg(finalEEG, 'final');
 finalLabels = nf_channel_labels(finalEEG, 'final');
-finalLower = lower(finalLabels);
-baseLabelsLower = string(baseLabelsLower);
+finalLower = hnf_lower_labels(finalLabels);
 if numel(unique(finalLower)) ~= numel(finalLower)
     final.reason = 'Final dataset contains duplicate channel labels.';
     return
@@ -2370,10 +2423,9 @@ else
     change.psdMedianDb = [];
 end
 
-if pca.available && pca.candidatePreVariance > 0
-    change.pcaCandidateVariancePercent = 100 .* ...
-        (pca.candidatePostVariance - pca.candidatePreVariance) ./ ...
-        pca.candidatePreVariance;
+if pca.available && pca.candidatePreRms > 0
+    relative = pca.candidatePostRms / pca.candidatePreRms;
+    change.pcaCandidateVariancePercent = 100*(relative-1)*(relative+1);
 else
     change.pcaCandidateVariancePercent = NaN;
 end
@@ -2460,18 +2512,22 @@ function figureHandle = nf_quality_figure(quality, locations, ...
     actionLocations, actionLabels, visibility, suppliedTitle)
 figureHandle = figure('Color', 'w', 'Visible', visibility, ...
     'Position', [40 40 1700 1050]);
-layout = tiledlayout(figureHandle, 4, 4, 'TileSpacing', 'compact', ...
-    'Padding', 'compact');
+if exist('OCTAVE_VERSION','builtin')
+    panel = @(k,varargin) subplot(4,4,k+(0:nf_panel_extra(varargin{:})),'Parent',figureHandle);
+else
+    layout = tiledlayout(figureHandle,4,4,'TileSpacing','compact','Padding','compact');
+    panel = @(k,varargin) nexttile(layout,k,varargin{:});
+end
 
-nf_plot_ledger(nexttile(layout, 1), quality);
-nf_plot_psd(nexttile(layout, 2, [1 2]), quality.metrics.preclean.psd, ...
+nf_plot_ledger(panel(1), quality);
+nf_plot_psd(panel(2, [1 2]), quality.metrics.preclean.psd, ...
     quality.metrics.postclean.psd, quality.metrics.preclean.stage, ...
     quality.metrics.postclean.stage);
-nf_plot_ica(nexttile(layout, 4), quality.actions.ica);
-nf_plot_heatmap(nexttile(layout, 5, [1 2]), quality.metrics.preclean.artifact, ...
+nf_plot_ica(panel(4), quality.actions.ica);
+nf_plot_heatmap(panel(5, [1 2]), quality.metrics.preclean.artifact, ...
     quality.channelAlignment.labels, quality.thresholds.severityCap, ...
     [quality.metrics.preclean.stage ' artifact severity']);
-nf_plot_heatmap(nexttile(layout, 7, [1 2]), quality.metrics.postclean.artifact, ...
+nf_plot_heatmap(panel(7, [1 2]), quality.metrics.postclean.artifact, ...
     quality.channelAlignment.labels, quality.thresholds.severityCap, ...
     [quality.metrics.postclean.stage ' artifact severity']);
 
@@ -2479,23 +2535,23 @@ preBurden = quality.metrics.preclean.artifact.channelFraction;
 postBurden = quality.metrics.postclean.artifact.channelFraction;
 burdenLimit = max([preBurden(:); postBurden(:)]);
 burdenLimit = max(burdenLimit, 0.01);
-nf_plot_topography(nexttile(layout, 9), preBurden, locations, ...
+nf_plot_topography(panel(9), preBurden, locations, ...
     [quality.metrics.preclean.stage ' spatial burden'], [0 burdenLimit]);
-nf_plot_topography(nexttile(layout, 10), postBurden, locations, ...
+nf_plot_topography(panel(10), postBurden, locations, ...
     [quality.metrics.postclean.stage ' spatial burden'], [0 burdenLimit]);
 
 if quality.change.spatialDescriptiveAvailable
     changeLimit = max(abs(quality.change.channelArtifactFraction));
     changeLimit = max(changeLimit, 0.01);
-    nf_plot_topography(nexttile(layout, 11), ...
+    nf_plot_topography(panel(11), ...
         quality.change.channelArtifactFraction, locations, ...
         'Later - earlier stage burden', [-changeLimit changeLimit]);
 else
-    nf_plot_message(nexttile(layout, 11), ...
+    nf_plot_message(panel(11), ...
         'Spatial burden change unavailable', quality.change.reason);
 end
 
-nf_plot_channel_actions(nexttile(layout, 12), actionLocations, ...
+nf_plot_channel_actions(panel(12), actionLocations, ...
     actionLabels, quality.actions.channels);
 
 icaImpact = quality.metrics.icaSpatialImpact;
@@ -2504,7 +2560,7 @@ if icaImpact.available
     totalLimit = max(totalLimit, eps);
     totalTitle = sprintf('All %d rejected ICs: sensor RMS (uV)', ...
         icaImpact.nRejected);
-    nf_plot_topography(nexttile(layout, 13), ...
+    nf_plot_topography(panel(13), ...
         icaImpact.totalRejectedRmsMicrovolts, icaImpact.locations, ...
         totalTitle, [0 totalLimit]);
     if icaImpact.ocularAvailable
@@ -2512,26 +2568,26 @@ if icaImpact.available
         ocularLimit = max(ocularLimit, eps);
         ocularTitle = sprintf('%d ocular rejected ICs: sensor RMS (uV)', ...
             icaImpact.nOcularRejected);
-        nf_plot_topography(nexttile(layout, 14), ...
+        nf_plot_topography(panel(14), ...
             icaImpact.ocularRejectedRmsMicrovolts, ...
             icaImpact.locations, ocularTitle, [0 ocularLimit]);
     else
         ratioLimit = max(icaImpact.totalRejectedToOriginalRmsPercent);
         ratioLimit = max(ratioLimit, eps);
-        nf_plot_topography(nexttile(layout, 14), ...
+        nf_plot_topography(panel(14), ...
             icaImpact.totalRejectedToOriginalRmsPercent, ...
             icaImpact.locations, ...
             'Rejected IC RMS / pre-subtraction RMS (%)', [0 ratioLimit]);
     end
 else
-    nf_plot_message(nexttile(layout, 13), ...
+    nf_plot_message(panel(13), ...
         'Rejected-IC scalp contribution unavailable', icaImpact.reason);
-    nf_plot_message(nexttile(layout, 14), ...
+    nf_plot_message(panel(14), ...
         'Ocular-removal scalp contribution unavailable', icaImpact.reason);
 end
 
-nf_plot_epochs(nexttile(layout, 15), quality.actions.epochs);
-nf_plot_alerts(nexttile(layout, 16), quality.alerts);
+nf_plot_epochs(panel(15), quality.actions.epochs);
+nf_plot_alerts(panel(16), quality.alerts);
 
 if isempty(suppliedTitle)
     reportTitle = quality.metrics.postclean.dataset.setname;
@@ -2541,7 +2597,18 @@ if isempty(suppliedTitle)
 else
     reportTitle = suppliedTitle;
 end
-title(layout, reportTitle, 'Interpreter', 'none', 'FontWeight', 'bold');
+if exist('OCTAVE_VERSION','builtin')
+    set(figureHandle,'Name',reportTitle);
+    annotation(figureHandle,'textbox',[0 0.96 1 0.04],'string',reportTitle, ...
+        'horizontalalignment','center','edgecolor','none','interpreter','none','fontweight','bold');
+else
+    title(layout,reportTitle,'Interpreter','none','FontWeight','bold');
+end
+end
+
+function extra = nf_panel_extra(span)
+extra = 0;
+if nargin>0, extra = span(2)-1; end
 end
 
 function nf_plot_ledger(axisHandle, quality)
@@ -2707,8 +2774,7 @@ lines = {
     };
 lines = lines(~cellfun(@isempty, lines));
 
-text(axisHandle, 0, 1, strjoin(lines, newline), 'VerticalAlignment', 'top', ...
-    'FontName', 'FixedWidth', 'FontSize', 9, 'Interpreter', 'none');
+nf_text_lines(axisHandle,lines,'FontName','FixedWidth');
 title(axisHandle, 'Preprocessing ledger');
 end
 
@@ -2797,7 +2863,7 @@ end
 function nf_plot_heatmap(axisHandle, artifact, labels, severityCap, plotTitle)
 imagesc(axisHandle, 1:artifact.windows.nAnalyzed, 1:numel(labels), artifact.severity);
 set(axisHandle, 'YDir', 'normal');
-clim(axisHandle, [0 severityCap]);
+caxis(axisHandle, [0 severityCap]);
 colorbar(axisHandle);
 xlabel(axisHandle, 'Analyzed window ordinal');
 ylabel(axisHandle, 'Channel');
@@ -2820,7 +2886,7 @@ if nf_topography_available(locations)
         axes(axisHandle);
         topoplot(values, locations, 'electrodes', 'on', 'style', 'map', ...
             'conv', 'on');
-        clim(axisHandle, limits);
+        caxis(axisHandle, limits);
         colorbar(axisHandle);
         title(axisHandle, plotTitle);
         return
@@ -2899,7 +2965,7 @@ if nf_topography_available(locations) && coordinatesAvailable
         topoplot(zeros(numel(locations), 1), locations, 'style', 'blank', ...
             'electrodes', 'on');
         hold(axisHandle, 'on');
-        legendHandles = gobjects(0, 1);
+        legendHandles = nf_empty_handles();
         legendNames = {};
         for categoryIndex = 1:numel(categoryNames)
             indices = categoryIndices{categoryIndex};
@@ -2928,7 +2994,7 @@ if nf_topography_available(locations) && coordinatesAvailable
 end
 
 hold(axisHandle, 'on');
-legendHandles = gobjects(0, 1);
+legendHandles = nf_empty_handles();
 legendNames = {};
 for categoryIndex = 1:numel(categoryNames)
     indices = categoryIndices{categoryIndex};
@@ -2958,11 +3024,15 @@ if ~isempty(legendHandles)
 end
 end
 
+function handles = nf_empty_handles()
+if exist('OCTAVE_VERSION','builtin'), handles = []; else, handles = gobjects(0,1); end
+end
+
 function indices = nf_channel_category_indices(category, labels)
 indices = [];
 if ~isempty(category.labels)
-    indices = find(ismember(lower(string(labels)), ...
-        lower(string(category.labels))));
+    indices = find(ismember(hnf_lower_labels(labels), ...
+        hnf_lower_labels(category.labels)));
 elseif ~isempty(category.indices)
     indices = category.indices;
     indices = indices(indices >= 1 & indices <= numel(labels));
@@ -3043,12 +3113,15 @@ if ~isempty(epochs.badChannelEpoch) && ~isempty(epochs.rejectedMask)
     actionImage = [actionImage; rejectionStrip];
     imagesc(axisHandle, actionImage);
     set(axisHandle, 'YDir', 'normal');
-    clim(axisHandle, [-0.5 3.5]);
+    caxis(axisHandle, [-0.5 3.5]);
     colormap(axisHandle, [1 1 1; 0.95 0.65 0.20; 0.25 0.65 0.40; 0.85 0.15 0.10]);
     colorbarHandle = colorbar(axisHandle);
-    colorbarHandle.Ticks = [0 1 2 3];
-    colorbarHandle.TickLabels = {'Clean', 'Flagged', ...
-        'Locally interpolated', 'Rejected'};
+    tickLabels = {'Clean','Flagged','Locally interpolated','Rejected'};
+    if exist('OCTAVE_VERSION','builtin')
+        set(colorbarHandle,'ytick',0:3,'yticklabel',tickLabels);
+    else
+        set(colorbarHandle,'Ticks',0:3,'TickLabels',tickLabels);
+    end
     xlabel(axisHandle, 'Original epoch');
     ylabel(axisHandle, 'Channels + reject strip');
     actionTitle = sprintf('Threshold actions: %d repaired; %d rejected', ...
@@ -3135,9 +3208,22 @@ else
     end
     textValue = strjoin(messages, newline);
 end
-text(axisHandle, 0, 1, textValue, 'VerticalAlignment', 'top', ...
-    'Interpreter', 'none', 'FontSize', 9);
+nf_text_lines(axisHandle,strsplit(textValue,newline));
 title(axisHandle, 'Transparent QC alerts');
+end
+
+function nf_text_lines(axisHandle,lines,varargin)
+if exist('OCTAVE_VERSION','builtin')
+    % A multiline text primitive breaks EPS/PDF/PNG output on gnuplot.
+    spacing = min(0.09,1/max(numel(lines),1));
+    for k=1:numel(lines)
+        text(axisHandle,0,1-(k-1)*spacing,lines{k},'Units','normalized', ...
+            'VerticalAlignment','top','Interpreter','none','FontSize',9,varargin{:});
+    end
+else
+    text(axisHandle,0,1,strjoin(lines,newline),'VerticalAlignment','top', ...
+        'Interpreter','none','FontSize',9,varargin{:});
+end
 end
 
 function nf_plot_message(axisHandle, plotTitle, message)
@@ -3225,7 +3311,7 @@ elseif isstring(value)
 elseif iscell(value)
     values = cell(size(value));
     for valueIndex = 1:numel(value)
-        values{valueIndex} = char(string(value{valueIndex}));
+        values{valueIndex} = hnf_scalar_text(value{valueIndex});
     end
 else
     values = {};

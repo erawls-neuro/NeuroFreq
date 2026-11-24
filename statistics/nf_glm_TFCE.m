@@ -85,7 +85,7 @@ e3 = 0;
 designTab = [];
 droppedVars = {};
 
-if istable(dataY)
+if isa(dataY,'table')
     designTab = dataY;
     [designMat, fixedNames, droppedVars] = local_table_to_numeric_matrix(designTab);
 else
@@ -157,7 +157,7 @@ p = min(p, pmax);
 
 sgn = sign(tfce.tstat);
 
-tfce.z_vals = sgn .* norminv(1 - p ./ 2);
+tfce.z_vals = sgn .* (sqrt(2) .* erfcinv(p));
 
 if ~isempty(taxis)
     e3 = 1;
@@ -225,7 +225,7 @@ end
 designTab = [];
 droppedVars = {};
 
-if istable(dataY)
+if isa(dataY,'table')
     designTab = dataY;
     [designMat, fixedNames, droppedVars] = local_table_to_numeric_matrix(designTab);
 else
@@ -431,7 +431,7 @@ e3 = 0;
 designTab = [];
 droppedVars = {};
 
-if istable(dataY)
+if isa(dataY,'table')
     designTab = dataY;
     [designMat, fixedNames, droppedVars] = local_table_to_numeric_matrix(designTab);
 else
@@ -500,7 +500,7 @@ p = min(p, pmax);
 
 sgn = sign(r.tstat);
 
-r.z_vals = sgn .* norminv(1 - p ./ 2);
+r.z_vals = sgn .* (sqrt(2) .* erfcinv(p));
 
 if ~isempty(taxis)
     e3 = 1;

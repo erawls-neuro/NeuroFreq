@@ -39,6 +39,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     n = mxGetNumberOfElements(shape);
     plhs[0] = mxCreateNumericArray(mxGetNumberOfDimensions(shape), mxGetDimensions(shape), precision, mxREAL);
 
+    /* A masked scalar makes every result zero. mxCreateNumericArray has
+     * already initialized the result; avoid reading the other operand. */
+    if (!n || (!stepA && !isfinite(mxGetScalar(a))) ||
+        (!stepB && (mxGetScalar(b) == 0 || !isfinite(mxGetScalar(b))))) return;
+
     if (precision == mxDOUBLE_CLASS) {
         const double *x = mxGetPr(a), *y = mxGetPr(b);
         double *out = mxGetPr(plhs[0]);

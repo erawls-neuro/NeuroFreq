@@ -8,7 +8,10 @@ resident = isa(input,'gpuArray');
 device = [];
 unavailable = '';
 useGPU = strcmpi(environment,'gpu') || (resident && strcmpi(environment,'auto'));
-if useGPU
+if useGPU && exist('OCTAVE_VERSION','builtin')
+    useGPU = false;
+    unavailable = 'Octave uses the CPU FFT backend.';
+elseif useGPU
     try
         device = gpuDevice();
     catch err

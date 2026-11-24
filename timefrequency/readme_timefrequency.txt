@@ -62,9 +62,11 @@ power-normalized in the frequency domain by dividing the wavelet FFT
 by its maximum magnitude. Returns power and phase estimates.
 
 5) nf_cwt:
-Uses matlab built-in function 'cwt' to compute the continuous wavelet 
-transform. CWT returns log-spaced frequencies up to nyquist. Returns power 
-and phase estimates.
+Computes the analytic Morlet CWT using MATLAB Wavelet Toolbox or the
+NeuroFreq FFT implementation in Octave. Both return positive-rotation
+power and instantaneous phase on a log-spaced Hz grid. Octave uses ten
+voices per octave and symmetric extension within each trial. TF.cwtBackend
+identifies the implementation. Compare TF.freqs before pooling runtimes.
 
 6) nf_stransform:
 Uses the Stockwell transform (S-transform) to compute time-frequency 

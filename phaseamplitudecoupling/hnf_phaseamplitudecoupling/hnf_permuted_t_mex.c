@@ -15,29 +15,65 @@ static int dense_real_double(const mxArray *x)
     return mxIsDouble(x) && !mxIsComplex(x) && !mxIsSparse(x);
 }
 
-static double one_sample(const double *x, const double *signs, mwSize n)
+/* Determine a common scale for a voxel before squaring. Keep ordinary
+ * units on the fast path. Powers of two rescale without rounding the
+ * significand, including inputs near DBL_MAX or the subnormal range. */
+static double safe_scale(const double *x, mwSize n)
 {
-    double mean = 0.0, squares = 0.0;
-    for (mwIndex i = 0; i < n; ++i) mean += signs[i] * x[i];
-    mean /= (double)n;
+    double maximum = 0.0;
     for (mwIndex i = 0; i < n; ++i) {
-        double centered = signs[i] * x[i] - mean;
-        squares += centered * centered;
+        double value = fabs(x[i]);
+        if (value > maximum) maximum = value;
     }
-    return mean / (sqrt(squares / (double)(n - 1)) / sqrt((double)n));
+    if (maximum == 0.0 || (maximum < 1e120 && maximum > 1e-120)) return 1.0;
+    int exponent;
+    frexp(maximum, &exponent);
+    return ldexp(1.0, exponent - 1);
 }
 
-static double group_mean_variance(const double *x, const mwIndex *order, mwSize n, double *variance)
+static double one_sample(const double *x, const double *signs, mwSize n)
 {
-    double mean = 0.0, squares = 0.0;
-    for (mwIndex i = 0; i < n; ++i) mean += x[order[i]];
+    double origin = signs[0] * x[0];
+    double meanDelta = 0.0, squares = 0.0, total = 0.0, compensation = 0.0;
+    for (mwIndex i = 0; i < n; ++i) {
+        double term = signs[i] * x[i], next = total + term;
+        compensation += fabs(total) >= fabs(term) ? (total-next)+term : (term-next)+total;
+        total = next;
+        meanDelta += term - origin;
+    }
+    meanDelta /= (double)n;
+    for (mwIndex i = 0; i < n; ++i) {
+        double delta = (signs[i] * x[i] - origin) - meanDelta;
+        squares += delta * delta;
+    }
+    return ((total+compensation)/(double)n) / (sqrt(squares / (double)(n-1)) / sqrt((double)n));
+}
+
+static double group_mean_delta(const double *x, const mwIndex *order,
+                               mwSize n, double origin, double *se)
+{
+    double mean = 0.0, squares = 0.0, maximum = 0.0, scale = 1.0;
+    for (mwIndex i = 0; i < n; ++i) {
+        double delta = x[order[i]] - origin;
+        mean += delta;
+        if (fabs(delta) > maximum) maximum = fabs(delta);
+    }
+    /* The group with small dispersion can carry the entire standard error.
+     * Rescale its residuals separately before squaring them. */
+    if (maximum > 0.0 && maximum < 1e-120) {
+        int exponent;
+        frexp(maximum, &exponent);
+        scale = ldexp(1.0, exponent - 1);
+        mean = 0.0;
+        for (mwIndex i = 0; i < n; ++i) mean += (x[order[i]]-origin)/scale;
+    }
     mean /= (double)n;
     for (mwIndex i = 0; i < n; ++i) {
-        double centered = x[order[i]] - mean;
+        double centered = (x[order[i]] - origin)/scale - mean;
         squares += centered * centered;
     }
-    *variance = squares / (double)(n - 1);
-    return mean;
+    *se = (sqrt(squares / (double)(n - 1)) / sqrt((double)n))*scale;
+    return mean*scale;
 }
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
@@ -89,16 +125,24 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     mxFree(outputSize);
     double *result = mxGetPr(plhs[0]);
     mwSize voxels = mxGetNumberOfElements(plhs[0]);
+    double *scaled = NULL;
     for (mwIndex j = 0; j < voxels; ++j) {
         const double *x = data + j*n;
+        double scale = safe_scale(x, n);
+        if (scale != 1.0) {
+            if (!scaled) scaled = (double *)mxMalloc(n * sizeof(double));
+            for (mwIndex i = 0; i < n; ++i) scaled[i] = x[i] / scale;
+            x = scaled;
+        }
         if (nrhs == 2) {
             result[j] = one_sample(x, draw, n);
         } else {
-            double va, vb;
-            double a = group_mean_variance(x, order, nA, &va);
-            double b = group_mean_variance(x, order+nA, n-nA, &vb);
-            result[j] = (a-b) / sqrt(va/(double)nA + vb/(double)(n-nA));
+            double seA, seB, origA = x[order[0]], origB = x[order[nA]];
+            double da = group_mean_delta(x, order, nA, origA, &seA);
+            double db = group_mean_delta(x, order+nA, n-nA, origB, &seB);
+            result[j] = ((origA-origB)+(da-db)) / hypot(seA,seB);
         }
     }
+    if (scaled != NULL) mxFree(scaled);
     if (order != NULL) mxFree(order);
 }

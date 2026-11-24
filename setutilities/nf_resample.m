@@ -46,7 +46,7 @@ for k = 1:numel(fields)
     end
     X = TF.(name);
     [X,compact] = hnf_tf_grid(X,nCh,nF,nT,nObs,name);
-    isAngle = ~isempty(regexpi(name,'^phase($|_)','once')) && ~contains(lower(name),'itpc') && ~contains(lower(name),'itc');
+    isAngle = ~isempty(regexpi(name,'^phase($|_)','once')) && isempty(strfind(lower(name), 'itpc')) && isempty(strfind(lower(name), 'itc'));
     if ~isempty(tVec), X = interpolate(X,oldTimes,targetTimes,3,isAngle); end
     if ~isempty(fVec), X = interpolate(X,oldFreqs,targetFreqs,2,isAngle); end
     if compact, X = squeeze(X); end
@@ -76,9 +76,7 @@ else
     native = numel(X)>=2048 && isa(X,'double') && isreal(X) && ~issparse(X) && ...
         exist('hnf_grid_interp_mex','file')==3 && ...
         (~exist('hnf_mex_available','file') || hnf_mex_available('hnf_grid_interp_mex')) && ...
-        all(isfinite(axis)) && max(abs(axis)) <= realmax/2 && ...
-        all(diff(axis)>0) && all(isfinite(X(:))) && ...
-        max(abs(X(:))) <= (realmax/4)*min(1,min(diff(axis)));
+        all(isfinite(axis)) && all(diff(axis)>0) && all(isfinite(X(:)));
     if native
         try
             values = hnf_grid_interp_mex(axis,query,X);
@@ -87,7 +85,29 @@ else
             native = false;
         end
     end
-    if ~native, values = interp1(axis,X,query,'linear',NaN); end
+    if ~native
+        % interp1 may form a slope that overflows for finite endpoints on
+        % a narrow interval. Compute each fraction before applying it.
+        if isfloat(X) && ~issparse(X) && all(isfinite(axis)) && all(diff(axis)>0) && all(isfinite(X(:)))
+            [~,bin] = histc(query,axis);
+            valid = bin > 0;
+            lo = min(bin(valid),numel(axis)-1);
+            a = axis(lo); b = axis(lo+1); q = query(valid);
+            width = b-a;
+            w = (q-a)./width;
+            huge = ~isfinite(width);
+            w(huge) = (.5*q(huge)-.5*a(huge))./(.5*b(huge)-.5*a(huge));
+            values = nan(numel(query),size(X,2),'like',X);
+            % Bound the temporary gathered endpoints on multi-trial datasets.
+            block = max(1,floor(131072/max(1,numel(lo))));
+            for first = 1:block:size(X,2)
+                cols = first:min(size(X,2),first+block-1);
+                values(valid,cols) = hnf_roblerp(X(lo,cols),X(lo+1,cols),w);
+            end
+        else
+            values = interp1(axis,X,query,'linear',NaN);
+        end
+    end
     if isAngle, values = angle(exp(1i*values)); end
 end
 out = ipermute(reshape(values,[numel(query),dims]),order);

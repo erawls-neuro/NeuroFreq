@@ -59,7 +59,7 @@ for ch = 1:chanStep:nChan
             weights = permute(H,[3 2 4 1]);
             coef = ifft(bsxfun(@times,X,weights),[],2);
             coef = permute(coef(:,half+(1:nTimes),:,:),[1 4 2 3]);
-            p = abs(coef).^2; a = angle(coef);
+            [p,a] = hnf_powphase(coef);
             if useGPU && ~resident, p=gather(p); a=gather(a); end
             power(chan,bins,:,trials) = p;
             phase(chan,bins,:,trials) = a;

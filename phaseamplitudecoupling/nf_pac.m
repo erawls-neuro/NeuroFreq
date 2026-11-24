@@ -193,21 +193,26 @@ dataLow = phase4(:,loFreqs,timeInd,:);
 % Convert referenced Fourier coefficients to phase at each selected sample.
 dataLow = hnf_phase_at_sample(TF, dataLow, loFreqs, timeInd);
 dataHi = double(power4(:,hiFreqs,timeInd,:));
-if isfield(TF,'scale') && ~isempty(TF.scale)
-    switch lower(char(TF.scale))
-        case 'linear'
-            % Standard nf_tftransform output.
-        case 'log10'
-            dataHi = 10.^dataHi;
-        otherwise
-            error('nf_pac:BadScale','PAC needs linear or log10 power, before baseline normalization.');
-    end
+scale = 'linear';
+if isfield(TF,'scale') && ~isempty(TF.scale), scale = char(TF.scale); end
+amplitude = strcmp(weighting,'amplitude');
+if amplitude && isfield(TF,'method') && strcmpi(TF.method,'RID-Rihaczek')
+    error('nf_pac:BadAmplitude','Envelope weighting requires unsigned squared magnitude.');
 end
-if strcmp(weighting,'amplitude')
-    if any(dataHi(:)<0) || (isfield(TF,'method') && strcmpi(TF.method,'RID-Rihaczek'))
-        error('nf_pac:BadAmplitude','Envelope weighting requires an unsigned squared-magnitude TF representation.');
+if strcmpi(scale,'log10')
+    % Convert straight from log power to amplitude. Squaring the envelope
+    % first would overflow or underflow for representable envelope weights.
+    if amplitude, dataHi = dataHi/2; end
+    dataHi = 10.^dataHi;
+elseif strcmpi(scale,'linear')
+    if amplitude
+        if any(dataHi(:)<0)
+            error('nf_pac:BadAmplitude','Envelope weighting requires nonnegative power.');
+        end
+        dataHi = sqrt(dataHi);
     end
-    dataHi = sqrt(dataHi);
+else
+    error('nf_pac:BadScale','PAC needs linear or log10 power, before baseline normalization.');
 end
 
 [nChanL, ~, nTimes, nTrialL]     = size(dataLow);

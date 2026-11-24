@@ -8,6 +8,16 @@ samples = size(weights,1);
 weights = reshape(double(weights),samples,[]);
 phase = reshape(double(phase),samples,[]);
 series = size(weights,2);
+% MVL scales linearly with its weights. The z score is dimensionless.
+% Rescale only extreme columns before the permutation variance squares them.
+if strcmp(metric,'mvl')
+    scales = max(abs(weights),[],1);
+    extreme = isfinite(scales) & (scales > 1e150 | (scales > 0 & scales < 1e-150));
+    if any(extreme)
+        weights(:,extreme) = weights(:,extreme)./scales(extreme);
+        observed(extreme) = observed(extreme)./reshape(scales(extreme),size(observed(extreme)));
+    end
+end
 erpac = strcmp(metric,'erpac');
 if erpac
     nativeName = 'hnf_erpac_perm_mex';

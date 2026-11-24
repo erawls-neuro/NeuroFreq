@@ -56,7 +56,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         for (mwSize t = 0; t < n; ++t) {
             w[t] = x[t]/scale;
             if (bins) {
-                double angle = fmod(a[t]+pi, period);
+                double theta = a[t];
+                if (fabs(theta)>1048576.0) theta = atan2(sin(theta),cos(theta));
+                double angle = fmod(theta+pi, period);
                 if (angle < 0) angle += period;
                 mwIndex b = (mwIndex)floor(angle/(period/nbin));
                 bin[t] = b < bins ? b : bins-1;

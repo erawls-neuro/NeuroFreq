@@ -22,7 +22,7 @@ end
 % put on the user's global path. Store private paths relative to NF so the
 % whole tree can move. A newer copy can be selected at the prompt below.
 candidate = '';
-settings = fullfile(root,'dependencies','_nf_local','runtime.mat');
+settings = nf_runtime_file(root);
 if isfile(settings)
     try
         prior = load(settings,'config');
@@ -256,7 +256,7 @@ try
     if isempty(updater) || ~nf_under(updater,original)
         error('This EEGLAB installation has no built-in eeglab_update. Select an NF-only release or locate a newer distribution.');
     end
-    if ~usejava('desktop')
+    if ~nf_desktop()
         error('EEGLAB uses graphical dialogs for this update. Run nf_install in the MATLAB desktop.');
     end
     fprintf('[EEGLAB] Opening the selected distribution''s built-in updater.\n');

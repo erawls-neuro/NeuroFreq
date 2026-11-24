@@ -36,7 +36,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (q[k]<x[0] || q[k]>x[n-1]) { bracket[k]=n; continue; }
         while (left+1 < n && x[left+1] <= q[k]) ++left;
         bracket[k]=left;
-        if (q[k]!=x[left]) weight[k]=(q[k]-x[left])/(x[left+1]-x[left]);
+        if (q[k]!=x[left]) {
+            const double width = x[left+1]-x[left];
+            if (mxIsFinite(width)) weight[k]=(q[k]-x[left])/width;
+            else weight[k]=(0.5*q[k]-0.5*x[left])/(0.5*x[left+1]-0.5*x[left]);
+        }
     }
     plhs[0] = mxCreateDoubleMatrix(nq, cols, mxREAL);
     out = mxGetPr(plhs[0]);
@@ -47,7 +51,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             double y;
             if (i==n) y=mxGetNaN();
             else if (weight[k]==0) y=trace[i];
-            else y=trace[i]+weight[k]*(trace[i+1]-trace[i]);
+            else {
+                const double a=trace[i], b=trace[i+1], w=weight[k], delta=b-a;
+                if (!mxIsFinite(delta) && mxIsFinite(a) && mxIsFinite(b))
+                    y=(1-w)*a+w*b;
+                else if (w > 0.5) y=b-(1-w)*delta;
+                else y=a+w*delta;
+            }
             out[col*nq+k]=y;
         }
     }

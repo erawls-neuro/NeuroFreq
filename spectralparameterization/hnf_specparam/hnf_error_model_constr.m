@@ -18,33 +18,34 @@ centers = params(:, 1);
 heights = params(:, 2);
 widths = params(:, 3);
 
-distance = bsxfun(@minus, freqRow, centers);
-scaledDistance = bsxfun(@rdivide, distance, widths);
-
-if strcmp(peakType,'cauchy')
-    unitBasis = 1 ./ (1 + scaledDistance.^2);
-else
-    unitBasis = exp(-0.5 .* scaledDistance .* scaledDistance);
-end
-
-peakValues = bsxfun(@times, unitBasis, heights);
+[peakValues,unitBasis,scaledDistance] = hnf_peak_values(freqRow,centers,heights,widths,peakType);
 fittedVals = sum(peakValues, 1);
 residual = yVals - fittedVals;
 err = sum(residual .* residual);
 
 if nargout > 1
-    inverseWidthSquared = 1 ./ (widths .* widths);
-    derivativeCenter = bsxfun(@times, peakValues .* distance, ...
-        inverseWidthSquared);
-    derivativeHeight = unitBasis;
-    inverseWidthCubed = 1 ./ (widths .* widths .* widths);
-    derivativeWidth = bsxfun(@times, ...
-        peakValues .* distance .* distance, inverseWidthCubed);
+    u = scaledDistance;
     if strcmp(peakType,'cauchy')
-        % d[1/(1+u^2)] has one more factor of the Lorentzian basis.
-        derivativeCenter = 2 .* unitBasis .* derivativeCenter;
-        derivativeWidth = 2 .* unitBasis .* derivativeWidth;
+        % u/(1+u²) and u²/(1+u²) are bounded. For the tail,
+        % algebra with 1/u also covers displacement ratios above realmax.
+        q = u .* unitBasis;
+        w = u .* q;
+        tail = abs(u)>1;
+        inv = 1./u(tail);
+        q(tail) = inv./(1+inv.^2);
+        w(tail) = 1./(1+inv.^2);
+        centerNumerator = 2*(peakValues.*q);
+        widthNumerator = 2*(peakValues.*w);
+    else
+        % On a Gaussian tail the polynomial-weighted exponential tends
+        % to zero. Avoid zero * Inf for an overflowing displacement.
+        u(~isfinite(u) & unitBasis==0) = 0;
+        centerNumerator = peakValues.*u;
+        widthNumerator = centerNumerator.*u;
     end
+    derivativeCenter = bsxfun(@rdivide,centerNumerator,widths);
+    derivativeWidth = bsxfun(@rdivide,widthNumerator,widths);
+    derivativeHeight = unitBasis;
     gradientMatrix = zeros(size(params));
     gradientMatrix(:, 1) = -2 .* ...
         sum(bsxfun(@times, derivativeCenter, residual), 2);

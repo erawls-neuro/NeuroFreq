@@ -51,8 +51,7 @@ end
 if isfield(options, 'ag') && ~isempty(options.ag)
     aperiodicGuess = options.ag;
 else
-    aperiodicGuess = (workSpec(1) - workSpec(end)) ./ ...
-        log10(workFreqs(end) ./ workFreqs(1));
+    aperiodicGuess = hnf_specparam_slope_guess(workFreqs,workSpec);
 end
 
 peakType = 'gaussian';
@@ -133,6 +132,16 @@ if any(~isfinite(observed)) || any(~isfinite(fitted))
     return
 end
 
+% Correlation is invariant to independent positive rescaling. Bound
+% both inputs before centering so their squared norms cannot overflow.
+observedScale = max(abs(observed));
+fittedScale = max(abs(fitted));
+if observedScale == 0 || fittedScale == 0
+    rSquare = NaN;
+    return
+end
+observed = observed./observedScale;
+fitted = fitted./fittedScale;
 observedCentered = observed - mean(observed);
 fittedCentered = fitted - mean(fitted);
 

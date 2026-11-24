@@ -52,14 +52,16 @@ if isempty(lags) == 0
     end
 end
 
-if istable(tab) == 1
+if isa(tab, 'table') == 1
     behavior = tab;
 elseif ischar(tab) == 1 || isstring(tab) == 1
     filepath = char(tab);
 
     if exist(filepath, 'file') == 2
         [~,~,extension] = fileparts(filepath);
-        if strcmpi(extension,'.tsv')
+        if exist('OCTAVE_VERSION','builtin')
+            behavior = hnf_octave_readtable(filepath);
+        elseif strcmpi(extension,'.tsv')
             behavior = readtable(filepath,'FileType','text','Delimiter',sprintf('\t'));
         else
             behavior = readtable(filepath);
@@ -144,7 +146,7 @@ elseif ischar(x)
 else
     if iscell(x)
         values = x;
-    elseif isstring(x) || iscategorical(x)
+    elseif isstring(x) || isa(x, 'categorical')
         values = reshape(cellstr(x(:)),dims);
     else
         values = num2cell(x);

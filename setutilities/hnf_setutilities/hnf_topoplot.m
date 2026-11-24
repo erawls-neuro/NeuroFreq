@@ -629,7 +629,11 @@ elseif exist('requestedColormap','var')
 elseif exist('DEFAULT_COLORMAP','var')
     cmap = colormap(DEFAULT_COLORMAP);
 else
-    cmap = parula;
+    if exist('OCTAVE_VERSION','builtin')
+        cmap = viridis(64);
+    else
+        cmap = parula;
+    end
 end
 cmaplen = size(cmap,1);
 

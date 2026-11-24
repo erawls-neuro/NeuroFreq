@@ -44,9 +44,9 @@ if n < 3 || size(data2,1) ~= n || any(~isfinite(data1(:))) || any(~isfinite(data
 end
 dims = size(data1);
 spatial = dims(2:end);
-Z = zscore(double(data1(:,:)),0,1);
-X = zscore(double(data2(:,:)),0,1);
-if any(std(data1(:,:),0,1) == 0) || any(std(data2(:,:),0,1) == 0)
+[Z,constantZ] = hnf_stats_zscore(data1(:,:));
+[X,constantX] = hnf_stats_zscore(data2(:,:));
+if any(constantZ) || any(constantX)
     error('NeuroFreq:UndefinedCorrelation', 'Pearson correlation is undefined for constant inputs.');
 end
 pointwise = strcmpi(corrMode,'pointwise') || ...

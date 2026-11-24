@@ -32,7 +32,7 @@ for ch = 1:2
             case 3, TF = nf_filterhilbert(signal,Fs,foi(2:end-2),0.5);
             case 4, TF = nf_demodulation(signal,Fs,foi);
             case 5
-                if isempty(which('cwt')), fprintf('Skipping CWT: Wavelet Toolbox required.\n'); continue; end
+                if ~exist('OCTAVE_VERSION','builtin') && isempty(which('cwt')), fprintf('Skipping CWT: Wavelet Toolbox required.\n'); continue; end
                 TF = nf_cwt(signal,Fs);
             case 6, TF = nf_dcwt(signal,Fs,foi);
             case 7, TF = nf_stransform(signal,Fs);
@@ -54,8 +54,13 @@ for ch=1:2
     for k=1:numel(names)
         switch k
             case 1
-                if isempty(which('wvd')), fprintf('Skipping Wigner-Ville: wvd required.\n'); continue; end
-                [power,freq,time]=wvd(clip,Fs);
+                if exist('OCTAVE_VERSION','builtin')
+                    [power,freq,time] = hnf_wvd(clip,Fs);
+                elseif ~isempty(which('wvd'))
+                    [power,freq,time] = wvd(clip,Fs);
+                else
+                    fprintf('Skipping Wigner-Ville: wvd required.\n'); continue
+                end
             case 2, TF=nf_ridbinomial(clip,Fs,0.5,0.25);
             case 3, TF=nf_ridbornjordan(clip,Fs,0.5,0.25);
             case 4, TF=nf_ridrihaczek(clip,Fs,0.5);

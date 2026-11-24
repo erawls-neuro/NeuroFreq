@@ -24,11 +24,11 @@ if size(ChN,1) ~= size(stat,1) || any(~isfinite(ChN(:))) || ...
         any(ChN(:) < 0 | ChN(:) > size(stat,1) | fix(ChN(:)) ~= ChN(:))
     error('NeuroFreq:NeighbourMismatch', 'The neighbour matrix must describe every channel in the statistic.');
 end
-if ismatrix(stat)
-    enhanced = ept_mex_TFCE2D(full(double(stat)), full(double(ChN)), full(double(E_H)));
-elseif ndims(stat) == 3
-    enhanced = ept_mex_TFCE3D(full(double(stat)), full(double(ChN)), full(double(E_H)));
-else
+% Native and interpreted integrators use the same signed cluster definition.
+% A positive cluster must never change the seed later used for a negative
+% cluster (the external EPT C code reuses that index while scanning edges).
+if ndims(stat) > 3
     error('NeuroFreq:InvalidTFCEMap', 'Expected a channel, frequency or time map with at most three axes.');
 end
+enhanced = hnf_tfce_integrate(full(double(stat)),full(double(ChN)),full(double(E_H)));
 end

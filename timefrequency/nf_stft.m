@@ -84,7 +84,7 @@ if ~useNative
         indices = starts(frame)+(0:window-1);
         spectrum = fft(bsxfun(@times, data(:,indices,:), taper), nfft, 2);
         spectrum = bsxfun(@times, spectrum(:,1:nFreq,:), gain);
-        power(:,:,frame,:) = reshape(abs(spectrum).^2,nChan,nFreq,1,nTrls);
+        power(:,:,frame,:) = reshape(abs(double(spectrum)).^2,nChan,nFreq,1,nTrls);
         phase(:,:,frame,:) = reshape(angle(spectrum),nChan,nFreq,1,nTrls);
     end
 end
